@@ -70,12 +70,12 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
       {/* Hyper-Minimal White Container (Ref: White Box Login) */}
       <div className="w-full max-w-[390px] sm:max-w-[420px] bg-white rounded-md shadow-2xl p-7 sm:p-10 relative z-10">
-        {/* Samantha Distributor Circular Emblem */}
+        {/* Sunbakers & Confectionary Circular Emblem */}
         <div className="flex justify-center mb-3">
           <img
-            src="/samantha-logo.png"
-            alt="Samantha Distributor"
-            className="w-20 h-20 sm:w-22 sm:h-22 object-contain drop-shadow-md select-none transition-transform hover:scale-105 duration-300"
+            src="/sun-bakers-login-logo.png"
+            alt="Sunbakers & Confectionary"
+            className="w-24 h-24 sm:w-28 sm:h-28 rounded-full object-contain drop-shadow-md select-none transition-transform hover:scale-105 duration-300"
           />
         </div>
 
@@ -83,7 +83,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           Log in
         </h1>
         <p className="text-[11px] text-slate-400 text-center mb-6 font-medium tracking-wide">
-          Samantha Distributor &bull; Fast Reliable Delivery
+          Sunbakers &amp; Confectionary &bull; Fresh Bakery &amp; Distribution
         </p>
 
         {/* Error Alert */}
@@ -203,7 +203,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
       {/* Subtle bottom info */}
       <div className="absolute bottom-4 text-center text-[11px] text-slate-500 font-mono z-10">
-        Samantha Distribution &bull; Powered by J&co. Software Solutions
+        Sunbakers &amp; Confectionary &bull; Powered by J&amp;co. Software Solutions
       </div>
     </div>
   );
