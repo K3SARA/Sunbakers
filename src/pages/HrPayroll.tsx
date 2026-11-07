@@ -303,6 +303,17 @@ export const HrPayroll: React.FC = () => {
     }
   };
 
+  const handleDeleteEmployee = async (id: string, name: string) => {
+    if (!window.confirm(`Are you sure you want to delete staff member "${name}"?`)) return;
+    try {
+      await HrService.deleteEmployee(id);
+      loadEmployees();
+      loadSummary();
+    } catch (e: any) {
+      alert(e.response?.data?.error || 'Failed to delete employee');
+    }
+  };
+
   return (
     <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6">
       {/* Page Title & Quick Action */}
@@ -663,16 +674,25 @@ export const HrPayroll: React.FC = () => {
                             </span>
                           </td>
                           <td className="py-3.5 px-4 text-right">
-                            <button
-                              onClick={() => {
-                                setEditingEmployee(emp);
-                                setIsEmployeeModalOpen(true);
-                              }}
-                              className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                              title="Edit Employee"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                onClick={() => {
+                                  setEditingEmployee(emp);
+                                  setIsEmployeeModalOpen(true);
+                                }}
+                                className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                                title="Edit Employee"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteEmployee(emp.id, emp.fullName)}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                                title="Delete Employee"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );

@@ -289,7 +289,7 @@ export const Settings: React.FC = () => {
 
   const handleWipeDatabase = async () => {
     const confirmed = window.confirm(
-      '⚠️ WARNING: Are you sure you want to completely wipe all demo data?\n\nThis will permanently delete all products, customers, bills, payments, and expenses, leaving a clean business database with only your Administrator login.'
+      '⚠️ WARNING: Are you sure you want to completely wipe all data?\n\nThis will permanently delete all products, customers, bills, payments, staff members, payroll, fleet, and expenses, leaving a clean business database with only your Administrator login.'
     );
     if (!confirmed) return;
 
@@ -1018,8 +1018,8 @@ export const Settings: React.FC = () => {
         {/* Clear Demo Data */}
         <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <span className="text-xs font-bold text-slate-800 block">Clear All Demo & Test Data</span>
-            <span className="text-[11px] text-slate-400">Purge all sample customers, bills, products, and expenses to start completely fresh. Keeps your admin login.</span>
+            <span className="text-xs font-bold text-slate-800 block">Clear All Data (Factory Reset)</span>
+            <span className="text-[11px] text-slate-400">Purge all customers, bills, products, staff records, and expenses to start completely fresh. Keeps your admin login.</span>
           </div>
           <button
             type="button"
@@ -1028,7 +1028,7 @@ export const Settings: React.FC = () => {
             className="py-2 px-3.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold rounded-xl flex items-center gap-1.5 transition shrink-0 self-start sm:self-auto cursor-pointer"
           >
             <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-            <span>Wipe Demo Data</span>
+            <span>Wipe All Data</span>
           </button>
         </div>
       </div>
