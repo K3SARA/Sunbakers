@@ -327,7 +327,7 @@ export const RepBillsSummaryModal: React.FC<RepBillsSummaryModalProps> = ({
           id="printable-summary"
           className="flex-1 overflow-y-auto bg-slate-100/60 p-3 sm:p-5 print:p-0 print:m-0 print:bg-white print:overflow-visible print:max-h-none print:h-auto print:w-full print:border-none print:shadow-none"
         >
-          <div className="receipt-80mm max-w-[340px] w-full mx-auto bg-white p-4 shadow-sm border border-slate-200 rounded-2xl text-black font-mono text-[11px] leading-tight select-text print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full print:w-full print:rounded-none print:bg-white">
+          <div className="receipt-80mm max-w-[340px] w-full mx-auto bg-white p-4 shadow-sm border border-slate-200 rounded-2xl text-black font-mono text-[13px] sm:text-[13.5px] leading-snug select-text print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full print:w-full print:rounded-none print:bg-white">
             {/* Header: Logo & Company details */}
             <div className="text-center space-y-1 pb-2">
               <div className="flex justify-center mb-1">
@@ -338,17 +338,17 @@ export const RepBillsSummaryModal: React.FC<RepBillsSummaryModalProps> = ({
                 />
               </div>
 
-              <h2 className="text-sm sm:text-base font-black tracking-wider uppercase text-black leading-tight">
+              <h2 className="text-base sm:text-lg font-black tracking-wider uppercase text-black leading-tight">
                 {companySettings?.companyName || 'Sunbakers & confectionary'}
               </h2>
-              <p className="text-[10px] text-black font-medium leading-tight">
+              <p className="text-[11.5px] sm:text-[12px] text-black font-semibold leading-tight">
                 {companySettings?.address || '239,kurukutthala ,kadugannawa'}
               </p>
-              <p className="text-[10px] text-black font-bold">
+              <p className="text-[11.5px] sm:text-[12px] text-black font-bold">
                 Tel: {companySettings?.phone || '+94 77 254 9414'}
               </p>
               {companySettings?.registrationNumber && (
-                <p className="text-[9px] text-black">
+                <p className="text-[10.5px] text-black font-medium">
                   Reg/VAT: {companySettings.registrationNumber}
                 </p>
               )}
@@ -356,13 +356,13 @@ export const RepBillsSummaryModal: React.FC<RepBillsSummaryModalProps> = ({
 
             {/* Title */}
             <div className="border-t-2 border-black my-1.5" />
-            <div className="text-center font-bold text-[11px] py-0.5 tracking-wider uppercase">
+            <div className="text-center font-black text-xs sm:text-[13px] py-0.5 tracking-wider uppercase">
               *** SALES REP BILLS SUMMARY ***
             </div>
             <div className="border-t border-black border-dashed my-1.5" />
 
             {/* Rep & Lorry Metadata */}
-            <div className="space-y-0.5 text-[10px]">
+            <div className="space-y-0.5 text-[11.5px] sm:text-[12px]">
               <div className="flex justify-between">
                 <span>Date: {currentDateStr}</span>
                 <span>Time: {currentTimeStr}</span>
@@ -384,7 +384,7 @@ export const RepBillsSummaryModal: React.FC<RepBillsSummaryModalProps> = ({
                 </div>
               )}
               {selectedScope === 'FILTERED' && activeFilter !== 'ALL' && (
-                <div className="text-center font-bold text-[10px] py-0.5 text-blue-700">
+                <div className="text-center font-bold text-[11px] py-0.5 text-blue-700">
                   [Filter: {activeFilter} BILLS ONLY]
                 </div>
               )}
@@ -392,32 +392,32 @@ export const RepBillsSummaryModal: React.FC<RepBillsSummaryModalProps> = ({
 
             {/* KPI Summary Block */}
             <div className="border-t border-black border-dashed my-2" />
-            <div className="space-y-1 text-[11px]">
-              <div className="flex justify-between font-black text-xs sm:text-sm">
+            <div className="space-y-1.5 text-xs sm:text-[12.5px]">
+              <div className="flex justify-between font-black text-base sm:text-lg">
                 <span>TOTAL SALES:</span>
                 <span>{formatMoney(summaryMetrics.totalValue)}</span>
               </div>
-              <div className="flex justify-between text-[10px] text-slate-600">
+              <div className="flex justify-between text-[11px] text-slate-600 font-semibold">
                 <span>Total Bills Issued:</span>
                 <span className="font-bold">{summaryMetrics.totalBills} bills</span>
               </div>
 
               <div className="border-t border-slate-300 my-1" />
 
-              <div className="flex justify-between text-[10.5px]">
+              <div className="flex justify-between text-xs font-bold">
                 <span>Cash Collected ({summaryMetrics.cashCount}):</span>
                 <span className="font-bold text-emerald-800">
                   {formatMoney(summaryMetrics.totalCash)}
                 </span>
               </div>
-              <div className="flex justify-between text-[10.5px]">
+              <div className="flex justify-between text-xs font-bold">
                 <span>Credit Issued ({summaryMetrics.creditCount}):</span>
                 <span className="font-bold text-rose-800">
                   {formatMoney(summaryMetrics.totalCredit)}
                 </span>
               </div>
               {summaryMetrics.totalCheque > 0 && (
-                <div className="flex justify-between text-[10.5px]">
+                <div className="flex justify-between text-xs font-bold">
                   <span>Cheques ({summaryMetrics.chequeCount}):</span>
                   <span className="font-bold text-orange-800">
                     {formatMoney(summaryMetrics.totalCheque)}
@@ -428,17 +428,17 @@ export const RepBillsSummaryModal: React.FC<RepBillsSummaryModalProps> = ({
 
             {/* Itemized Bills Table */}
             <div className="border-t-2 border-black my-2" />
-            <div className="text-center font-bold text-[10px] uppercase tracking-wider pb-1">
+            <div className="text-center font-black text-xs sm:text-[12.5px] uppercase tracking-wider pb-1">
               BILLS BREAKDOWN ({activeBills.length})
             </div>
             <div className="border-t border-black border-dashed mb-1.5" />
 
             {activeBills.length === 0 ? (
-              <div className="py-4 text-center text-[10px] text-slate-400">
+              <div className="py-4 text-center text-xs text-slate-400">
                 No bills recorded for this selection.
               </div>
             ) : (
-              <div className="space-y-2 text-[10px]">
+              <div className="space-y-2 text-[11.5px] sm:text-xs">
                 {activeBills.map((bill, idx) => {
                   const slipNo = bill.paperBillNumber || bill.orderNumber;
                   const time = new Date(bill.createdAt).toLocaleTimeString([], {
@@ -454,18 +454,18 @@ export const RepBillsSummaryModal: React.FC<RepBillsSummaryModalProps> = ({
                       key={bill.id}
                       className="border-b border-slate-200/80 pb-1.5 last:border-b-0 space-y-0.5"
                     >
-                      <div className="flex justify-between font-bold">
+                      <div className="flex justify-between font-black">
                         <span>
                           {idx + 1}. #{slipNo} ({time})
                         </span>
                         <span className="font-mono">{formatMoney(bill.netTotal)}</span>
                       </div>
-                      <div className="flex justify-between text-slate-600">
+                      <div className="flex justify-between text-slate-600 font-medium">
                         <span className="truncate max-w-[190px]">
                           {bill.customer?.companyName || bill.customer?.name}
                         </span>
                         <span
-                          className={`font-semibold text-[9.5px] px-1 rounded ${
+                          className={`font-bold text-[10.5px] px-1 rounded ${
                             isCash
                               ? 'bg-emerald-50 text-emerald-800'
                               : isCheque

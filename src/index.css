@@ -161,9 +161,10 @@
     max-width: 76mm !important;
     margin: 0 auto !important;
     padding: 0 1mm 2mm 1mm !important;
-    font-family: 'Courier New', Courier, monospace !important;
-    font-size: 11px !important;
-    line-height: 1.25 !important;
+    font-family: 'Courier New', Courier, monospace, -apple-system, sans-serif !important;
+    font-size: 13px !important;
+    line-height: 1.35 !important;
+    font-weight: 600 !important;
     color: #000000 !important;
     background: #ffffff !important;
     background-color: #ffffff !important;
