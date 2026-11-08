@@ -142,6 +142,19 @@ export const RepBillsSummaryModal: React.FC<RepBillsSummaryModalProps> = ({
   if (!isOpen) return null;
 
   const handleSystemPrint = () => {
+    const styleId = 'print-page-size-style';
+    let styleTag = document.getElementById(styleId);
+    if (!styleTag) {
+      styleTag = document.createElement('style');
+      styleTag.id = styleId;
+      document.head.appendChild(styleTag);
+    }
+    styleTag.innerHTML = `
+      @page {
+        size: 80mm auto !important;
+        margin: 0mm !important;
+      }
+    `;
     window.print();
   };
 
@@ -192,10 +205,10 @@ export const RepBillsSummaryModal: React.FC<RepBillsSummaryModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 print:p-0 print:bg-white print:static animate-in fade-in"
+      className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 print:p-0 print:m-0 print:bg-white print:static print:inset-auto print:block print:h-auto print:min-h-0 print:overflow-visible print:shadow-none animate-in fade-in"
       style={{ zIndex: 100 }}
     >
-      <div className="bg-white rounded-3xl max-w-lg w-full max-h-[94vh] flex flex-col overflow-hidden shadow-2xl border border-slate-100 print:max-h-none print:shadow-none print:border-none print:w-full print:rounded-none">
+      <div className="bg-white rounded-3xl max-w-lg w-full max-h-[94vh] flex flex-col overflow-hidden shadow-2xl border border-slate-100 print:max-h-none print:shadow-none print:border-none print:w-full print:rounded-none print:p-0 print:m-0 print:overflow-visible print:block">
         {/* Modal Controls Toolbar */}
         <div className="px-4 sm:px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/90 print:hidden shrink-0">
           <div className="flex items-center gap-2">
@@ -312,9 +325,9 @@ export const RepBillsSummaryModal: React.FC<RepBillsSummaryModalProps> = ({
         {/* 80mm Thermal Printable Slip Area */}
         <div
           id="printable-summary"
-          className="flex-1 overflow-y-auto bg-slate-100/60 p-3 sm:p-5 print:p-0 print:bg-white"
+          className="flex-1 overflow-y-auto bg-slate-100/60 p-3 sm:p-5 print:p-0 print:m-0 print:bg-white print:overflow-visible print:max-h-none print:h-auto print:w-full print:border-none print:shadow-none"
         >
-          <div className="receipt-80mm max-w-[340px] w-full mx-auto bg-white p-4 shadow-sm border border-slate-200 rounded-2xl text-black font-mono text-[11px] leading-tight select-text print:shadow-none print:border-none print:p-0 print:max-w-none">
+          <div className="receipt-80mm max-w-[340px] w-full mx-auto bg-white p-4 shadow-sm border border-slate-200 rounded-2xl text-black font-mono text-[11px] leading-tight select-text print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full print:w-full print:rounded-none print:bg-white">
             {/* Header: Logo & Company details */}
             <div className="text-center space-y-1 pb-2">
               <div className="flex justify-center mb-1">

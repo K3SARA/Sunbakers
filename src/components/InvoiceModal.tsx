@@ -44,6 +44,28 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
   if (!order) return null;
 
   const handleSystemPrint = () => {
+    const styleId = 'print-page-size-style';
+    let styleTag = document.getElementById(styleId);
+    if (!styleTag) {
+      styleTag = document.createElement('style');
+      styleTag.id = styleId;
+      document.head.appendChild(styleTag);
+    }
+    if (format === '80mm') {
+      styleTag.innerHTML = `
+        @page {
+          size: 80mm auto !important;
+          margin: 0mm !important;
+        }
+      `;
+    } else {
+      styleTag.innerHTML = `
+        @page {
+          size: A4 portrait !important;
+          margin: 8mm !important;
+        }
+      `;
+    }
     window.print();
   };
 
@@ -81,10 +103,10 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4"
+      className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 print:static print:inset-auto print:bg-white print:p-0 print:m-0 print:block print:h-auto print:min-h-0 print:overflow-visible print:shadow-none"
       style={{ zIndex: 100 }}
     >
-      <div className={`bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full overflow-hidden flex flex-col max-h-[95vh] transition-all duration-200 ${
+      <div className={`bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full overflow-hidden flex flex-col max-h-[95vh] transition-all duration-200 print:max-w-none print:w-full print:rounded-none print:shadow-none print:border-none print:p-0 print:m-0 print:max-h-none print:overflow-visible print:block ${
         format === '80mm' ? 'max-w-md' : 'max-w-2xl'
       }`}>
         {/* Modal Controls Toolbar */}
@@ -189,12 +211,12 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
         )}
 
         {/* Printable Delivery Note & Invoice Body */}
-        <div id="printable-invoice" className="overflow-y-auto bg-slate-100/50 p-2 sm:p-4">
+        <div id="printable-invoice" className="overflow-y-auto bg-slate-100/50 p-2 sm:p-4 print:bg-white print:p-0 print:m-0 print:overflow-visible print:max-h-none print:h-auto print:w-full print:border-none print:shadow-none">
           {format === '80mm' ? (
             /* ========================================================
                80MM THERMAL RECEIPT LAYOUT (OPTIMIZED FOR BLUETOOTH PRINTERS)
                ======================================================== */
-            <div className="receipt-80mm max-w-[320px] w-full mx-auto bg-white p-3.5 sm:p-4 shadow-sm border border-slate-200 rounded-xl text-black font-mono text-[11px] leading-tight select-text">
+            <div className="receipt-80mm max-w-[320px] w-full mx-auto bg-white p-3.5 sm:p-4 shadow-sm border border-slate-200 rounded-xl text-black font-mono text-[11px] leading-tight select-text print:max-w-full print:w-full print:border-none print:shadow-none print:rounded-none print:p-0 print:m-0 print:bg-white">
               {/* Receipt Logo & Header */}
               <div className="text-center space-y-1 pb-2">
                 {/* Sunbakers & Confectionary Logo */}
@@ -422,8 +444,8 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                 </div>
               </div>
 
-              {/* Bottom Thermal Paper Margin */}
-              <div className="pt-4 text-center text-[8px] text-slate-400 print:text-black">
+              {/* Bottom Thermal Paper Margin (Hidden in print to avoid 2nd page feed) */}
+              <div className="pt-2 text-center text-[8px] text-slate-400 print:hidden">
                 - - - - - - - - - - - - - - - - - -
               </div>
             </div>

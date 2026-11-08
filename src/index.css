@@ -66,74 +66,146 @@
 /* Print Styles */
 @media print {
   @page {
-    /* Standard 80mm thermal receipt roll size */
+    /* Standard 80mm continuous thermal roll: zero page margins to avoid blank page feeds */
     size: 80mm auto;
-    margin: 0mm 2mm 5mm 2mm;
+    margin: 0 !important;
   }
 
+  html,
   body {
-    background: white !important;
-    color: black !important;
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
     margin: 0 !important;
     padding: 0 !important;
+    width: 80mm !important;
+    max-width: 80mm !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
 
+  /* Completely hide all app chrome, sidebars, headers, bottom bars, and other non-print elements */
+  #root,
+  header,
+  footer,
   aside,
   nav,
   button,
   .print\:hidden {
-    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* Reset all modal overlays, backdrops, and containers during print so they NEVER print dark/black */
+  .fixed,
+  [class*="fixed"],
+  [class*="backdrop-blur"],
+  [class*="bg-black"],
+  [class*="bg-slate-900"],
+  div[style*="z-index"],
+  div[style*="zIndex"] {
+    position: static !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    inset: auto !important;
+  }
+
+  /* Make ONLY the printable invoice / summary visible and dock it to the very top */
+  #printable-invoice,
+  #printable-invoice *,
+  #printable-summary,
+  #printable-summary * {
+    visibility: visible !important;
   }
 
   #printable-invoice,
   #printable-summary {
-    padding: 0 !important;
-    max-height: none !important;
-    overflow: visible !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
     width: 100% !important;
+    max-width: 80mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    background-color: #ffffff !important;
     box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
   }
 
   /* 80mm Thermal Receipt Container */
   .receipt-80mm {
-    width: 72mm !important;
-    max-width: 72mm !important;
+    width: 100% !important;
+    max-width: 76mm !important;
     margin: 0 auto !important;
-    padding: 2mm 0 !important;
+    padding: 0 1mm 2mm 1mm !important;
     font-family: 'Courier New', Courier, monospace !important;
     font-size: 11px !important;
     line-height: 1.25 !important;
     color: #000000 !important;
     background: #ffffff !important;
+    background-color: #ffffff !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
   }
 
   .receipt-80mm * {
     color: #000000 !important;
+    background: transparent !important;
+    background-color: transparent !important;
     border-color: #000000 !important;
     box-shadow: none !important;
+    border-radius: 0 !important;
   }
 
   /* Force solid black lines on thermal paper */
   .receipt-divider {
     border-top: 1px dashed #000000 !important;
-    margin: 4px 0 !important;
+    margin: 3px 0 !important;
   }
 
   .receipt-divider-double {
     border-top: 2px solid #000000 !important;
-    margin: 4px 0 !important;
+    margin: 3px 0 !important;
   }
 
   /* Thermal Receipt Logo Optimization */
   .receipt-80mm img {
-    filter: grayscale(100%) contrast(140%) !important;
-    -webkit-filter: grayscale(100%) contrast(140%) !important;
-    max-width: 68px !important;
-    max-height: 68px !important;
+    filter: grayscale(100%) contrast(150%) !important;
+    -webkit-filter: grayscale(100%) contrast(150%) !important;
+    max-width: 58px !important;
+    max-height: 58px !important;
     display: block !important;
-    margin: 0 auto 4px auto !important;
+    margin: 0 auto 3px auto !important;
+    background: transparent !important;
+    border: none !important;
   }
 }
 
