@@ -1,0 +1,49 @@
+{
+  "appId": "com.samanthadistributor.app",
+  "productName": "Samantha Distributor",
+  "copyright": "Copyright © 2026 Samantha & Co.",
+  "electronDist": "node_modules/electron/dist",
+  "directories": {
+    "output": "release",
+    "buildResources": "build"
+  },
+  "files": [
+    "dist/**/*",
+    "electron/dist/**/*",
+    "node_modules/.prisma/**/*",
+    "node_modules/@prisma/**/*",
+    "prisma/schema.prisma",
+    "package.json"
+  ],
+  "extraResources": [
+    {
+      "from": "prisma/distributor.db",
+      "to": "prisma/distributor.db"
+    },
+    {
+      "from": "prisma/schema.prisma",
+      "to": "prisma/schema.prisma"
+    },
+    {
+      "from": "build/icon.png",
+      "to": "build/icon.png"
+    }
+  ],
+  "asar": true,
+  "asarUnpack": [
+    "**/node_modules/@prisma/**",
+    "**/node_modules/.prisma/**"
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "portable",
+        "arch": [
+          "x64"
+        ]
+      }
+    ],
+    "icon": "build/icon.png",
+    "artifactName": "${productName} ${version}.${ext}"
+  }
+}

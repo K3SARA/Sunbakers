@@ -2,16 +2,21 @@
   "name": "offline-distributor-management",
   "version": "1.0.0",
   "description": "Offline-first Apple-inspired Desktop Distributor Management Application",
+  "author": "Samantha & Co.",
   "main": "electron/dist/main.js",
   "scripts": {
     "dev:server": "tsx watch server/index.ts",
     "dev:vite": "vite --host",
     "dev:electron": "electron .",
     "dev": "concurrently -k -n \"SERVER,VITE\" -c \"blue,green\" \"npm run dev:server\" \"npm run dev:vite\"",
+    "build:server": "esbuild server/index.ts --bundle --platform=node --target=node20 --outfile=electron/dist/server.bundle.js --external:@prisma/client --external:electron",
     "build:electron": "tsc -p tsconfig.electron.json",
     "build:vite": "vite build",
     "build": "node scripts/prepare-prisma.js && vite build && prisma generate",
-    "build:all": "node scripts/prepare-prisma.js && vite build && prisma generate && npm run build:electron",
+    "build:all": "node scripts/prepare-prisma.js && prisma generate && npm run build:vite && npm run build:server && npm run build:electron",
+    "dist": "npm run build:all && electron-builder --win",
+    "dist:fast": "electron-builder --win",
+    "dist:installer": "node scripts/build-installer.js",
     "start": "node scripts/prepare-prisma.js && npx prisma db push --accept-data-loss && tsx server/index.ts",
     "start:electron": "cross-env NODE_ENV=production electron .",
     "prisma:generate": "prisma generate",
@@ -49,6 +54,7 @@
     "concurrently": "^9.1.0",
     "cross-env": "^7.0.3",
     "electron": "^33.2.1",
-    "electron-builder": "^25.1.8"
+    "electron-builder": "^25.1.8",
+    "esbuild": "^0.28.2"
   }
 }

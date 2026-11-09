@@ -3,6 +3,7 @@ node_modules/
 .env.local
 dist/
 electron/dist/
+release/
 distributor.db
 distributor.db-journal
 *.log
