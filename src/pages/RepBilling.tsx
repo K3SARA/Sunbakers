@@ -45,6 +45,17 @@ interface CartItem {
   discountPercent: number;
 }
 
+export interface RepReturnItem {
+  id: string;
+  productId: string;
+  name: string;
+  unit: string;
+  quantity: number;
+  unitPrice: number;
+  returnType: 'DAMAGE' | 'RESALE';
+  reason?: string;
+}
+
 interface RepBillingProps {
   onViewInvoice?: (order: Order) => void;
   onExitToMenu?: () => void;
@@ -82,6 +93,13 @@ export const RepBilling: React.FC<RepBillingProps> = ({
 
   // Step 2 & Cart
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [returnItems, setReturnItems] = useState<RepReturnItem[]>([]);
+  const [showAddReturnModal, setShowAddReturnModal] = useState<boolean>(false);
+  const [returnSelectedProductId, setReturnSelectedProductId] = useState<string>('');
+  const [returnType, setReturnType] = useState<'DAMAGE' | 'RESALE'>('DAMAGE');
+  const [returnQty, setReturnQty] = useState<number>(1);
+  const [returnUnitPrice, setReturnUnitPrice] = useState<string>('');
+  const [returnReason, setReturnReason] = useState<string>('Stale / Expired');
 
   // Step 3: Brand
   const [selectedBrand, setSelectedBrand] = useState<string>('');
@@ -451,6 +469,103 @@ export const RepBilling: React.FC<RepBillingProps> = ({
     setCart(prev => prev.filter(i => i.productId !== productId));
   };
 
+  // Return Items Management
+  const handleOpenAddReturnModal = () => {
+    const defaultProduct = products[0];
+    if (defaultProduct) {
+      setReturnSelectedProductId(defaultProduct.id);
+      setReturnUnitPrice(defaultProduct.unitPrice.toString());
+    } else {
+      setReturnSelectedProductId('');
+      setReturnUnitPrice('');
+    }
+    setReturnType('DAMAGE');
+    setReturnQty(1);
+    setReturnReason('Stale / Expired');
+    setShowAddReturnModal(true);
+  };
+
+  const handleSelectReturnProduct = (productId: string) => {
+    setReturnSelectedProductId(productId);
+    const prod = products.find(p => p.id === productId);
+    if (prod) {
+      setReturnUnitPrice(prod.unitPrice.toString());
+    }
+  };
+
+  const handleConfirmAddReturn = () => {
+    const prod = products.find(p => p.id === returnSelectedProductId);
+    if (!prod) {
+      alert('Please select a product to return.');
+      return;
+    }
+    const qty = parseInt(returnQty as any, 10) || 0;
+    if (qty <= 0) {
+      alert('Please enter a valid return quantity greater than 0.');
+      return;
+    }
+    const price = parseFloat(returnUnitPrice);
+    const safePrice = isNaN(price) || price < 0 ? prod.unitPrice : price;
+
+    setReturnItems(prev => {
+      const existingIndex = prev.findIndex(r => r.productId === prod.id && r.returnType === returnType);
+      if (existingIndex >= 0) {
+        const next = [...prev];
+        next[existingIndex] = {
+          ...next[existingIndex],
+          quantity: next[existingIndex].quantity + qty,
+          unitPrice: safePrice,
+          reason: returnReason.trim() || next[existingIndex].reason
+        };
+        return next;
+      }
+      return [
+        ...prev,
+        {
+          id: `${prod.id}-${returnType}-${Date.now()}`,
+          productId: prod.id,
+          name: prod.name,
+          unit: prod.unit,
+          quantity: qty,
+          unitPrice: safePrice,
+          returnType,
+          reason: returnReason.trim() || (returnType === 'DAMAGE' ? 'Stale / Expired' : 'Good Resellable')
+        }
+      ];
+    });
+
+    setShowAddReturnModal(false);
+  };
+
+  const updateReturnQty = (id: string, delta: number) => {
+    setReturnItems(prev =>
+      prev
+        .map(i => {
+          if (i.id === id) {
+            const next = i.quantity + delta;
+            return next > 0 ? { ...i, quantity: next } : null;
+          }
+          return i;
+        })
+        .filter(Boolean) as RepReturnItem[]
+    );
+  };
+
+  const setReturnItemQty = (id: string, qty: number) => {
+    setReturnItems(prev =>
+      prev.map(i => {
+        if (i.id === id) {
+          return { ...i, quantity: Math.max(1, qty) };
+        }
+        return i;
+      })
+    );
+  };
+
+  const removeReturnItem = (id: string) => {
+    setReturnItems(prev => prev.filter(i => i.id !== id));
+  };
+
   const cartSubtotal = useMemo(() => {
     return cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
   }, [cart]);
@@ -459,10 +574,18 @@ export const RepBilling: React.FC<RepBillingProps> = ({
     return cart.reduce((sum, item) => sum + item.quantity, 0);
   }, [cart]);
 
+  const totalReturnAmount = useMemo(() => {
+    return returnItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+  }, [returnItems]);
+
+  const totalReturnUnits = useMemo(() => {
+    return returnItems.reduce((sum, item) => sum + item.quantity, 0);
+  }, [returnItems]);
+
   const finalTotal = useMemo(() => {
     const discount = (cartSubtotal * (globalDiscountPercent || 0)) / 100;
-    return Math.max(0, cartSubtotal - discount);
-  }, [cartSubtotal, globalDiscountPercent]);
+    return Math.max(0, cartSubtotal - discount - totalReturnAmount);
+  }, [cartSubtotal, globalDiscountPercent, totalReturnAmount]);
 
   // Date-filtered bills (filtered by selected date range)
   const dateFilteredBills = useMemo(() => {
@@ -530,8 +653,8 @@ export const RepBilling: React.FC<RepBillingProps> = ({
       setCurrentStep(1);
       return;
     }
-    if (cart.length === 0) {
-      setErrorMessage('Please add at least one product to the cart.');
+    if (cart.length === 0 && returnItems.length === 0) {
+      setErrorMessage('Please add at least one product or customer return item.');
       setCurrentStep(3);
       return;
     }
@@ -558,6 +681,14 @@ export const RepBilling: React.FC<RepBillingProps> = ({
         unitPrice: item.unitPrice
       }));
 
+      const returnPayload = returnItems.map(ret => ({
+        productId: ret.productId,
+        quantity: ret.quantity,
+        unitPrice: ret.unitPrice,
+        returnType: ret.returnType,
+        reason: ret.reason
+      }));
+
       const previousBillsPayload =
         billingMethod === 'BILL_TO_BILL' && collectPrevBill && customerUnpaidBills.length > 0 && customerUnpaidBills[0]
           ? [
@@ -573,6 +704,7 @@ export const RepBilling: React.FC<RepBillingProps> = ({
         customerId: selectedCustomerId,
         paymentMethod,
         items: itemsPayload,
+        returnItems: returnPayload,
         discountAmount: (cartSubtotal * (globalDiscountPercent || 0)) / 100,
         discountPercentage: globalDiscountPercent,
         notes: notes.trim() || undefined,
@@ -606,6 +738,7 @@ export const RepBilling: React.FC<RepBillingProps> = ({
 
   const handleStartNewBill = () => {
     setCart([]);
+    setReturnItems([]);
     setSelectedCustomerId('');
     setBillingMethod('NORMAL');
     setCustomerUnpaidBills([]);
@@ -706,13 +839,20 @@ export const RepBilling: React.FC<RepBillingProps> = ({
           <button
             onClick={() => setCurrentStep(2)}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-              cart.length > 0
+              cart.length > 0 || returnItems.length > 0
                 ? 'bg-blue-600 text-white shadow-xs'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
             <ShoppingBag className="w-3.5 h-3.5" />
-            <span>Cart ({totalItemsCount})</span>
+            <span>
+              Cart ({totalItemsCount})
+              {returnItems.length > 0 && (
+                <span className="ml-1 px-1 py-0.2 bg-amber-400 text-slate-900 rounded-full text-[9px] font-black">
+                  -{totalReturnUnits}
+                </span>
+              )}
+            </span>
           </button>
 
           {/* Logout Button */}
@@ -967,10 +1107,10 @@ export const RepBilling: React.FC<RepBillingProps> = ({
                 {/* Next Step Button */}
                 <button
                   type="button"
-                  onClick={() => setCurrentStep(cart.length > 0 ? 2 : 3)}
+                  onClick={() => setCurrentStep(cart.length > 0 || returnItems.length > 0 ? 2 : 3)}
                   className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition active:scale-[0.99]"
                 >
-                  <span>{cart.length > 0 ? 'Go to Cart' : 'Select Brand & Products'}</span>
+                  <span>{cart.length > 0 || returnItems.length > 0 ? 'Go to Cart & Returns' : 'Select Brand & Products'}</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -979,120 +1119,335 @@ export const RepBilling: React.FC<RepBillingProps> = ({
         )}
 
         {/* ======================================================== */}
-        {/* STEP 2: VIEW CART */}
+        {/* STEP 2: VIEW CART & CUSTOMER RETURNS */}
         {/* ======================================================== */}
         {currentStep === 2 && (
-          <div className="space-y-3">
-            {cart.length === 0 ? (
-              <div className="p-8 text-center bg-white border border-slate-200 rounded-2xl space-y-3">
-                <ShoppingBag className="w-10 h-10 text-slate-300 mx-auto" />
-                <p className="text-xs font-bold text-slate-600">Cart is empty</p>
+          <div className="space-y-4">
+            {/* Top Navigation & Fast Actions */}
+            <div className="flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => setCurrentStep(1)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition shadow-2xs cursor-pointer active:scale-95"
+              >
+                <ArrowLeft className="w-3.5 h-3.5 text-slate-500" />
+                <span>Change Customer</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleOpenAddReturnModal}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold transition shadow-xs cursor-pointer active:scale-95"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-slate-950 stroke-[2.5]" />
+                <span>+ Return / Damage</span>
+              </button>
+            </div>
+
+            {/* SECTION 1: FRESH PRODUCTS IN CART */}
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-3.5 shadow-2xs space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-xs">
+                    <ShoppingBag className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-900">Fresh Delivery Products</h3>
+                    <p className="text-[10px] text-slate-400 font-medium">Billed to customer</p>
+                  </div>
+                </div>
+
                 <button
                   type="button"
                   onClick={() => setCurrentStep(3)}
-                  className="px-4 py-2 bg-blue-600 text-white font-bold text-xs rounded-xl shadow-xs"
+                  className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold rounded-lg transition cursor-pointer"
                 >
                   + Add Products
                 </button>
               </div>
-            ) : (
-              <div className="space-y-2">
-                {cart.map(item => {
-                  const lineTotal = item.unitPrice * item.quantity;
-                  return (
-                    <div
-                      key={item.productId}
-                      className="p-3 bg-white border border-slate-200 rounded-xl flex items-center justify-between gap-2 shadow-2xs"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <h4 className="text-xs font-bold text-slate-900 truncate">{item.name}</h4>
-                        <p className="text-[11px] text-slate-500 font-mono">
-                          {formatMoney(item.unitPrice)} / {item.unit}
-                        </p>
-                      </div>
 
-                      <div className="flex items-center gap-2 shrink-0">
-                        {/* Stepper */}
-                        <div className="flex items-center bg-slate-100 rounded-lg p-0.5">
-                          <button
-                            type="button"
-                            onClick={() => updateCartQty(item.productId, -1)}
-                            className="w-7 h-7 bg-white rounded flex items-center justify-center font-bold text-slate-700 shadow-2xs text-xs hover:bg-slate-50 active:scale-95 transition"
-                            title="Decrease quantity"
-                          >
-                            -
-                          </button>
-                          <input
-                            type="number"
-                            min="1"
-                            step="1"
-                            value={item.quantity === 0 ? '' : item.quantity}
-                            onChange={(e) => {
-                              const val = e.target.value === '' ? 0 : parseInt(e.target.value, 10);
-                              setCartItemQty(item.productId, isNaN(val) ? 0 : Math.max(0, val));
-                            }}
-                            onBlur={() => {
-                              if (!item.quantity || item.quantity <= 0) {
-                                setCartItemQty(item.productId, 1);
-                              }
-                            }}
-                            onFocus={(e) => e.target.select()}
-                            className="w-11 h-7 bg-transparent text-center font-mono font-bold text-xs text-slate-900 focus:outline-none focus:bg-white focus:rounded focus:ring-1 focus:ring-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => updateCartQty(item.productId, 1)}
-                            className="w-7 h-7 bg-white rounded flex items-center justify-center font-bold text-slate-700 shadow-2xs text-xs hover:bg-slate-50 active:scale-95 transition"
-                            title="Increase quantity"
-                          >
-                            +
-                          </button>
-                        </div>
-
-                        {/* Line Total */}
-                        <span className="w-16 text-right font-mono font-bold text-xs text-slate-900">
-                          {formatMoney(lineTotal)}
-                        </span>
-
-                        {/* Trash */}
-                        <button
-                          type="button"
-                          onClick={() => removeCartItem(item.productId)}
-                          className="p-1 text-slate-300 hover:text-red-500"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {/* Subtotal Bar */}
-                <div className="p-3 bg-slate-100 rounded-xl flex items-center justify-between font-bold text-xs">
-                  <span className="text-slate-600">Total ({totalItemsCount} items)</span>
-                  <span className="font-mono text-sm text-blue-600">{formatMoney(cartSubtotal)}</span>
-                </div>
-
-                {/* Actions */}
-                <div className="grid grid-cols-2 gap-2 pt-1">
+              {cart.length === 0 ? (
+                <div className="p-4 text-center bg-slate-50/70 border border-dashed border-slate-200 rounded-xl space-y-2">
+                  <p className="text-xs font-medium text-slate-500">No fresh products added to cart</p>
                   <button
                     type="button"
                     onClick={() => setCurrentStep(3)}
-                    className="py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50"
+                    className="px-3 py-1.5 bg-blue-600 text-white font-bold text-xs rounded-lg shadow-2xs inline-flex items-center gap-1 cursor-pointer"
                   >
-                    + Add More
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCurrentStep(5)}
-                    className="py-2.5 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 shadow-xs flex items-center justify-center gap-1"
-                  >
-                    <span>Checkout</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
+                    <span>Browse Products</span>
+                    <ArrowRight className="w-3 h-3" />
                   </button>
                 </div>
+              ) : (
+                <div className="space-y-2">
+                  {cart.map(item => {
+                    const lineTotal = item.unitPrice * item.quantity;
+                    return (
+                      <div
+                        key={item.productId}
+                        className="p-2.5 bg-slate-50/70 border border-slate-200/80 rounded-xl flex items-center justify-between gap-2"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <h4 className="text-xs font-bold text-slate-900 truncate">{item.name}</h4>
+                          <p className="text-[11px] text-slate-500 font-mono">
+                            {formatMoney(item.unitPrice)} / {item.unit}
+                            {item.freeQuantity > 0 && (
+                              <span className="ml-1 text-[10px] font-bold text-emerald-600">
+                                +{item.freeQuantity} Free
+                              </span>
+                            )}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          {/* Stepper */}
+                          <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5">
+                            <button
+                              type="button"
+                              onClick={() => updateCartQty(item.productId, -1)}
+                              className="w-7 h-7 bg-slate-50 rounded flex items-center justify-center font-bold text-slate-700 text-xs hover:bg-slate-100 active:scale-95 transition"
+                              title="Decrease quantity"
+                            >
+                              -
+                            </button>
+                            <input
+                              type="number"
+                              min="1"
+                              step="1"
+                              value={item.quantity === 0 ? '' : item.quantity}
+                              onChange={(e) => {
+                                const val = e.target.value === '' ? 0 : parseInt(e.target.value, 10);
+                                setCartItemQty(item.productId, isNaN(val) ? 0 : Math.max(0, val));
+                              }}
+                              onBlur={() => {
+                                if (!item.quantity || item.quantity <= 0) {
+                                  setCartItemQty(item.productId, 1);
+                                }
+                              }}
+                              onFocus={(e) => e.target.select()}
+                              className="w-11 h-7 bg-transparent text-center font-mono font-bold text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => updateCartQty(item.productId, 1)}
+                              className="w-7 h-7 bg-slate-50 rounded flex items-center justify-center font-bold text-slate-700 text-xs hover:bg-slate-100 active:scale-95 transition"
+                              title="Increase quantity"
+                            >
+                              +
+                            </button>
+                          </div>
+
+                          {/* Line Total */}
+                          <span className="w-16 text-right font-mono font-bold text-xs text-slate-900">
+                            {formatMoney(lineTotal)}
+                          </span>
+
+                          {/* Trash */}
+                          <button
+                            type="button"
+                            onClick={() => removeCartItem(item.productId)}
+                            className="p-1 text-slate-300 hover:text-red-500 transition cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  <div className="pt-1 flex items-center justify-between text-xs font-semibold text-slate-600 px-1">
+                    <span>Products Subtotal ({totalItemsCount} units):</span>
+                    <span className="font-mono font-bold text-slate-900">{formatMoney(cartSubtotal)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* SECTION 2: CUSTOMER RETURNS & DAMAGED GOODS */}
+            <div className="bg-white border border-amber-200/90 rounded-2xl p-3.5 shadow-2xs space-y-3">
+              <div className="flex items-center justify-between border-b border-amber-100 pb-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-xs">
+                    <RotateCcw className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                      <span>Customer Returns & Damages</span>
+                      {returnItems.length > 0 && (
+                        <span className="bg-rose-100 text-rose-700 px-1.5 py-0.2 rounded-md text-[10px] font-mono font-bold">
+                          {returnItems.length}
+                        </span>
+                      )}
+                    </h3>
+                    <p className="text-[10px] text-amber-700/80 font-medium">Stale bread, expired items & credits deducted</p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleOpenAddReturnModal}
+                  className="px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 text-[11px] font-bold rounded-lg transition cursor-pointer flex items-center gap-1"
+                >
+                  <Plus className="w-3 h-3 stroke-[3]" />
+                  <span>Add Return</span>
+                </button>
               </div>
-            )}
+
+              {returnItems.length === 0 ? (
+                <div className="p-3.5 text-center bg-amber-50/40 border border-dashed border-amber-200 rounded-xl space-y-2">
+                  <p className="text-xs text-amber-900/80 font-medium">
+                    No customer returns or stale items recorded yet.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleOpenAddReturnModal}
+                    className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-lg shadow-2xs inline-flex items-center gap-1 transition cursor-pointer"
+                  >
+                    <RotateCcw className="w-3 h-3 text-slate-950" />
+                    <span>Record Customer Return / Stale Bread</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {returnItems.map(ret => {
+                    const lineCredit = ret.unitPrice * ret.quantity;
+                    const isDamage = ret.returnType === 'DAMAGE';
+                    return (
+                      <div
+                        key={ret.id}
+                        className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 ${
+                          isDamage ? 'bg-rose-50/50 border-rose-200/80' : 'bg-emerald-50/50 border-emerald-200/80'
+                        }`}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider ${
+                              isDamage ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'
+                            }`}>
+                              {isDamage ? '💥 Damage / Expired' : '✨ Good Resale'}
+                            </span>
+                            {ret.reason && (
+                              <span className="text-[10px] text-slate-500 italic truncate">
+                                • {ret.reason}
+                              </span>
+                            )}
+                          </div>
+                          <h4 className="text-xs font-bold text-slate-900 truncate">{ret.name}</h4>
+                          <p className="text-[11px] text-slate-500 font-mono">
+                            Credit rate: {formatMoney(ret.unitPrice)} / {ret.unit}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          {/* Stepper */}
+                          <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5">
+                            <button
+                              type="button"
+                              onClick={() => updateReturnQty(ret.id, -1)}
+                              className="w-7 h-7 bg-slate-50 rounded flex items-center justify-center font-bold text-slate-700 text-xs hover:bg-slate-100 active:scale-95 transition"
+                              title="Decrease return quantity"
+                            >
+                              -
+                            </button>
+                            <input
+                              type="number"
+                              min="1"
+                              step="1"
+                              value={ret.quantity === 0 ? '' : ret.quantity}
+                              onChange={(e) => {
+                                const val = e.target.value === '' ? 0 : parseInt(e.target.value, 10);
+                                setReturnItemQty(ret.id, isNaN(val) ? 0 : Math.max(0, val));
+                              }}
+                              onBlur={() => {
+                                if (!ret.quantity || ret.quantity <= 0) {
+                                  setReturnItemQty(ret.id, 1);
+                                }
+                              }}
+                              onFocus={(e) => e.target.select()}
+                              className="w-11 h-7 bg-transparent text-center font-mono font-bold text-xs text-rose-600 focus:outline-none focus:ring-1 focus:ring-rose-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => updateReturnQty(ret.id, 1)}
+                              className="w-7 h-7 bg-slate-50 rounded flex items-center justify-center font-bold text-slate-700 text-xs hover:bg-slate-100 active:scale-95 transition"
+                              title="Increase return quantity"
+                            >
+                              +
+                            </button>
+                          </div>
+
+                          {/* Line Total */}
+                          <span className="w-16 text-right font-mono font-bold text-xs text-rose-600">
+                            -{formatMoney(lineCredit)}
+                          </span>
+
+                          {/* Trash */}
+                          <button
+                            type="button"
+                            onClick={() => removeReturnItem(ret.id)}
+                            className="p-1 text-slate-300 hover:text-red-500 transition cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  <div className="pt-1 flex items-center justify-between text-xs font-semibold text-rose-700 px-1">
+                    <span>Total Return Deductions ({totalReturnUnits} units):</span>
+                    <span className="font-mono font-bold text-rose-700">-{formatMoney(totalReturnAmount)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* SECTION 3: NET SUMMARY & ACTIONS */}
+            <div className="p-3.5 bg-slate-900 text-white rounded-2xl space-y-2 shadow-sm">
+              <div className="flex justify-between text-xs text-slate-300 font-medium">
+                <span>Products Subtotal:</span>
+                <span className="font-mono font-semibold text-white">{formatMoney(cartSubtotal)}</span>
+              </div>
+              {totalReturnAmount > 0 && (
+                <div className="flex justify-between text-xs text-amber-300 font-medium">
+                  <span>Less Returns / Damaged Credit:</span>
+                  <span className="font-mono font-bold text-rose-400">-{formatMoney(totalReturnAmount)}</span>
+                </div>
+              )}
+              <div className="border-t border-slate-700/80 pt-2 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+                    Net Bill Amount
+                  </span>
+                  <span className="font-mono text-lg font-bold text-emerald-400">
+                    {formatMoney(finalTotal)}
+                  </span>
+                </div>
+                <span className="text-[10px] text-slate-400 font-mono">
+                  {cart.length} items • {returnItems.length} returns
+                </span>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setCurrentStep(3)}
+                className="py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+              >
+                + Add More Products
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentStep(5)}
+                disabled={cart.length === 0 && returnItems.length === 0}
+                className="py-2.5 bg-blue-600 disabled:opacity-50 text-white rounded-xl text-xs font-bold hover:bg-blue-700 shadow-xs flex items-center justify-center gap-1 transition cursor-pointer"
+              >
+                <span>Proceed to Checkout</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         )}
 
@@ -1130,19 +1485,20 @@ export const RepBilling: React.FC<RepBillingProps> = ({
             <div className="flex items-center justify-between pt-2">
               <button
                 type="button"
-                onClick={() => setCurrentStep(cart.length > 0 ? 2 : 1)}
+                onClick={() => setCurrentStep(cart.length > 0 || returnItems.length > 0 ? 2 : 1)}
                 className="py-2 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600"
               >
                 ← Back
               </button>
 
-              {cart.length > 0 && (
+              {(cart.length > 0 || returnItems.length > 0) && (
                 <button
                   type="button"
                   onClick={() => setCurrentStep(2)}
-                  className="py-2 px-3 bg-blue-600 text-white rounded-xl text-xs font-bold shadow-xs"
+                  className="py-2 px-3 bg-blue-600 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1"
                 >
-                  View Cart ({totalItemsCount}) →
+                  <span>Cart & Returns ({totalItemsCount + totalReturnUnits})</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
@@ -1268,10 +1624,10 @@ export const RepBilling: React.FC<RepBillingProps> = ({
               <button
                 type="button"
                 onClick={() => setCurrentStep(2)}
-                disabled={cart.length === 0}
-                className="py-2.5 px-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5"
+                disabled={cart.length === 0 && returnItems.length === 0}
+                className="py-2.5 px-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
               >
-                <span>View Cart ({totalItemsCount})</span>
+                <span>View Cart & Returns ({totalItemsCount + totalReturnUnits})</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -1310,33 +1666,80 @@ export const RepBilling: React.FC<RepBillingProps> = ({
                 <p className="text-[10px] text-slate-400 font-bold uppercase">Customer</p>
                 <h3 className="text-xs font-bold text-slate-900">{selectedCustomer?.name}</h3>
               </div>
-              <button
-                type="button"
-                onClick={() => setCurrentStep(3)}
-                className="px-2.5 py-1 bg-slate-100 text-slate-700 font-bold text-[11px] rounded-lg"
-              >
-                + Add Product
-              </button>
-            </div>
-
-            {/* Items Summary Table */}
-            <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-2">
-              <div className="text-[10px] font-bold text-slate-400 uppercase pb-1 border-b border-slate-100 flex justify-between">
-                <span>Items ({cart.length})</span>
-                <span>Price</span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={handleOpenAddReturnModal}
+                  className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-[11px] rounded-lg border border-amber-200 transition cursor-pointer flex items-center gap-1"
+                >
+                  <RotateCcw className="w-3 h-3 text-amber-700" />
+                  <span>+ Return</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCurrentStep(3)}
+                  className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] rounded-lg transition cursor-pointer"
+                >
+                  + Product
+                </button>
               </div>
-
-              {cart.map(item => (
-                <div key={item.productId} className="flex items-center justify-between text-xs py-0.5">
-                  <span className="text-slate-800 font-medium truncate pr-2">
-                    {item.name} × {item.quantity}
-                  </span>
-                  <span className="font-mono font-bold text-slate-900 shrink-0">
-                    {formatMoney(item.unitPrice * item.quantity)}
-                  </span>
-                </div>
-              ))}
             </div>
+
+            {/* Fresh Items Summary Table */}
+            {cart.length > 0 ? (
+              <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-2">
+                <div className="text-[10px] font-bold text-slate-400 uppercase pb-1 border-b border-slate-100 flex justify-between">
+                  <span>Fresh Delivery Items ({cart.length})</span>
+                  <span>Price</span>
+                </div>
+
+                {cart.map(item => (
+                  <div key={item.productId} className="flex items-center justify-between text-xs py-0.5">
+                    <span className="text-slate-800 font-medium truncate pr-2">
+                      {item.name} × {item.quantity}
+                      {item.freeQuantity > 0 && (
+                        <span className="text-[10px] text-emerald-600 font-bold ml-1">
+                          (+{item.freeQuantity} free)
+                        </span>
+                      )}
+                    </span>
+                    <span className="font-mono font-bold text-slate-900 shrink-0">
+                      {formatMoney(item.unitPrice * item.quantity)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-center text-xs text-slate-500 font-medium">
+                No delivery items (Customer Return / Stale Bread Bill)
+              </div>
+            )}
+
+            {/* Customer Returns Summary Table */}
+            {returnItems.length > 0 && (
+              <div className="p-3 bg-rose-50/40 border border-rose-200/90 rounded-xl space-y-2">
+                <div className="text-[10px] font-bold text-rose-800 uppercase pb-1 border-b border-rose-200/60 flex justify-between">
+                  <span>Customer Returns & Damages ({returnItems.length})</span>
+                  <span>Deduction</span>
+                </div>
+
+                {returnItems.map(ret => (
+                  <div key={ret.id} className="flex items-center justify-between text-xs py-0.5">
+                    <div className="min-w-0 pr-2">
+                      <span className="text-slate-800 font-medium truncate block">
+                        [{ret.returnType === 'DAMAGE' ? 'DMG' : 'RESALE'}] {ret.name} × {ret.quantity}
+                      </span>
+                      {ret.reason && (
+                        <span className="text-[10px] text-slate-400 italic block">{ret.reason}</span>
+                      )}
+                    </div>
+                    <span className="font-mono font-bold text-rose-600 shrink-0">
+                      -{formatMoney(ret.unitPrice * ret.quantity)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Payment Method Selector */}
             <div className="space-y-1">
@@ -1427,6 +1830,20 @@ export const RepBilling: React.FC<RepBillingProps> = ({
                       </button>
                     ))}
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Calculation Breakdown */}
+            {totalReturnAmount > 0 && (
+              <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-1.5 text-xs">
+                <div className="flex justify-between text-slate-600">
+                  <span>Gross Delivery Subtotal:</span>
+                  <span className="font-mono font-bold text-slate-800">{formatMoney(cartSubtotal)}</span>
+                </div>
+                <div className="flex justify-between text-rose-600 font-bold">
+                  <span>Customer Returns / Damage Credit:</span>
+                  <span className="font-mono">-{formatMoney(totalReturnAmount)}</span>
                 </div>
               </div>
             )}
@@ -1700,6 +2117,223 @@ export const RepBilling: React.FC<RepBillingProps> = ({
             >
               Close & Return to Billing
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* RECORD CUSTOMER RETURN / DAMAGE MODAL */}
+      {showAddReturnModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full p-5 shadow-2xl border border-slate-100 space-y-4 my-8">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
+                  <RotateCcw className="w-5 h-5 stroke-[2.5]" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Record Return / Damage</h3>
+                  <p className="text-[11px] text-slate-500 font-medium">Deduct credit from customer bill</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddReturnModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Form Fields */}
+            <div className="space-y-3.5">
+              {/* Product Selector */}
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                  Select Bakery Product <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={returnSelectedProductId}
+                  onChange={(e) => handleSelectReturnProduct(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                >
+                  <option value="" disabled>-- Select Product --</option>
+                  {products.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.sku}) — {formatMoney(p.unitPrice)} / {p.unit}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Condition / Return Type */}
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                  Item Condition / Return Classification
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReturnType('DAMAGE');
+                      if (returnReason === 'Good Condition Return') setReturnReason('Stale / Expired');
+                    }}
+                    className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                      returnType === 'DAMAGE'
+                        ? 'bg-rose-50 border-rose-300 ring-2 ring-rose-500/30'
+                        : 'bg-white border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="font-bold text-xs text-rose-700 flex items-center gap-1.5">
+                      <span>💥 Damaged / Expired</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-0.5">
+                      Unsellable / Stale bread. Sent to damage stock.
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReturnType('RESALE');
+                      if (returnReason === 'Stale / Expired') setReturnReason('Good Condition Return');
+                    }}
+                    className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                      returnType === 'RESALE'
+                        ? 'bg-emerald-50 border-emerald-300 ring-2 ring-emerald-500/30'
+                        : 'bg-white border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="font-bold text-xs text-emerald-700 flex items-center gap-1.5">
+                      <span>✨ Good Condition</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-0.5">
+                      Fresh / Sealed. Restocks back into sellable inventory.
+                    </p>
+                  </button>
+                </div>
+              </div>
+
+              {/* Quantity Stepper & Direct Input */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                    Return Qty <span className="text-red-500">*</span>
+                  </label>
+                  <div className="flex items-center bg-slate-100 border border-slate-200 rounded-xl p-1">
+                    <button
+                      type="button"
+                      onClick={() => setReturnQty(Math.max(1, returnQty - 1))}
+                      className="w-8 h-8 bg-white rounded-lg flex items-center justify-center font-bold text-slate-700 text-sm shadow-2xs hover:bg-slate-50 active:scale-95 transition cursor-pointer"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={returnQty === 0 ? '' : returnQty}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        setReturnQty(isNaN(val) ? 1 : Math.max(1, val));
+                      }}
+                      className="w-full bg-transparent text-center font-mono font-bold text-sm text-slate-900 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setReturnQty(returnQty + 1)}
+                      className="w-8 h-8 bg-white rounded-lg flex items-center justify-center font-bold text-slate-700 text-sm shadow-2xs hover:bg-slate-50 active:scale-95 transition cursor-pointer"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                    Credit Unit Price (Rs.)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={returnUnitPrice}
+                    onChange={(e) => setReturnUnitPrice(e.target.value)}
+                    placeholder="Rate..."
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* Quick Reason Chips */}
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                  Reason for Return
+                </label>
+                <div className="flex flex-wrap gap-1 mb-2">
+                  {[
+                    'Stale / Expired',
+                    'Crushed / Damaged',
+                    'Mold / Spoilage',
+                    'Overstock Return',
+                    'Wrong Item Delivered'
+                  ].map(reason => (
+                    <button
+                      key={reason}
+                      type="button"
+                      onClick={() => setReturnReason(reason)}
+                      className={`text-[10px] px-2.5 py-1 rounded-lg font-medium transition cursor-pointer ${
+                        returnReason === reason
+                          ? 'bg-amber-600 text-white font-bold'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {reason}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="text"
+                  value={returnReason}
+                  onChange={(e) => setReturnReason(e.target.value)}
+                  placeholder="Or enter custom reason..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Total Deduction Preview Box */}
+              <div className="p-3 bg-rose-50 border border-rose-200/90 rounded-2xl flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-bold text-rose-800 uppercase tracking-wider block">
+                    Calculated Return Credit
+                  </span>
+                  <span className="text-xs text-slate-600">
+                    {returnQty} × Rs. {parseFloat(returnUnitPrice) || 0}
+                  </span>
+                </div>
+                <span className="font-mono text-base font-bold text-rose-700">
+                  -{formatMoney((parseFloat(returnUnitPrice) || 0) * (returnQty || 0))}
+                </span>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowAddReturnModal(false)}
+                className="py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmAddReturn}
+                className="py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold rounded-xl shadow-xs transition cursor-pointer active:scale-98"
+              >
+                Add to Returns List
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -2420,80 +2420,82 @@ app.post('/api/lorries/:id/bills', async (req: Request, res: Response) => {
       const orderItemsToCreate = [];
 
       // Validate Lorry floating inventory
-      for (const item of items) {
-        const qty = parseInt(item.quantity, 10) || 0;
-        const freeQty = parseInt(item.freeQuantity, 10) || 0;
-        if (qty <= 0 && freeQty <= 0) continue;
+      if (Array.isArray(items)) {
+        for (const item of items) {
+          const qty = parseInt(item.quantity, 10) || 0;
+          const freeQty = parseInt(item.freeQuantity, 10) || 0;
+          if (qty <= 0 && freeQty <= 0) continue;
 
-        const totalNeeded = qty + freeQty;
+          const totalNeeded = qty + freeQty;
 
-        const lorryStock = await tx.lorryStock.findUnique({
-          where: {
-            lorryId_productId: {
-              lorryId,
-              productId: item.productId
-            }
-          },
-          include: { product: true }
-        });
-
-        const product = lorryStock?.product || await tx.product.findUniqueOrThrow({ where: { id: item.productId } });
-        const availableRegular = lorryStock?.quantity || 0;
-        const availableFree = lorryStock?.freeQuantity || 0;
-        const totalAvailable = availableRegular + availableFree;
-
-        if (totalAvailable < totalNeeded) {
-          throw new Error(
-            `Insufficient stock on Lorry ${lorry.vehicleNumber} for "${product.name}". Available in lorry: ${availableRegular} regular + ${availableFree} free (${totalAvailable} total), bill requires: ${qty} sold + ${freeQty} free (${totalNeeded} total)`
-          );
-        }
-
-        const itemUnitPrice = item.unitPrice !== undefined && !isNaN(parseFloat(item.unitPrice)) && parseFloat(item.unitPrice) >= 0
-          ? parseFloat(item.unitPrice)
-          : product.unitPrice;
-
-        // Line total and invoice subtotal strictly reflect billed units; promotional free units cost Rs. 0.00
-        const lineTotal = itemUnitPrice * qty;
-        subtotal += lineTotal;
-
-        orderItemsToCreate.push({
-          productId: product.id,
-          quantity: qty,
-          freeQuantity: freeQty,
-          unitPrice: itemUnitPrice,
-          lineTotal
-        });
-
-        // 1. Deduct from Lorry Floating Stock:
-        // Free issue units deduct from freeQuantity bucket first; remainder deducts from regular stock
-        const deductFromFree = Math.min(availableFree, freeQty);
-        const freeRemainder = freeQty - deductFromFree;
-        const deductFromRegular = qty + freeRemainder;
-
-        await tx.lorryStock.update({
-          where: {
-            lorryId_productId: {
-              lorryId,
-              productId: item.productId
-            }
-          },
-          data: {
-            quantity: deductFromRegular > 0 ? { decrement: deductFromRegular } : undefined,
-            freeQuantity: deductFromFree > 0 ? { decrement: deductFromFree } : undefined
-          }
-        });
-
-        // 2. Update active loading sheet sold & free quantities if exists
-        if (activeLoading) {
-          const loadingItem = activeLoading.items.find(li => li.productId === item.productId);
-          if (loadingItem) {
-            await tx.lorryLoadingItem.update({
-              where: { id: loadingItem.id },
-              data: {
-                soldQty: { increment: qty },
-                freeQty: { increment: freeQty }
+          const lorryStock = await tx.lorryStock.findUnique({
+            where: {
+              lorryId_productId: {
+                lorryId,
+                productId: item.productId
               }
-            });
+            },
+            include: { product: true }
+          });
+
+          const product = lorryStock?.product || await tx.product.findUniqueOrThrow({ where: { id: item.productId } });
+          const availableRegular = lorryStock?.quantity || 0;
+          const availableFree = lorryStock?.freeQuantity || 0;
+          const totalAvailable = availableRegular + availableFree;
+
+          if (totalAvailable < totalNeeded) {
+            throw new Error(
+              `Insufficient stock on Lorry ${lorry.vehicleNumber} for "${product.name}". Available in lorry: ${availableRegular} regular + ${availableFree} free (${totalAvailable} total), bill requires: ${qty} sold + ${freeQty} free (${totalNeeded} total)`
+            );
+          }
+
+          const itemUnitPrice = item.unitPrice !== undefined && !isNaN(parseFloat(item.unitPrice)) && parseFloat(item.unitPrice) >= 0
+            ? parseFloat(item.unitPrice)
+            : product.unitPrice;
+
+          // Line total and invoice subtotal strictly reflect billed units; promotional free units cost Rs. 0.00
+          const lineTotal = itemUnitPrice * qty;
+          subtotal += lineTotal;
+
+          orderItemsToCreate.push({
+            productId: product.id,
+            quantity: qty,
+            freeQuantity: freeQty,
+            unitPrice: itemUnitPrice,
+            lineTotal
+          });
+
+          // 1. Deduct from Lorry Floating Stock:
+          // Free issue units deduct from freeQuantity bucket first; remainder deducts from regular stock
+          const deductFromFree = Math.min(availableFree, freeQty);
+          const freeRemainder = freeQty - deductFromFree;
+          const deductFromRegular = qty + freeRemainder;
+
+          await tx.lorryStock.update({
+            where: {
+              lorryId_productId: {
+                lorryId,
+                productId: item.productId
+              }
+            },
+            data: {
+              quantity: deductFromRegular > 0 ? { decrement: deductFromRegular } : undefined,
+              freeQuantity: deductFromFree > 0 ? { decrement: deductFromFree } : undefined
+            }
+          });
+
+          // 2. Update active loading sheet sold & free quantities if exists
+          if (activeLoading) {
+            const loadingItem = activeLoading.items.find(li => li.productId === item.productId);
+            if (loadingItem) {
+              await tx.lorryLoadingItem.update({
+                where: { id: loadingItem.id },
+                data: {
+                  soldQty: { increment: qty },
+                  freeQty: { increment: freeQty }
+                }
+              });
+            }
           }
         }
       }
@@ -2671,13 +2673,21 @@ app.post('/api/lorries/:id/bills', async (req: Request, res: Response) => {
         });
       }
 
-      // 4. Update Customer Outstanding Balance if credit/unpaid on current order
+      // 4. Update Customer Outstanding Balance if credit/unpaid on current order, or reduce if excess return credit
       const creditAmount = balanceAmount;
       if (creditAmount > 0) {
         await tx.customer.update({
           where: { id: customerId },
           data: { outstandingBalance: { increment: creditAmount } }
         });
+      } else if (returnAmount > (subtotal - discountAmount)) {
+        const excessReturnCredit = returnAmount - Math.max(0, subtotal - discountAmount);
+        if (excessReturnCredit > 0) {
+          await tx.customer.update({
+            where: { id: customerId },
+            data: { outstandingBalance: { decrement: excessReturnCredit } }
+          });
+        }
       }
 
       // 5. Process Previous Bill Clearance (Bill-to-Bill Knock-off collected on this delivery visit)
@@ -3745,81 +3755,83 @@ app.post('/api/orders', async (req: Request, res: Response) => {
       let totalFreeUnits = 0;
       const orderItemsToCreate = [];
 
-      for (const item of items) {
-        const product = await tx.product.findUniqueOrThrow({ where: { id: item.productId } });
-        const qty = parseInt(item.quantity, 10) || 0;
-        const freeQty = parseInt(item.freeQuantity, 10) || 0;
-        const totalNeeded = qty + freeQty;
+      if (Array.isArray(items)) {
+        for (const item of items) {
+          const product = await tx.product.findUniqueOrThrow({ where: { id: item.productId } });
+          const qty = parseInt(item.quantity, 10) || 0;
+          const freeQty = parseInt(item.freeQuantity, 10) || 0;
+          const totalNeeded = qty + freeQty;
 
-        if (qty <= 0 && freeQty <= 0) continue;
+          if (qty <= 0 && freeQty <= 0) continue;
 
-        const availableRegular = product.currentStock;
-        const availableFree = product.freeStock;
-        const totalAvailable = availableRegular + availableFree;
+          const availableRegular = product.currentStock;
+          const availableFree = product.freeStock;
+          const totalAvailable = availableRegular + availableFree;
 
-        if (totalAvailable < totalNeeded) {
-          throw new Error(
-            `Insufficient warehouse stock for "${product.name}". Available: ${availableRegular} regular + ${availableFree} free (${totalAvailable} total), required: ${qty} sold + ${freeQty} free (${totalNeeded} total)`
-          );
-        }
-
-        const itemUnitPrice = item.unitPrice !== undefined && !isNaN(parseFloat(item.unitPrice)) && parseFloat(item.unitPrice) >= 0
-          ? parseFloat(item.unitPrice)
-          : product.unitPrice;
-
-        // Line total and invoice subtotal strictly reflect billed units; promotional free units cost Rs. 0.00
-        const lineTotal = itemUnitPrice * qty;
-        subtotal += lineTotal;
-        totalBilledUnits += qty;
-        totalFreeUnits += freeQty;
-
-        orderItemsToCreate.push({
-          productId: product.id,
-          quantity: qty,
-          freeQuantity: freeQty,
-          unitPrice: itemUnitPrice,
-          lineTotal
-        });
-
-        // Deduct from Warehouse Stock (Promotional free units consume freeStock first)
-        const deductFromFree = Math.min(availableFree, freeQty);
-        const freeRemainder = freeQty - deductFromFree;
-        const deductFromRegular = qty + freeRemainder;
-
-        await tx.product.update({
-          where: { id: product.id },
-          data: {
-            currentStock: deductFromRegular > 0 ? { decrement: deductFromRegular } : undefined,
-            freeStock: deductFromFree > 0 ? { decrement: deductFromFree } : undefined
+          if (totalAvailable < totalNeeded) {
+            throw new Error(
+              `Insufficient warehouse stock for "${product.name}". Available: ${availableRegular} regular + ${availableFree} free (${totalAvailable} total), required: ${qty} sold + ${freeQty} free (${totalNeeded} total)`
+            );
           }
-        });
 
-        if (deductFromRegular > 0) {
-          await tx.stockMovement.create({
+          const itemUnitPrice = item.unitPrice !== undefined && !isNaN(parseFloat(item.unitPrice)) && parseFloat(item.unitPrice) >= 0
+            ? parseFloat(item.unitPrice)
+            : product.unitPrice;
+
+          // Line total and invoice subtotal strictly reflect billed units; promotional free units cost Rs. 0.00
+          const lineTotal = itemUnitPrice * qty;
+          subtotal += lineTotal;
+          totalBilledUnits += qty;
+          totalFreeUnits += freeQty;
+
+          orderItemsToCreate.push({
+            productId: product.id,
+            quantity: qty,
+            freeQuantity: freeQty,
+            unitPrice: itemUnitPrice,
+            lineTotal
+          });
+
+          // Deduct from Warehouse Stock (Promotional free units consume freeStock first)
+          const deductFromFree = Math.min(availableFree, freeQty);
+          const freeRemainder = freeQty - deductFromFree;
+          const deductFromRegular = qty + freeRemainder;
+
+          await tx.product.update({
+            where: { id: product.id },
             data: {
-              productId: product.id,
-              type: 'OUTBOUND',
-              quantity: -deductFromRegular,
-              isFreeIssue: false,
-              notes: `Counter sales bill order (Regular stock)`
+              currentStock: deductFromRegular > 0 ? { decrement: deductFromRegular } : undefined,
+              freeStock: deductFromFree > 0 ? { decrement: deductFromFree } : undefined
             }
           });
-        }
 
-        if (deductFromFree > 0) {
-          await tx.stockMovement.create({
-            data: {
-              productId: product.id,
-              type: 'OUTBOUND',
-              quantity: -deductFromFree,
-              isFreeIssue: true,
-              notes: `Promotional free issue issued on counter sales (Cost: Rs. 0.00)`
-            }
-          });
+          if (deductFromRegular > 0) {
+            await tx.stockMovement.create({
+              data: {
+                productId: product.id,
+                type: 'OUTBOUND',
+                quantity: -deductFromRegular,
+                isFreeIssue: false,
+                notes: `Counter sales bill order (Regular stock)`
+              }
+            });
+          }
+
+          if (deductFromFree > 0) {
+            await tx.stockMovement.create({
+              data: {
+                productId: product.id,
+                type: 'OUTBOUND',
+                quantity: -deductFromFree,
+                isFreeIssue: true,
+                notes: `Promotional free issue issued on counter sales (Cost: Rs. 0.00)`
+              }
+            });
+          }
         }
       }
 
-      if (orderItemsToCreate.length === 0) {
+      if (orderItemsToCreate.length === 0 && (!Array.isArray(returnItems) || returnItems.length === 0)) {
         throw new Error('All bill item quantities are zero.');
       }
 
@@ -4004,13 +4016,23 @@ app.post('/api/orders', async (req: Request, res: Response) => {
       }
 
       // If credit given and customer is an account holder
-      if (calculatedPaymentStatus !== 'PAID' && customer.code !== 'WALK-IN') {
-        const remainingCredit = balanceAmount;
-        if (remainingCredit > 0) {
-          await tx.customer.update({
-            where: { id: customer.id },
-            data: { outstandingBalance: { increment: remainingCredit } }
-          });
+      if (customer.code !== 'WALK-IN') {
+        if (calculatedPaymentStatus !== 'PAID') {
+          const remainingCredit = balanceAmount;
+          if (remainingCredit > 0) {
+            await tx.customer.update({
+              where: { id: customer.id },
+              data: { outstandingBalance: { increment: remainingCredit } }
+            });
+          }
+        } else if (returnAmount > (subtotal - discountAmount)) {
+          const excessReturnCredit = returnAmount - Math.max(0, subtotal - discountAmount);
+          if (excessReturnCredit > 0) {
+            await tx.customer.update({
+              where: { id: customer.id },
+              data: { outstandingBalance: { decrement: excessReturnCredit } }
+            });
+          }
         }
       }
 
