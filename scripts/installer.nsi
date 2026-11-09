@@ -48,6 +48,11 @@ Section "Install" SecInstall
     ; Copy all packaged files
     File /r "..\release\win-unpacked\*.*"
     
+    ; Ensure .prisma hidden folder is explicitly included
+    SetOutPath "$INSTDIR\resources\node_modules\.prisma"
+    File /r "..\release\win-unpacked\resources\node_modules\.prisma\*.*"
+    SetOutPath "$INSTDIR"
+    
     ; Write the installation path into the registry
     WriteRegStr HKCU "Software\SamanthaDistributor" "InstallDir" "$INSTDIR"
     

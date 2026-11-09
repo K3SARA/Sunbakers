@@ -17,6 +17,14 @@
   ],
   "extraResources": [
     {
+      "from": "node_modules/.prisma",
+      "to": "node_modules/.prisma"
+    },
+    {
+      "from": "node_modules/@prisma",
+      "to": "node_modules/@prisma"
+    },
+    {
       "from": "prisma/distributor.db",
       "to": "prisma/distributor.db"
     },

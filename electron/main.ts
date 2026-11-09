@@ -54,13 +54,28 @@ function initDatabase(): string {
 function startBackendServer() {
   try {
     initDatabase();
+    if (process.resourcesPath) {
+      const resNodeModules = path.join(process.resourcesPath, 'node_modules');
+      if (fs.existsSync(resNodeModules)) {
+        try {
+          const Module = require('module');
+          if (Module.globalPaths && !Module.globalPaths.includes(resNodeModules)) {
+            Module.globalPaths.unshift(resNodeModules);
+          }
+        } catch {}
+      }
+    }
     if (!isDev) {
       console.log('[Electron Main] Loading bundled backend server...');
       require('./server.bundle.js');
       console.log('[Electron Main] Bundled backend server started.');
     }
-  } catch (err) {
+  } catch (err: any) {
     console.error('[Electron Main] Failed to start backend server:', err);
+    try {
+      const logPath = path.join(app.getPath('userData'), 'server-error.log');
+      fs.writeFileSync(logPath, `Error starting server: ${err?.stack || err}\n`, 'utf8');
+    } catch {}
   }
 }
 
