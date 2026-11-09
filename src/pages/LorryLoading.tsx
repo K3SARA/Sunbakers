@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Truck,
   Plus,
@@ -9,7 +9,10 @@ import {
   FileSpreadsheet,
   Boxes,
   Compass,
-  RotateCcw
+  RotateCcw,
+  Search,
+  ChevronDown,
+  X
 } from 'lucide-react';
 import { Lorry, Product, LorryLoading as LorryLoadingType } from '../types';
 import { LorryService, ProductService } from '../services/api';
@@ -34,6 +37,54 @@ export const LorryLoading: React.FC = () => {
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Search & Combobox states for items
+  const [activeDropdownIndex, setActiveDropdownIndex] = useState<number | null>(null);
+  const [rowSearchQueries, setRowSearchQueries] = useState<Record<number, string>>({});
+  const [quickSearch, setQuickSearch] = useState<string>('');
+  const dropdownContainerRef = useRef<HTMLDivElement | null>(null);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownContainerRef.current && !dropdownContainerRef.current.contains(e.target as Node)) {
+        setActiveDropdownIndex(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const getFilteredProductsForRow = (query: string) => {
+    if (!query.trim()) return warehouseProducts;
+    const q = query.toLowerCase();
+    return warehouseProducts.filter(p =>
+      p.name.toLowerCase().includes(q) ||
+      p.sku.toLowerCase().includes(q) ||
+      (p.category && p.category.toLowerCase().includes(q))
+    );
+  };
+
+  const quickSearchResults = useMemo(() => {
+    if (!quickSearch.trim()) return [];
+    const q = quickSearch.toLowerCase();
+    return warehouseProducts.filter(p =>
+      p.name.toLowerCase().includes(q) ||
+      p.sku.toLowerCase().includes(q) ||
+      (p.category && p.category.toLowerCase().includes(q))
+    );
+  }, [warehouseProducts, quickSearch]);
+
+  const handleQuickAddProduct = (prod: Product) => {
+    // If the last or only row is empty, fill it; otherwise append a new row
+    const emptyRowIndex = loadingRows.findIndex(r => !r.productId);
+    if (emptyRowIndex >= 0) {
+      updateRow(emptyRowIndex, 'productId', prod.id);
+    } else {
+      setLoadingRows([...loadingRows, { productId: prod.id, quantity: 0, freeQuantity: 0 }]);
+    }
+    setQuickSearch('');
+  };
 
   // Draft persistence
   const DRAFT_KEY = 'distributor_lorry_loading_draft';
@@ -144,6 +195,9 @@ export const LorryLoading: React.FC = () => {
   };
 
   const removeRow = (index: number) => {
+    if (activeDropdownIndex === index) {
+      setActiveDropdownIndex(null);
+    }
     if (loadingRows.length === 1) {
       setLoadingRows([{ productId: '', quantity: 0, freeQuantity: 0 }]);
       return;
@@ -347,33 +401,212 @@ export const LorryLoading: React.FC = () => {
             </button>
           </div>
 
+          {/* Quick Product Search & Rapid-Add Bar */}
+          <div className="relative">
+            <div className="flex items-center gap-2 p-2 bg-blue-50/70 border border-blue-200/90 rounded-2xl shadow-2xs">
+              <Search className="w-4 h-4 text-blue-600 ml-2 shrink-0" />
+              <input
+                type="text"
+                value={quickSearch}
+                onChange={(e) => setQuickSearch(e.target.value)}
+                placeholder="Search bakery product to load (e.g. Bread, Bun, Cake, SKU)..."
+                className="w-full bg-transparent text-xs sm:text-sm font-medium text-slate-900 placeholder-slate-400 focus:outline-none"
+              />
+              {quickSearch && (
+                <button
+                  type="button"
+                  onClick={() => setQuickSearch('')}
+                  className="p-1 text-slate-400 hover:text-slate-600 text-xs font-bold mr-1 cursor-pointer"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* Quick Search Autocomplete Suggestions */}
+            {quickSearch.trim() && (
+              <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-white border border-slate-200 rounded-2xl shadow-xl max-h-64 overflow-y-auto divide-y divide-slate-100 animate-fadeIn">
+                {quickSearchResults.length === 0 ? (
+                  <div className="p-4 text-center text-xs text-slate-400 font-medium">
+                    No products found matching "{quickSearch}"
+                  </div>
+                ) : (
+                  quickSearchResults.map(prod => (
+                    <button
+                      key={prod.id}
+                      type="button"
+                      onClick={() => handleQuickAddProduct(prod)}
+                      className="w-full text-left p-3 hover:bg-blue-50/70 flex items-center justify-between transition cursor-pointer"
+                    >
+                      <div className="min-w-0 pr-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded">
+                            {prod.sku}
+                          </span>
+                          <span className="text-xs font-bold text-slate-900 truncate">
+                            {prod.name}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 font-mono mt-0.5">
+                          Available: <strong className="text-slate-800">{prod.currentStock} {prod.unit}</strong> (paid) • <strong className="text-emerald-700">{prod.freeStock || 0} free</strong>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="font-mono font-bold text-xs text-blue-600 block">
+                          {formatMoney(prod.unitPrice)}
+                        </span>
+                        <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full inline-block mt-0.5">
+                          + Add to Load
+                        </span>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
           <form onSubmit={handleConfirmLoading} className="space-y-4">
-            <div className="space-y-3">
+            <div ref={dropdownContainerRef} className="space-y-3">
               {loadingRows.map((row, index) => {
                 const selectedProd = warehouseProducts.find(p => p.id === row.productId);
+                const isDropdownOpen = activeDropdownIndex === index;
+                const rowQuery = rowSearchQueries[index] || '';
+                const filteredRowProducts = getFilteredProductsForRow(rowQuery);
+
                 return (
                   <div
                     key={index}
-                    className="flex flex-col sm:flex-row items-center gap-3 p-3.5 bg-slate-50 border border-slate-200/70 rounded-2xl"
+                    className="flex flex-col sm:flex-row items-center gap-3 p-3.5 bg-slate-50 border border-slate-200/70 rounded-2xl relative"
                   >
-                    {/* Product Selector */}
-                    <div className="flex-1 w-full">
+                    {/* Searchable Product Selector */}
+                    <div className="flex-1 w-full relative">
                       <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1.5">
-                        Select Product from Central Warehouse
+                        Product from Central Warehouse
                       </label>
-                      <select
-                        value={row.productId}
-                        onChange={(e) => updateRow(index, 'productId', e.target.value)}
-                        required
-                        className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+
+                      {/* Combobox Button */}
+                      <div
+                        onClick={() => setActiveDropdownIndex(isDropdownOpen ? null : index)}
+                        className={`w-full bg-white border rounded-xl px-3 py-2 text-sm flex items-center justify-between cursor-pointer transition shadow-2xs ${
+                          isDropdownOpen
+                            ? 'border-blue-500 ring-2 ring-blue-500/20'
+                            : 'border-slate-200 hover:border-slate-300'
+                        }`}
                       >
-                        <option value="">-- Choose Item to Load --</option>
-                        {warehouseProducts.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.sku} - {p.name} (Warehouse: {p.currentStock} paid + {p.freeStock || 0} free) - {formatMoney(p.unitPrice)}
-                          </option>
-                        ))}
-                      </select>
+                        {selectedProd ? (
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <span className="font-mono text-[10px] font-bold px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 shrink-0">
+                              {selectedProd.sku}
+                            </span>
+                            <span className="font-bold text-xs sm:text-sm text-slate-900 truncate">
+                              {selectedProd.name}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 text-slate-400">
+                            <Search className="w-4 h-4 text-slate-400" />
+                            <span className="text-xs sm:text-sm">Click to search product...</span>
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-1 shrink-0 ml-2">
+                          {selectedProd && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                updateRow(index, 'productId', '');
+                              }}
+                              className="p-1 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-slate-100 transition"
+                              title="Clear product"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isDropdownOpen ? 'rotate-180 text-blue-600' : ''}`} />
+                        </div>
+                      </div>
+
+                      {/* Floating Dropdown Panel with Search Bar */}
+                      {isDropdownOpen && (
+                        <div className="absolute top-full left-0 right-0 mt-1.5 z-40 bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden animate-fadeIn">
+                          {/* Search Input inside Dropdown */}
+                          <div className="p-2.5 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
+                            <Search className="w-4 h-4 text-blue-600 shrink-0" />
+                            <input
+                              type="text"
+                              autoFocus
+                              value={rowQuery}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setRowSearchQueries(prev => ({ ...prev, [index]: val }));
+                              }}
+                              placeholder="Search products by name, SKU, or type..."
+                              className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                            {rowQuery && (
+                              <button
+                                type="button"
+                                onClick={() => setRowSearchQueries(prev => ({ ...prev, [index]: '' }))}
+                                className="text-xs font-bold text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Filtered Product Options List */}
+                          <div className="max-h-56 overflow-y-auto divide-y divide-slate-100">
+                            {filteredRowProducts.length === 0 ? (
+                              <div className="p-4 text-center text-xs text-slate-400">
+                                No products found matching "{rowQuery}"
+                              </div>
+                            ) : (
+                              filteredRowProducts.map((p) => {
+                                const isChosen = p.id === row.productId;
+                                return (
+                                  <button
+                                    key={p.id}
+                                    type="button"
+                                    onClick={() => {
+                                      updateRow(index, 'productId', p.id);
+                                      setActiveDropdownIndex(null);
+                                      setRowSearchQueries(prev => ({ ...prev, [index]: '' }));
+                                    }}
+                                    className={`w-full text-left px-3.5 py-2.5 flex items-center justify-between transition cursor-pointer ${
+                                      isChosen ? 'bg-blue-50/80 font-bold' : 'hover:bg-slate-50'
+                                    }`}
+                                  >
+                                    <div className="min-w-0 flex-1 pr-2">
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-mono text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded">
+                                          {p.sku}
+                                        </span>
+                                        <span className="text-xs font-semibold text-slate-900 truncate">
+                                          {p.name}
+                                        </span>
+                                      </div>
+                                      <div className="text-[11px] text-slate-500 font-mono mt-0.5">
+                                        Warehouse: <span className="font-bold text-slate-800">{p.currentStock} {p.unit}</span> (paid) • <span className="font-bold text-emerald-700">{p.freeStock || 0} free</span>
+                                      </div>
+                                    </div>
+
+                                    <div className="text-right shrink-0">
+                                      <span className="font-mono font-bold text-xs text-blue-600 block">
+                                        {formatMoney(p.unitPrice)}
+                                      </span>
+                                      {isChosen && (
+                                        <span className="text-[10px] text-blue-600 font-bold">Selected ✓</span>
+                                      )}
+                                    </div>
+                                  </button>
+                                );
+                              })
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Quantity to Load (Paid) */}
