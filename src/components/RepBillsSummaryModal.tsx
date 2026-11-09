@@ -8,7 +8,7 @@ import {
   Loader2,
   Filter
 } from 'lucide-react';
-import { Order, Lorry, User, SystemSettings } from '../types';
+import { Order, Lorry, User, SystemSettings, Expense } from '../types';
 import { useCurrency } from '../context/CurrencyContext';
 import { SettingsService } from '../services/api';
 import {
@@ -25,6 +25,7 @@ interface RepBillsSummaryModalProps {
   dateRangeLabel?: string;
   lorry?: Lorry | null;
   user?: User | null;
+  routeExpenses?: Expense[];
 }
 
 export const RepBillsSummaryModal: React.FC<RepBillsSummaryModalProps> = ({
@@ -35,7 +36,8 @@ export const RepBillsSummaryModal: React.FC<RepBillsSummaryModalProps> = ({
   activeFilter = 'ALL',
   dateRangeLabel,
   lorry,
-  user
+  user,
+  routeExpenses = []
 }) => {
   const { formatMoney } = useCurrency();
   const [companySettings, setCompanySettings] = useState<SystemSettings | null>(null);
@@ -98,6 +100,10 @@ export const RepBillsSummaryModal: React.FC<RepBillsSummaryModalProps> = ({
       chequeCount: chequeBills.length
     };
   }, [activeBills]);
+
+  const totalExpenses = useMemo(() => {
+    return (routeExpenses || []).reduce((acc: number, e: Expense) => acc + (e.amount || 0), 0);
+  }, [routeExpenses]);
 
   // Consolidated product units sold
   const productSummary = useMemo(() => {
@@ -410,6 +416,18 @@ export const RepBillsSummaryModal: React.FC<RepBillsSummaryModalProps> = ({
                   {formatMoney(summaryMetrics.totalCash)}
                 </span>
               </div>
+              {totalExpenses > 0 && (
+                <>
+                  <div className="flex justify-between text-xs font-bold text-rose-800">
+                    <span>Less Route Expenses ({routeExpenses.length}):</span>
+                    <span>-{formatMoney(totalExpenses)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs font-black pt-0.5 border-t border-black border-dashed">
+                    <span>NET CASH TO HAND OVER:</span>
+                    <span>{formatMoney(Math.max(0, summaryMetrics.totalCash - totalExpenses))}</span>
+                  </div>
+                </>
+              )}
               <div className="flex justify-between text-xs font-bold">
                 <span>Credit Issued ({summaryMetrics.creditCount}):</span>
                 <span className="font-bold text-rose-800">
@@ -522,6 +540,32 @@ export const RepBillsSummaryModal: React.FC<RepBillsSummaryModalProps> = ({
                       {totalProductUnits} pcs
                       {totalFreeUnits > 0 ? ` (+${totalFreeUnits} Free)` : ''}
                     </span>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Route Expenses Breakdown on Print Receipt */}
+            {routeExpenses.length > 0 && (
+              <>
+                <div className="border-t-2 border-black my-2" />
+                <div className="text-center font-black text-xs sm:text-[12.5px] uppercase tracking-wider pb-1">
+                  ROUTE EXPENSES & FUEL ({routeExpenses.length})
+                </div>
+                <div className="border-t border-black border-dashed mb-1.5" />
+                <div className="space-y-1 text-[11.5px] sm:text-xs">
+                  {routeExpenses.map((exp) => (
+                    <div key={exp.id} className="flex justify-between leading-tight">
+                      <div className="min-w-0 pr-1">
+                        <span className="font-bold truncate block">[{exp.category}] {exp.title}</span>
+                        {exp.paidTo && <span className="text-[10px] text-slate-600 block">To: {exp.paidTo}</span>}
+                      </div>
+                      <span className="font-bold text-rose-800 shrink-0">-{formatMoney(exp.amount)}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between font-black pt-1 border-t border-black border-dashed">
+                    <span>TOTAL EXPENSES:</span>
+                    <span>-{formatMoney(totalExpenses)}</span>
                   </div>
                 </div>
               </>

@@ -23,10 +23,11 @@ import {
   Receipt,
   ChevronDown,
   ChevronUp,
-  RefreshCw
+  RefreshCw,
+  Fuel
 } from 'lucide-react';
-import { Customer, Product, Lorry, Order, User, RepTargetProgress } from '../types';
-import { CustomerService, LorryService, ProductService, OrderService, AuthService } from '../services/api';
+import { Customer, Product, Lorry, Order, User, RepTargetProgress, Expense } from '../types';
+import { CustomerService, LorryService, ProductService, OrderService, AuthService, ExpenseService } from '../services/api';
 import { useCurrency } from '../context/CurrencyContext';
 import { CustomerModal } from '../components/CustomerModal';
 import { RepBillsSummaryModal } from '../components/RepBillsSummaryModal';
@@ -143,6 +144,19 @@ export const RepBilling: React.FC<RepBillingProps> = ({
   });
   const [customBillsStart, setCustomBillsStart] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [customBillsEnd, setCustomBillsEnd] = useState<string>(() => new Date().toISOString().slice(0, 10));
+
+  // Route Running Expenses State (Wired with Admin)
+  const [repExpenses, setRepExpenses] = useState<Expense[]>([]);
+  const [loadingExpenses, setLoadingExpenses] = useState<boolean>(false);
+  const [showExpenseModal, setShowExpenseModal] = useState<boolean>(false);
+  const [expenseCategory, setExpenseCategory] = useState<string>('FUEL');
+  const [expenseTitle, setExpenseTitle] = useState<string>('Diesel / Fuel Top-up');
+  const [expenseAmount, setExpenseAmount] = useState<string>('');
+  const [expensePaidTo, setExpensePaidTo] = useState<string>('');
+  const [expenseRef, setExpenseRef] = useState<string>('');
+  const [expenseNotes, setExpenseNotes] = useState<string>('');
+  const [expenseSubmitting, setExpenseSubmitting] = useState<boolean>(false);
+  const [expenseSuccessMsg, setExpenseSuccessMsg] = useState<string | null>(null);
 
   const getBillsRangeForPreset = (
     preset: BillsDatePreset,
@@ -273,11 +287,96 @@ export const RepBilling: React.FC<RepBillingProps> = ({
     }
   };
 
+  const loadRepExpenses = async (lorryIdToUse?: string) => {
+    try {
+      setLoadingExpenses(true);
+      const targetLorryId = lorryIdToUse || selectedLorryId;
+      if (!targetLorryId) {
+        setRepExpenses([]);
+        return;
+      }
+      const now = new Date();
+      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).toISOString();
+      const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).toISOString();
+
+      const list = await ExpenseService.getAll({
+        lorryId: targetLorryId,
+        from: startOfDay,
+        to: endOfDay
+      });
+      setRepExpenses(list);
+    } catch (err) {
+      console.error('Failed to load rep route expenses', err);
+    } finally {
+      setLoadingExpenses(false);
+    }
+  };
+
+  const totalRepExpensesToday = useMemo(() => {
+    return repExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+  }, [repExpenses]);
+
+  const handleSaveRouteExpense = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const parsedAmt = parseFloat(expenseAmount);
+    if (!expenseTitle.trim()) {
+      alert('Please enter or select an expense title.');
+      return;
+    }
+    if (isNaN(parsedAmt) || parsedAmt <= 0) {
+      alert('Please enter a valid expense amount greater than 0.');
+      return;
+    }
+
+    try {
+      setExpenseSubmitting(true);
+      const newExp = await ExpenseService.create({
+        category: expenseCategory,
+        title: expenseTitle.trim(),
+        amount: parsedAmt,
+        lorryId: selectedLorryId || undefined,
+        paymentMethod: 'CASH',
+        paidTo: expensePaidTo.trim() || undefined,
+        referenceNumber: expenseRef.trim() || undefined,
+        notes: expenseNotes.trim() ? `${expenseNotes.trim()} (Route Rep)` : `Route expense recorded via mobile rep billing`
+      });
+
+      setExpenseSuccessMsg(`✓ Expense ${newExp.expenseNumber} (Rs. ${parsedAmt.toLocaleString()}) recorded & wired to Admin!`);
+      setExpenseAmount('');
+      setExpensePaidTo('');
+      setExpenseRef('');
+      setExpenseNotes('');
+      await loadRepExpenses(selectedLorryId);
+      setTimeout(() => setExpenseSuccessMsg(null), 3500);
+    } catch (err: any) {
+      alert(err.response?.data?.error || err.message || 'Failed to record expense.');
+    } finally {
+      setExpenseSubmitting(false);
+    }
+  };
+
+  const handleDeleteRouteExpense = async (id: string, num: string) => {
+    if (!window.confirm(`Delete expense ${num}? This will remove it from the Admin ledger.`)) return;
+    try {
+      await ExpenseService.delete(id);
+      await loadRepExpenses(selectedLorryId);
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to delete expense.');
+    }
+  };
+
   useEffect(() => {
     loadData();
     loadTargets();
     loadFinishedBills();
+    loadRepExpenses();
   }, []);
+
+  useEffect(() => {
+    if (selectedLorryId) {
+      loadRepExpenses(selectedLorryId);
+    }
+  }, [selectedLorryId]);
 
   const loadData = async () => {
     try {
@@ -831,6 +930,25 @@ export const RepBilling: React.FC<RepBillingProps> = ({
             {finishedBills.length > 0 && (
               <span className="bg-blue-600 text-white text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold ml-0.5">
                 {finishedBills.length}
+              </span>
+            )}
+          </button>
+
+          {/* Route Running Expenses Button */}
+          <button
+            type="button"
+            onClick={() => {
+              loadRepExpenses();
+              setShowExpenseModal(true);
+            }}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 transition shadow-2xs active:scale-95 cursor-pointer shrink-0"
+            title="Record Route Fuel & Running Expenses (Wired to Admin)"
+          >
+            <Fuel className="w-3.5 h-3.5 text-amber-600" />
+            <span className="text-[11px] font-bold">Expense</span>
+            {totalRepExpensesToday > 0 && (
+              <span className="bg-amber-600 text-white text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold ml-0.5">
+                {formatMoney(totalRepExpensesToday)}
               </span>
             )}
           </button>
@@ -2338,6 +2456,310 @@ export const RepBilling: React.FC<RepBillingProps> = ({
         </div>
       )}
 
+      {/* ROUTE RUNNING EXPENSES MODAL (WIRED TO ADMIN) */}
+      {showExpenseModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-lg w-full max-h-[92vh] flex flex-col overflow-hidden shadow-2xl border border-slate-100 my-auto">
+            {/* Modal Header */}
+            <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold shrink-0">
+                  <Fuel className="w-5 h-5 stroke-[2.5]" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Route Running Expenses</h3>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    {selectedLorry?.vehicleNumber || 'Route Lorry'} • Live Wired to Admin Ledger
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowExpenseModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Scrollable Body */}
+            <div className="p-4 sm:p-5 overflow-y-auto space-y-4">
+              {/* Live Summary Card */}
+              <div className="p-3.5 bg-slate-900 text-white rounded-2xl flex items-center justify-between shadow-xs">
+                <div>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+                    Today's Route Expenses
+                  </span>
+                  <span className="font-mono text-xl font-bold text-amber-400">
+                    {formatMoney(totalRepExpensesToday)}
+                  </span>
+                  <span className="text-[10px] text-slate-400 block mt-0.5">
+                    {repExpenses.length} voucher{repExpenses.length === 1 ? '' : 's'} recorded today
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    <Check className="w-3 h-3 text-emerald-400" />
+                    <span>Wired to Admin</span>
+                  </span>
+                </div>
+              </div>
+
+              {/* Success Feedback Alert */}
+              {expenseSuccessMsg && (
+                <div className="p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold rounded-xl flex items-center justify-between animate-fadeIn">
+                  <span>{expenseSuccessMsg}</span>
+                  <button onClick={() => setExpenseSuccessMsg(null)} className="text-emerald-600 hover:text-emerald-900 text-xs font-bold">
+                    ✕
+                  </button>
+                </div>
+              )}
+
+              {/* Form to Record New Expense */}
+              <form onSubmit={handleSaveRouteExpense} className="space-y-3.5 bg-slate-50/70 p-3.5 rounded-2xl border border-slate-200/80">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <Plus className="w-3.5 h-3.5 text-blue-600 stroke-[3]" />
+                    Record New Route Expense
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">Deducted from Cash</span>
+                </div>
+
+                {/* 1. Category Quick Selector */}
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                    Expense Category
+                  </label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {[
+                      { id: 'FUEL', label: '⛽ Fuel / Diesel', defaultTitle: 'Diesel / Fuel Top-up' },
+                      { id: 'VEHICLE_MAINTENANCE', label: '🔧 Vehicle / Puncture', defaultTitle: 'Puncture / Vehicle Repair' },
+                      { id: 'DRIVER_ALLOWANCE', label: '🍛 Food / Allowance', defaultTitle: 'Driver & Helper Food Allowance' },
+                      { id: 'OTHER', label: '🛣️ Toll / Other', defaultTitle: 'Highway Toll / Parking' }
+                    ].map(cat => (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => {
+                          setExpenseCategory(cat.id);
+                          setExpenseTitle(cat.defaultTitle);
+                        }}
+                        className={`py-2 px-2.5 rounded-xl border text-left text-xs font-bold transition cursor-pointer ${
+                          expenseCategory === cat.id
+                            ? 'bg-amber-50 border-amber-300 text-amber-900 ring-2 ring-amber-500/20'
+                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        {cat.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 2. Amount Input & Quick Chips */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                      Amount (Rs.) <span className="text-red-500">*</span>
+                    </label>
+                    {/* Quick Amount Chips */}
+                    <div className="flex items-center gap-1">
+                      {[500, 1000, 2000, 5000].map(amt => (
+                        <button
+                          key={amt}
+                          type="button"
+                          onClick={() => {
+                            const cur = parseFloat(expenseAmount) || 0;
+                            setExpenseAmount((cur + amt).toString());
+                          }}
+                          className="px-1.5 py-0.5 rounded-md bg-white border border-slate-200 hover:bg-slate-100 text-[10px] font-mono font-bold text-slate-700 transition"
+                        >
+                          +{amt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2 font-mono font-bold text-slate-400 text-xs">
+                      Rs.
+                    </span>
+                    <input
+                      type="number"
+                      step="1"
+                      min="1"
+                      value={expenseAmount}
+                      onChange={(e) => setExpenseAmount(e.target.value)}
+                      placeholder="e.g. 2500"
+                      className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-sm font-mono font-bold text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                {/* 3. Title / Description */}
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                    Description / Purpose <span className="text-red-500">*</span>
+                  </label>
+                  <div className="flex flex-wrap gap-1 mb-1.5">
+                    {[
+                      'Diesel / Fuel Top-up',
+                      'Lorry Puncture Repair',
+                      'Engine Oil / Coolant',
+                      'Highway Toll / Expressway',
+                      'Driver & Helper Lunch',
+                      'Police Inspection / Fine'
+                    ].map(preset => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setExpenseTitle(preset)}
+                        className={`text-[10px] px-2 py-0.5 rounded-md font-medium transition cursor-pointer ${
+                          expenseTitle === preset
+                            ? 'bg-amber-600 text-white font-bold'
+                            : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        {preset}
+                      </button>
+                    ))}
+                  </div>
+                  <input
+                    type="text"
+                    value={expenseTitle}
+                    onChange={(e) => setExpenseTitle(e.target.value)}
+                    placeholder="e.g. Diesel for journey"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                {/* 4. Optional Vendor & Receipt Ref */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                      Paid To / Station
+                    </label>
+                    <input
+                      type="text"
+                      value={expensePaidTo}
+                      onChange={(e) => setExpensePaidTo(e.target.value)}
+                      placeholder="e.g. Ceypetco Station"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                      Slip / Bill #
+                    </label>
+                    <input
+                      type="text"
+                      value={expenseRef}
+                      onChange={(e) => setExpenseRef(e.target.value)}
+                      placeholder="e.g. REC-9412"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-mono text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Submit Expense Button */}
+                <button
+                  type="submit"
+                  disabled={expenseSubmitting || !expenseAmount || !expenseTitle}
+                  className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-slate-950 font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition active:scale-[0.99] cursor-pointer"
+                >
+                  {expenseSubmitting ? (
+                    <span>Recording & Wiring to Admin...</span>
+                  ) : (
+                    <>
+                      <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      <span>Record Route Expense</span>
+                    </>
+                  )}
+                </button>
+              </form>
+
+              {/* Today's Expense List */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between pt-1">
+                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                    Today's Recorded Vouchers ({repExpenses.length})
+                  </h4>
+                  {loadingExpenses && (
+                    <span className="text-[10px] text-slate-400 font-mono">Syncing...</span>
+                  )}
+                </div>
+
+                {repExpenses.length === 0 ? (
+                  <div className="p-4 text-center bg-slate-50 border border-dashed border-slate-200 rounded-xl text-slate-400 text-xs">
+                    No route expenses recorded today for {selectedLorry?.vehicleNumber || 'this vehicle'}.
+                  </div>
+                ) : (
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-0.5">
+                    {repExpenses.map(exp => (
+                      <div
+                        key={exp.id}
+                        className="p-2.5 bg-white border border-slate-200 rounded-xl flex items-center justify-between gap-2 shadow-2xs"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <span className="px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 font-bold text-[9px] uppercase tracking-wider">
+                              {exp.category}
+                            </span>
+                            <span className="text-[10px] font-mono text-slate-400">
+                              #{exp.expenseNumber}
+                            </span>
+                            {exp.referenceNumber && (
+                              <span className="text-[10px] text-slate-500 font-mono">
+                                • Ref: {exp.referenceNumber}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs font-bold text-slate-900 truncate">
+                            {exp.title}
+                          </p>
+                          {exp.paidTo && (
+                            <p className="text-[10px] text-slate-500">
+                              Paid to: {exp.paidTo}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="font-mono font-bold text-xs text-rose-600">
+                            -{formatMoney(exp.amount)}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteRouteExpense(exp.id, exp.expenseNumber)}
+                            className="p-1 text-slate-300 hover:text-red-500 transition cursor-pointer"
+                            title="Delete this expense"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between shrink-0">
+              <span className="text-[11px] text-slate-500">
+                Live synced with Admin Settlement
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowExpenseModal(false)}
+                className="py-1.5 px-4 bg-slate-900 hover:bg-black text-white text-xs font-bold rounded-xl transition cursor-pointer"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* QUICK ADD CUSTOMER MODAL FOR REP */}
       <CustomerModal
         customer={null}
@@ -2432,6 +2854,29 @@ export const RepBilling: React.FC<RepBillingProps> = ({
                   <span className="font-mono font-bold text-xs sm:text-sm text-rose-800">{formatMoney(finishedBillsSummary.totalCredit)}</span>
                 </div>
               </div>
+
+              {/* Route Running Expenses Deductions Banner */}
+              {totalRepExpensesToday > 0 && (
+                <div className="p-2.5 rounded-xl bg-amber-50/90 border border-amber-200/90 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-lg bg-amber-200/60 text-amber-800 flex items-center justify-center font-bold shrink-0">
+                      <Fuel className="w-3.5 h-3.5" />
+                    </div>
+                    <div>
+                      <span className="font-bold text-amber-950">Route Expenses Deducted:</span>
+                      <span className="text-[10px] text-amber-700 ml-1">({repExpenses.length} vouchers wired to Admin)</span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="font-mono font-bold text-rose-700 text-xs sm:text-sm">
+                      -{formatMoney(totalRepExpensesToday)}
+                    </span>
+                    <span className="block text-[10px] text-slate-600 font-mono font-bold">
+                      Net Cash Handover: {formatMoney(Math.max(0, finishedBillsSummary.totalCash - totalRepExpensesToday))}
+                    </span>
+                  </div>
+                </div>
+              )}
 
               {filteredFinishedBills.length > 0 && (
                 <div className="flex items-center justify-between px-2 pt-0.5 text-xs text-slate-500">
@@ -2798,6 +3243,7 @@ export const RepBilling: React.FC<RepBillingProps> = ({
         dateRangeLabel={billsDateRangeLabel}
         lorry={selectedLorry}
         user={user}
+        routeExpenses={repExpenses}
       />
     </div>
   );
