@@ -872,7 +872,7 @@ export const RepBilling: React.FC<RepBillingProps> = ({
   }
 
   return (
-    <div className="min-h-screen w-full flex flex-col bg-[#F8FAFC] text-slate-900 select-none pb-20">
+    <div className="min-h-screen w-full flex flex-col bg-[#F8FAFC] text-slate-900 select-none pb-28 sm:pb-24">
       {/* 1. SINGLE UNIFIED SLIM HEADER (50px) */}
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 py-2.5 flex items-center justify-between shadow-2xs">
         <div className="flex items-center gap-2 min-w-0">
@@ -890,64 +890,11 @@ export const RepBilling: React.FC<RepBillingProps> = ({
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2">
-          {/* Rep Target & Goals Button */}
-          <button
-            type="button"
-            onClick={() => {
-              loadTargets();
-              setShowTargetModal(true);
-            }}
-            className="flex items-center gap-1 px-2 py-1.5 rounded-xl text-xs font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/70 transition shadow-2xs active:scale-95 cursor-pointer shrink-0"
-            title="View Daily & Monthly Sales Target Progress"
-          >
-            <Target className="w-3.5 h-3.5 text-indigo-600" />
-            <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold ${
-              (targetProgress?.dailyPercentage || 0) >= 100
-                ? 'bg-emerald-600 text-white'
-                : (targetProgress?.dailyPercentage || 0) > 0
-                ? 'bg-indigo-600 text-white'
-                : 'bg-slate-200 text-slate-700'
-            }`}>
-              {targetProgress?.dailyPercentage ?? 0}%
-            </span>
-          </button>
-
-          {/* Finished Bills History Button */}
-          <button
-            type="button"
-            onClick={() => {
-              loadFinishedBills();
-              setShowFinishedBillsModal(true);
-            }}
-            className="flex items-center justify-center p-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition shadow-2xs active:scale-95 cursor-pointer shrink-0"
-            title="View Finished Sales Bills"
-          >
-            <Receipt className="w-4 h-4 text-blue-600" />
-          </button>
-
-          {/* Route Running Expenses Button */}
-          <button
-            type="button"
-            onClick={() => {
-              loadRepExpenses();
-              setShowExpenseModal(true);
-            }}
-            className="flex items-center gap-1 p-2 rounded-xl text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 transition shadow-2xs active:scale-95 cursor-pointer shrink-0"
-            title="Record Route Fuel & Running Expenses (Wired to Admin)"
-          >
-            <Fuel className="w-4 h-4 text-amber-600" />
-            {totalRepExpensesToday > 0 && (
-              <span className="bg-amber-600 text-white text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold">
-                {formatMoney(totalRepExpensesToday)}
-              </span>
-            )}
-          </button>
-
           {/* Quick Cart Button */}
           <button
             type="button"
             onClick={() => setCurrentStep(2)}
-            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer active:scale-95 ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer active:scale-95 ${
               cart.length > 0 || returnItems.length > 0
                 ? 'bg-blue-600 text-white shadow-xs'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -955,12 +902,15 @@ export const RepBilling: React.FC<RepBillingProps> = ({
             title="View Cart & Returns"
           >
             <ShoppingBag className="w-4 h-4" />
-            <span className="font-mono text-xs font-bold">
+            <span>Cart</span>
+            <span className={`font-mono text-xs font-bold px-1.5 py-0.2 rounded-md ${
+              cart.length > 0 ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+            }`}>
               {totalItemsCount}
             </span>
             {returnItems.length > 0 && (
-              <span className="ml-0.5 px-1 py-0.2 bg-amber-400 text-slate-900 rounded-full text-[9px] font-black">
-                -{totalReturnUnits}
+              <span className="px-1 py-0.2 bg-amber-400 text-slate-900 rounded-full text-[9px] font-black">
+                -{totalReturnUnits} ret
               </span>
             )}
           </button>
@@ -969,7 +919,7 @@ export const RepBilling: React.FC<RepBillingProps> = ({
           {onLogout && (
             <button
               onClick={onLogout}
-              className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition"
+              className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition cursor-pointer"
               title="Log out"
             >
               <LogOut className="w-4 h-4" />
@@ -3224,6 +3174,86 @@ export const RepBilling: React.FC<RepBillingProps> = ({
           </div>
         </div>
       )}
+
+      {/* PERSISTENT BOTTOM NAVIGATION DOCK (TARGETS, BILLS, EXPENSES) */}
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/80 px-3 py-2 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] print:hidden">
+        <div className="max-w-md mx-auto grid grid-cols-3 gap-2">
+          {/* 1. Daily Sales Target */}
+          <button
+            type="button"
+            onClick={() => {
+              loadTargets();
+              setShowTargetModal(true);
+            }}
+            className="flex flex-col items-center justify-center py-1.5 px-1.5 rounded-2xl bg-indigo-50/70 hover:bg-indigo-100/70 text-indigo-900 border border-indigo-200/60 transition shadow-2xs active:scale-95 cursor-pointer"
+            title="Daily & Monthly Sales Target Progress"
+          >
+            <div className="flex items-center gap-1.5">
+              <Target className="w-4 h-4 text-indigo-600 shrink-0" />
+              <span className={`text-[10px] font-mono font-black px-1.5 py-0.2 rounded-full ${
+                (targetProgress?.dailyPercentage || 0) >= 100
+                  ? 'bg-emerald-600 text-white'
+                  : (targetProgress?.dailyPercentage || 0) > 0
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-slate-200 text-slate-700'
+              }`}>
+                {targetProgress?.dailyPercentage ?? 0}%
+              </span>
+            </div>
+            <span className="text-[10px] font-bold text-indigo-800 tracking-tight mt-0.5">
+              Target
+            </span>
+          </button>
+
+          {/* 2. Finished Bills History */}
+          <button
+            type="button"
+            onClick={() => {
+              loadFinishedBills();
+              setShowFinishedBillsModal(true);
+            }}
+            className="flex flex-col items-center justify-center py-1.5 px-1.5 rounded-2xl bg-blue-50/70 hover:bg-blue-100/70 text-blue-900 border border-blue-200/60 transition shadow-2xs active:scale-95 cursor-pointer"
+            title="Finished Bills History & Daily Summary"
+          >
+            <div className="flex items-center gap-1.5">
+              <Receipt className="w-4 h-4 text-blue-600 shrink-0" />
+              {finishedBills.length > 0 && (
+                <span className="bg-blue-600 text-white text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-full">
+                  {finishedBills.length}
+                </span>
+              )}
+            </div>
+            <span className="text-[10px] font-bold text-blue-800 tracking-tight mt-0.5">
+              Bills
+            </span>
+          </button>
+
+          {/* 3. Route Running Expenses */}
+          <button
+            type="button"
+            onClick={() => {
+              loadRepExpenses();
+              setShowExpenseModal(true);
+            }}
+            className="flex flex-col items-center justify-center py-1.5 px-1.5 rounded-2xl bg-amber-50/70 hover:bg-amber-100/70 text-amber-950 border border-amber-200/60 transition shadow-2xs active:scale-95 cursor-pointer"
+            title="Record Route Fuel & Running Expenses (Wired to Admin)"
+          >
+            <div className="flex items-center gap-1.5">
+              <Fuel className="w-4 h-4 text-amber-600 shrink-0" />
+              {totalRepExpensesToday > 0 ? (
+                <span className="bg-amber-600 text-white text-[9px] font-mono font-bold px-1 py-0.2 rounded-full truncate max-w-[70px]">
+                  {formatMoney(totalRepExpensesToday)}
+                </span>
+              ) : (
+                <span className="text-amber-700 text-[10px] font-bold font-mono">+ Log</span>
+              )}
+            </div>
+            <span className="text-[10px] font-bold text-amber-900 tracking-tight mt-0.5">
+              Expenses
+            </span>
+          </button>
+        </div>
+      </nav>
 
       {/* REP'S BILLS SUMMARY PRINT MODAL (80mm Thermal & Bluetooth) */}
       <RepBillsSummaryModal
