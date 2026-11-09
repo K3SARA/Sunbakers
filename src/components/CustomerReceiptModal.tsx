@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import { X, Printer, CheckCircle2 } from 'lucide-react';
 import { CustomerPayment, Customer } from '../types';
+import samanthaLogo from '../assets/samantha-logo.png';
 import { useCurrency } from '../context/CurrencyContext';
 
 interface CustomerReceiptModalProps {
@@ -50,8 +51,8 @@ export const CustomerReceiptModal: React.FC<CustomerReceiptModalProps> = ({
           <div className="text-center pb-4 border-b border-dashed border-slate-200">
             <div className="flex justify-center mb-1.5">
               <img
-                src="/sun-bakers-logo.png"
-                alt="Sunbakers & confectionary"
+                src={samanthaLogo}
+                alt="Samantha Distributor"
                 className="w-14 h-14 object-contain rounded-full border border-slate-100 shadow-2xs"
               />
             </div>

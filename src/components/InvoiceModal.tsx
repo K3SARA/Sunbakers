@@ -9,6 +9,7 @@ import {
   Smartphone
 } from 'lucide-react';
 import { Order, SystemSettings } from '../types';
+import samanthaLogo from '../assets/samantha-logo.png';
 import { useCurrency } from '../context/CurrencyContext';
 import { SettingsService } from '../services/api';
 import {
@@ -222,8 +223,8 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                 {/* Sunbakers & Confectionary Logo */}
                 <div className="flex justify-center mb-1.5">
                   <img
-                    src="/sun-bakers-logo.png"
-                    alt="Sunbakers & confectionary"
+                    src={samanthaLogo}
+                    alt="Samantha Distributor"
                     className="w-16 h-16 sm:w-20 sm:h-20 object-contain mx-auto rounded-full border border-slate-200/60 shadow-2xs print:border-none"
                   />
                 </div>
@@ -474,8 +475,8 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                 <div className="text-left sm:text-right space-y-2">
                   <div className="flex items-center gap-3 sm:justify-end">
                     <img
-                      src="/sun-bakers-logo.png"
-                      alt="Sunbakers & confectionary"
+                      src={samanthaLogo}
+                      alt="Samantha Distributor"
                       className="w-12 h-12 object-contain rounded-full border border-slate-100 shadow-2xs shrink-0"
                     />
                     <div>

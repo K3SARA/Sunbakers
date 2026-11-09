@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useCurrency, CURRENCIES, CurrencyCode } from '../context/CurrencyContext';
 import { User } from '../types';
+import samanthaLogo from '../assets/samantha-logo.png';
 
 interface SidebarProps {
   currentTab: string;
@@ -116,15 +117,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* App Title & Header */}
         <div className="p-5 pb-4 border-b border-slate-100 flex items-center justify-between">
           <div className="flex items-center gap-3.5">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#0071E3] via-blue-600 to-indigo-700 flex items-center justify-center text-white shadow-sm shadow-blue-500/25 shrink-0">
-              <Truck className="w-5 h-5 stroke-[2.2]" />
-            </div>
+            <img
+              src={samanthaLogo}
+              alt="Samantha Distributor"
+              className="w-10 h-10 rounded-xl object-contain drop-shadow-xs shrink-0"
+            />
             <div>
               <h1 className="font-bold text-slate-900 text-base tracking-tight leading-snug">
-                Distributor Pro
+                Samantha Distributor
               </h1>
               <span className="text-xs font-medium text-slate-400 block -mt-0.5">
-                3-Lorry Fleet Edition
+                Fleet &amp; Distribution
               </span>
             </div>
           </div>

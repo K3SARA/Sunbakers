@@ -28,3 +28,4 @@ if (fs.existsSync(makensisPath) && fs.existsSync(nsiScript)) {
 }
 
 console.log('\n🎉 Build Complete! Release binaries available in ./release directory.');
+
