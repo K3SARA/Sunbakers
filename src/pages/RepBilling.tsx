@@ -897,22 +897,19 @@ export const RepBilling: React.FC<RepBillingProps> = ({
               loadTargets();
               setShowTargetModal(true);
             }}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/70 transition shadow-2xs active:scale-95 cursor-pointer shrink-0"
+            className="flex items-center gap-1 px-2 py-1.5 rounded-xl text-xs font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/70 transition shadow-2xs active:scale-95 cursor-pointer shrink-0"
             title="View Daily & Monthly Sales Target Progress"
           >
             <Target className="w-3.5 h-3.5 text-indigo-600" />
-            <span className="text-[11px] font-bold">Target</span>
-            {targetProgress && (
-              <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold ml-0.5 ${
-                targetProgress.dailyPercentage >= 100
-                  ? 'bg-emerald-600 text-white'
-                  : targetProgress.dailyPercentage > 0
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-slate-200 text-slate-700'
-              }`}>
-                {targetProgress.dailyPercentage}%
-              </span>
-            )}
+            <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold ${
+              (targetProgress?.dailyPercentage || 0) >= 100
+                ? 'bg-emerald-600 text-white'
+                : (targetProgress?.dailyPercentage || 0) > 0
+                ? 'bg-indigo-600 text-white'
+                : 'bg-slate-200 text-slate-700'
+            }`}>
+              {targetProgress?.dailyPercentage ?? 0}%
+            </span>
           </button>
 
           {/* Finished Bills History Button */}
@@ -922,16 +919,10 @@ export const RepBilling: React.FC<RepBillingProps> = ({
               loadFinishedBills();
               setShowFinishedBillsModal(true);
             }}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition shadow-2xs active:scale-95 cursor-pointer shrink-0"
+            className="flex items-center justify-center p-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition shadow-2xs active:scale-95 cursor-pointer shrink-0"
             title="View Finished Sales Bills"
           >
-            <Receipt className="w-3.5 h-3.5 text-blue-600" />
-            <span className="text-[11px] font-bold">Bills</span>
-            {finishedBills.length > 0 && (
-              <span className="bg-blue-600 text-white text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold ml-0.5">
-                {finishedBills.length}
-              </span>
-            )}
+            <Receipt className="w-4 h-4 text-blue-600" />
           </button>
 
           {/* Route Running Expenses Button */}
@@ -941,13 +932,12 @@ export const RepBilling: React.FC<RepBillingProps> = ({
               loadRepExpenses();
               setShowExpenseModal(true);
             }}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 transition shadow-2xs active:scale-95 cursor-pointer shrink-0"
+            className="flex items-center gap-1 p-2 rounded-xl text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 transition shadow-2xs active:scale-95 cursor-pointer shrink-0"
             title="Record Route Fuel & Running Expenses (Wired to Admin)"
           >
-            <Fuel className="w-3.5 h-3.5 text-amber-600" />
-            <span className="text-[11px] font-bold">Expense</span>
+            <Fuel className="w-4 h-4 text-amber-600" />
             {totalRepExpensesToday > 0 && (
-              <span className="bg-amber-600 text-white text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold ml-0.5">
+              <span className="bg-amber-600 text-white text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold">
                 {formatMoney(totalRepExpensesToday)}
               </span>
             )}
@@ -955,22 +945,24 @@ export const RepBilling: React.FC<RepBillingProps> = ({
 
           {/* Quick Cart Button */}
           <button
+            type="button"
             onClick={() => setCurrentStep(2)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer active:scale-95 ${
               cart.length > 0 || returnItems.length > 0
                 ? 'bg-blue-600 text-white shadow-xs'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
+            title="View Cart & Returns"
           >
-            <ShoppingBag className="w-3.5 h-3.5" />
-            <span>
-              Cart ({totalItemsCount})
-              {returnItems.length > 0 && (
-                <span className="ml-1 px-1 py-0.2 bg-amber-400 text-slate-900 rounded-full text-[9px] font-black">
-                  -{totalReturnUnits}
-                </span>
-              )}
+            <ShoppingBag className="w-4 h-4" />
+            <span className="font-mono text-xs font-bold">
+              {totalItemsCount}
             </span>
+            {returnItems.length > 0 && (
+              <span className="ml-0.5 px-1 py-0.2 bg-amber-400 text-slate-900 rounded-full text-[9px] font-black">
+                -{totalReturnUnits}
+              </span>
+            )}
           </button>
 
           {/* Logout Button */}
