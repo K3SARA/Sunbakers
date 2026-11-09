@@ -55,10 +55,19 @@ export const LorryLoading: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Helper: check if a product has available units in warehouse
+  const hasAvailableUnits = (p: Product) => {
+    const paid = Number(p.currentStock) || 0;
+    const free = Number(p.freeStock) || 0;
+    return paid > 0 || free > 0;
+  };
+
   const getFilteredProductsForRow = (query: string) => {
-    if (!query.trim()) return warehouseProducts;
-    const q = query.toLowerCase();
-    return warehouseProducts.filter(p =>
+    // Only products with available warehouse stock (> 0 paid or > 0 free)
+    const availableOnly = warehouseProducts.filter(hasAvailableUnits);
+    if (!query.trim()) return availableOnly;
+    const q = query.toLowerCase().trim();
+    return availableOnly.filter(p =>
       p.name.toLowerCase().includes(q) ||
       p.sku.toLowerCase().includes(q) ||
       (p.category && p.category.toLowerCase().includes(q))
@@ -67,15 +76,19 @@ export const LorryLoading: React.FC = () => {
 
   const quickSearchResults = useMemo(() => {
     if (!quickSearch.trim()) return [];
-    const q = quickSearch.toLowerCase();
+    const q = quickSearch.toLowerCase().trim();
     return warehouseProducts.filter(p =>
-      p.name.toLowerCase().includes(q) ||
-      p.sku.toLowerCase().includes(q) ||
-      (p.category && p.category.toLowerCase().includes(q))
+      hasAvailableUnits(p) &&
+      (
+        p.name.toLowerCase().includes(q) ||
+        p.sku.toLowerCase().includes(q) ||
+        (p.category && p.category.toLowerCase().includes(q))
+      )
     );
   }, [warehouseProducts, quickSearch]);
 
   const handleQuickAddProduct = (prod: Product) => {
+    if (!hasAvailableUnits(prod)) return;
     // If the last or only row is empty, fill it; otherwise append a new row
     const emptyRowIndex = loadingRows.findIndex(r => !r.productId);
     if (emptyRowIndex >= 0) {
@@ -409,7 +422,7 @@ export const LorryLoading: React.FC = () => {
                 type="text"
                 value={quickSearch}
                 onChange={(e) => setQuickSearch(e.target.value)}
-                placeholder="Search bakery product to load (e.g. Bread, Bun, Cake, SKU)..."
+                placeholder="Search available in-stock products (e.g. Bread, Bun, SKU)..."
                 className="w-full bg-transparent text-xs sm:text-sm font-medium text-slate-900 placeholder-slate-400 focus:outline-none"
               />
               {quickSearch && (
@@ -428,7 +441,7 @@ export const LorryLoading: React.FC = () => {
               <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-white border border-slate-200 rounded-2xl shadow-xl max-h-64 overflow-y-auto divide-y divide-slate-100 animate-fadeIn">
                 {quickSearchResults.length === 0 ? (
                   <div className="p-4 text-center text-xs text-slate-400 font-medium">
-                    No products found matching "{quickSearch}"
+                    No in-stock products found matching "{quickSearch}"
                   </div>
                 ) : (
                   quickSearchResults.map(prod => (
@@ -448,7 +461,10 @@ export const LorryLoading: React.FC = () => {
                           </span>
                         </div>
                         <div className="text-[11px] text-slate-500 font-mono mt-0.5">
-                          Available: <strong className="text-slate-800">{prod.currentStock} {prod.unit}</strong> (paid) • <strong className="text-emerald-700">{prod.freeStock || 0} free</strong>
+                          Available: <strong className="text-slate-800">{prod.currentStock} {prod.unit}</strong> (paid)
+                          {(prod.freeStock || 0) > 0 && (
+                            <> • <strong className="text-emerald-700">{prod.freeStock} free</strong></>
+                          )}
                         </div>
                       </div>
                       <div className="text-right shrink-0">
@@ -502,11 +518,16 @@ export const LorryLoading: React.FC = () => {
                             <span className="font-bold text-xs sm:text-sm text-slate-900 truncate">
                               {selectedProd.name}
                             </span>
+                            {!hasAvailableUnits(selectedProd) && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-rose-100 text-rose-700 shrink-0">
+                                0 Available
+                              </span>
+                            )}
                           </div>
                         ) : (
                           <div className="flex items-center gap-2 text-slate-400">
                             <Search className="w-4 h-4 text-slate-400" />
-                            <span className="text-xs sm:text-sm">Click to search product...</span>
+                            <span className="text-xs sm:text-sm">Click to select available product...</span>
                           </div>
                         )}
 
@@ -542,7 +563,7 @@ export const LorryLoading: React.FC = () => {
                                 const val = e.target.value;
                                 setRowSearchQueries(prev => ({ ...prev, [index]: val }));
                               }}
-                              placeholder="Search products by name, SKU, or type..."
+                              placeholder="Search available in-stock products..."
                               className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
                             />
                             {rowQuery && (
@@ -559,8 +580,8 @@ export const LorryLoading: React.FC = () => {
                           {/* Filtered Product Options List */}
                           <div className="max-h-56 overflow-y-auto divide-y divide-slate-100">
                             {filteredRowProducts.length === 0 ? (
-                              <div className="p-4 text-center text-xs text-slate-400">
-                                No products found matching "{rowQuery}"
+                              <div className="p-4 text-center text-xs text-slate-400 font-medium">
+                                No available in-stock products found {rowQuery ? `matching "${rowQuery}"` : ''}
                               </div>
                             ) : (
                               filteredRowProducts.map((p) => {
@@ -588,7 +609,10 @@ export const LorryLoading: React.FC = () => {
                                         </span>
                                       </div>
                                       <div className="text-[11px] text-slate-500 font-mono mt-0.5">
-                                        Warehouse: <span className="font-bold text-slate-800">{p.currentStock} {p.unit}</span> (paid) • <span className="font-bold text-emerald-700">{p.freeStock || 0} free</span>
+                                        Warehouse: <span className="font-bold text-slate-800">{p.currentStock} {p.unit}</span> (paid)
+                                        {(p.freeStock || 0) > 0 && (
+                                          <> • <span className="font-bold text-emerald-700">{p.freeStock} free</span></>
+                                        )}
                                       </div>
                                     </div>
 
@@ -611,34 +635,66 @@ export const LorryLoading: React.FC = () => {
 
                     {/* Quantity to Load (Paid) */}
                     <div className="w-full sm:w-28">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1.5">
-                        Paid Qty
-                      </label>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
+                          Paid Qty
+                        </label>
+                        {selectedProd && (
+                          <span className={`text-[10px] font-mono font-semibold ${selectedProd.currentStock > 0 ? 'text-slate-500' : 'text-rose-500'}`}>
+                            Max: {Math.max(0, selectedProd.currentStock)}
+                          </span>
+                        )}
+                      </div>
                       <input
                         type="number"
                         min="0"
-                        max={selectedProd ? selectedProd.currentStock : 9999}
-                        value={row.quantity !== undefined ? row.quantity : ''}
-                        onChange={(e) => updateRow(index, 'quantity', parseInt(e.target.value, 10) || 0)}
+                        max={selectedProd ? Math.max(0, selectedProd.currentStock) : 9999}
+                        disabled={!selectedProd || selectedProd.currentStock <= 0}
+                        value={row.quantity !== undefined && row.quantity !== 0 ? row.quantity : ''}
+                        onChange={(e) => {
+                          const entered = parseInt(e.target.value, 10) || 0;
+                          const maxVal = selectedProd ? Math.max(0, selectedProd.currentStock) : 9999;
+                          updateRow(index, 'quantity', Math.min(Math.max(0, entered), maxVal));
+                        }}
                         placeholder="0"
-                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
+                        className={`w-full border rounded-xl px-3 py-2.5 text-sm font-bold text-center focus:outline-none transition ${
+                          !selectedProd || selectedProd.currentStock <= 0
+                            ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                            : 'bg-white text-slate-900 border-slate-200 focus:ring-2 focus:ring-blue-500'
+                        }`}
                       />
                     </div>
 
                     {/* Free Issue to Load */}
                     <div className="w-full sm:w-28">
-                      <label className="text-xs font-bold text-emerald-700 uppercase tracking-wider block mb-1.5">
-                        +Free Qty
-                      </label>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-xs font-bold text-emerald-700 uppercase tracking-wider block">
+                          +Free Qty
+                        </label>
+                        {selectedProd && (
+                          <span className={`text-[10px] font-mono font-semibold ${(selectedProd.freeStock || 0) > 0 ? 'text-emerald-700' : 'text-slate-400'}`}>
+                            Max: {Math.max(0, selectedProd.freeStock || 0)}
+                          </span>
+                        )}
+                      </div>
                       <input
                         type="number"
                         min="0"
-                        max={selectedProd ? (selectedProd.freeStock || 0) : 9999}
+                        max={selectedProd ? Math.max(0, selectedProd.freeStock || 0) : 9999}
+                        disabled={!selectedProd || (selectedProd.freeStock || 0) <= 0}
                         value={row.freeQuantity !== undefined && row.freeQuantity !== 0 ? row.freeQuantity : ''}
-                        onChange={(e) => updateRow(index, 'freeQuantity', parseInt(e.target.value, 10) || 0)}
+                        onChange={(e) => {
+                          const entered = parseInt(e.target.value, 10) || 0;
+                          const maxVal = selectedProd ? Math.max(0, selectedProd.freeStock || 0) : 9999;
+                          updateRow(index, 'freeQuantity', Math.min(Math.max(0, entered), maxVal));
+                        }}
                         placeholder="0"
                         title="Free issue stock to load (Cost: Rs. 0.00)"
-                        className="w-full bg-emerald-50/60 border border-emerald-300 rounded-xl px-3 py-2.5 text-sm font-bold font-mono text-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-center"
+                        className={`w-full border rounded-xl px-3 py-2.5 text-sm font-bold font-mono text-center focus:outline-none transition ${
+                          !selectedProd || (selectedProd.freeStock || 0) <= 0
+                            ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                            : 'bg-emerald-50/60 text-emerald-900 border-emerald-300 focus:ring-2 focus:ring-emerald-500'
+                        }`}
                       />
                     </div>
 
