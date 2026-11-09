@@ -664,728 +664,723 @@ app.post('/api/backup/import', async (req: Request, res: Response) => {
       payrolls = []
     } = data;
 
-    // 1. Settings
+    // 0. Settings
     if (settings) {
       saveSettings(settings);
     }
 
-    // 2. Routes (first, before lorries & customers)
-    for (const r of routes) {
-      await prisma.route.upsert({
-        where: { id: r.id },
-        update: { code: r.code, name: r.name, description: r.description },
-        create: { id: r.id, code: r.code, name: r.name, description: r.description }
+    console.log('[Backup Restore] Purging existing local tables before restoring cloud snapshot...');
+    // Clean existing tables in reverse foreign-key dependency order to prevent duplicate code collisions
+    await prisma.billPaymentAllocation.deleteMany();
+    await prisma.customerPayment.deleteMany();
+    await prisma.orderReturn.deleteMany();
+    await prisma.orderItem.deleteMany();
+    await prisma.order.deleteMany();
+    await prisma.lorryLoadingItem.deleteMany();
+    await prisma.lorryLoading.deleteMany();
+    await prisma.purchaseOrderItem.deleteMany();
+    await prisma.purchaseOrder.deleteMany();
+    await prisma.payroll.deleteMany();
+    await prisma.salaryAdvance.deleteMany();
+    await prisma.attendance.deleteMany();
+    await prisma.expense.deleteMany();
+    await prisma.lorryStock.deleteMany();
+    await prisma.stockMovement.deleteMany();
+    await prisma.productionRunItem.deleteMany();
+    await prisma.productionRun.deleteMany();
+    await prisma.recipeItem.deleteMany();
+    await prisma.recipe.deleteMany();
+    await prisma.customer.deleteMany();
+    await prisma.product.deleteMany();
+    await prisma.supplier.deleteMany();
+    await prisma.employee.deleteMany();
+    await prisma.user.deleteMany();
+    await prisma.lorry.deleteMany();
+    await prisma.route.deleteMany();
+
+    console.log('[Backup Restore] Ingesting cloud records in topological order...');
+
+    // Sets to prevent duplicate unique keys if present in corrupted exports
+    const seenRouteCodes = new Set<string>();
+    const validRouteIds = new Set<string>();
+
+    // 1. Routes (first, before lorries & customers)
+    for (let i = 0; i < routes.length; i++) {
+      const r = routes[i];
+      let code = (r.code || `R-${i + 1}`).trim();
+      if (seenRouteCodes.has(code.toLowerCase())) {
+        code = `${code}-${i + 1}`;
+      }
+      seenRouteCodes.add(code.toLowerCase());
+
+      const created = await prisma.route.create({
+        data: {
+          id: r.id,
+          code,
+          name: r.name || `Route ${code}`,
+          description: r.description || null
+        }
       });
+      validRouteIds.add(created.id);
     }
 
-    // 3. Lorries
-    for (const l of lorries) {
-      await prisma.lorry.upsert({
-        where: { id: l.id },
-        update: {
-          vehicleNumber: l.vehicleNumber,
-          driverName: l.driverName,
-          driverPhone: l.driverPhone,
-          routeId: l.routeId || null,
-          status: l.status || 'ACTIVE'
-        },
-        create: {
+    // 2. Lorries
+    const seenVehicleNumbers = new Set<string>();
+    const validLorryIds = new Set<string>();
+
+    for (let i = 0; i < lorries.length; i++) {
+      const l = lorries[i];
+      let vehicleNum = (l.vehicleNumber || `VEH-${i + 1}`).trim();
+      if (seenVehicleNumbers.has(vehicleNum.toLowerCase())) {
+        vehicleNum = `${vehicleNum}-${i + 1}`;
+      }
+      seenVehicleNumbers.add(vehicleNum.toLowerCase());
+
+      const routeId = (l.routeId && validRouteIds.has(l.routeId)) ? l.routeId : null;
+
+      const created = await prisma.lorry.create({
+        data: {
           id: l.id,
-          vehicleNumber: l.vehicleNumber,
-          driverName: l.driverName,
-          driverPhone: l.driverPhone,
-          routeId: l.routeId || null,
+          vehicleNumber: vehicleNum,
+          driverName: l.driverName || 'Driver',
+          driverPhone: l.driverPhone || null,
+          routeId,
           status: l.status || 'ACTIVE'
         }
       });
+      validLorryIds.add(created.id);
     }
 
-    // 4. Users
-    for (const u of users) {
-      await prisma.user.upsert({
-        where: { username: u.username },
-        update: {
-          password: u.password,
-          fullName: u.fullName,
-          role: u.role || 'REP',
-          phone: u.phone || null,
-          lorryId: u.lorryId || null,
-          status: u.status || 'ACTIVE',
-          monthlyTarget: Number(u.monthlyTarget) || 0,
-          dailyTarget: Number(u.dailyTarget) || 0,
-          targetNewClients: Number(u.targetNewClients) || 0
-        },
-        create: {
+    // 3. Users
+    const seenUsernames = new Set<string>();
+    const validUserIds = new Set<string>();
+
+    for (let i = 0; i < users.length; i++) {
+      const u = users[i];
+      let uname = (u.username || `user_${i + 1}`).trim();
+      if (seenUsernames.has(uname.toLowerCase())) {
+        uname = `${uname}_${i + 1}`;
+      }
+      seenUsernames.add(uname.toLowerCase());
+
+      const lorryId = (u.lorryId && validLorryIds.has(u.lorryId)) ? u.lorryId : null;
+
+      const created = await prisma.user.create({
+        data: {
           id: u.id,
-          username: u.username,
-          password: u.password,
-          fullName: u.fullName,
+          username: uname,
+          password: u.password || 'password123',
+          fullName: u.fullName || uname,
           role: u.role || 'REP',
           phone: u.phone || null,
-          lorryId: u.lorryId || null,
+          lorryId,
           status: u.status || 'ACTIVE',
           monthlyTarget: Number(u.monthlyTarget) || 0,
           dailyTarget: Number(u.dailyTarget) || 0,
           targetNewClients: Number(u.targetNewClients) || 0
         }
       });
+      validUserIds.add(created.id);
     }
 
-    // 5. Suppliers
-    for (const s of suppliers) {
-      await prisma.supplier.upsert({
-        where: { id: s.id },
-        update: {
-          code: s.code,
-          name: s.name,
-          contactPerson: s.contactPerson || null,
-          phone: s.phone,
-          email: s.email || null,
-          address: s.address || null,
-          city: s.city || 'Colombo',
-          paymentTerms: s.paymentTerms || 'NET 30',
-          outstandingBalance: s.outstandingBalance || 0
-        },
-        create: {
+    // Ensure default admin user exists
+    const hasAdmin = await prisma.user.findFirst({ where: { role: 'ADMIN' } });
+    if (!hasAdmin) {
+      const adminUser = await prisma.user.create({
+        data: {
+          username: 'admin',
+          password: 'admin123',
+          fullName: 'Administrator',
+          role: 'ADMIN'
+        }
+      });
+      validUserIds.add(adminUser.id);
+    }
+
+    // 4. Suppliers
+    const seenSupplierCodes = new Set<string>();
+    const validSupplierIds = new Set<string>();
+
+    for (let i = 0; i < suppliers.length; i++) {
+      const s = suppliers[i];
+      let scode = (s.code || `SUP-${i + 1}`).trim();
+      if (seenSupplierCodes.has(scode.toLowerCase())) {
+        scode = `${scode}-${i + 1}`;
+      }
+      seenSupplierCodes.add(scode.toLowerCase());
+
+      const created = await prisma.supplier.create({
+        data: {
           id: s.id,
-          code: s.code,
-          name: s.name,
+          code: scode,
+          name: s.name || `Supplier ${scode}`,
           contactPerson: s.contactPerson || null,
-          phone: s.phone,
+          phone: s.phone || '0000000000',
           email: s.email || null,
           address: s.address || null,
           city: s.city || 'Colombo',
           paymentTerms: s.paymentTerms || 'NET 30',
-          outstandingBalance: s.outstandingBalance || 0
+          outstandingBalance: Number(s.outstandingBalance) || 0
         }
       });
+      validSupplierIds.add(created.id);
     }
 
-    // 6. Products
-    for (const p of products) {
-      await prisma.product.upsert({
-        where: { id: p.id },
-        update: {
-          sku: p.sku,
-          name: p.name,
-          category: p.category,
-          unit: p.unit,
-          unitPrice: p.unitPrice,
-          costPrice: p.costPrice,
-          currentStock: p.currentStock,
-          minStockAlert: p.minStockAlert,
-          freeRatioBuy: p.freeRatioBuy || 0,
-          freeRatioGet: p.freeRatioGet || 0,
-          isRawMaterial: p.isRawMaterial || false,
-          supplierId: p.supplierId || null
-        },
-        create: {
+    // 5. Products
+    const seenProductSkus = new Set<string>();
+    const validProductIds = new Set<string>();
+
+    for (let i = 0; i < products.length; i++) {
+      const p = products[i];
+      let sku = (p.sku || `SKU-${i + 1}`).trim().toUpperCase();
+      if (seenProductSkus.has(sku.toLowerCase())) {
+        sku = `${sku}-${i + 1}`;
+      }
+      seenProductSkus.add(sku.toLowerCase());
+
+      const supplierId = (p.supplierId && validSupplierIds.has(p.supplierId)) ? p.supplierId : null;
+
+      const created = await prisma.product.create({
+        data: {
           id: p.id,
-          sku: p.sku,
-          name: p.name,
-          category: p.category,
-          unit: p.unit,
-          unitPrice: p.unitPrice,
-          costPrice: p.costPrice,
-          currentStock: p.currentStock,
-          minStockAlert: p.minStockAlert,
-          freeRatioBuy: p.freeRatioBuy || 0,
-          freeRatioGet: p.freeRatioGet || 0,
-          isRawMaterial: p.isRawMaterial || false,
-          supplierId: p.supplierId || null
+          sku,
+          name: p.name || `Product ${sku}`,
+          category: p.category || 'General',
+          unit: p.unit || 'Unit',
+          unitPrice: Number(p.unitPrice) || 0,
+          costPrice: Number(p.costPrice) || 0,
+          currentStock: Number(p.currentStock) || 0,
+          freeStock: Number(p.freeStock) || 0,
+          damageStock: Number(p.damageStock) || 0,
+          minStockAlert: Number(p.minStockAlert) || 10,
+          freeRatioBuy: Number(p.freeRatioBuy) || 0,
+          freeRatioGet: Number(p.freeRatioGet) || 0,
+          isRawMaterial: Boolean(p.isRawMaterial),
+          supplierId
         }
       });
+      validProductIds.add(created.id);
     }
 
-    // 7. Lorry Stocks
+    // 6. Lorry Stocks
     for (const ls of lorryStocks) {
-      await prisma.lorryStock.upsert({
-        where: {
-          lorryId_productId: {
+      if (validLorryIds.has(ls.lorryId) && validProductIds.has(ls.productId)) {
+        await prisma.lorryStock.create({
+          data: {
+            id: ls.id,
             lorryId: ls.lorryId,
-            productId: ls.productId
+            productId: ls.productId,
+            quantity: Number(ls.quantity) || 0
           }
-        },
-        update: { quantity: ls.quantity },
-        create: {
-          id: ls.id,
-          lorryId: ls.lorryId,
-          productId: ls.productId,
-          quantity: ls.quantity
-        }
-      });
+        });
+      }
     }
 
-    // 8. Customers
-    for (const c of customers) {
-      await prisma.customer.upsert({
-        where: { id: c.id },
-        update: {
-          code: c.code,
-          name: c.name,
-          companyName: c.companyName || null,
-          phone: c.phone,
-          deliveryAddress: c.deliveryAddress,
-          city: c.city || 'Local',
-          routeId: c.routeId || null,
-          pricingTier: c.pricingTier || 'STANDARD',
-          creditLimit: c.creditLimit || 50000,
-          discountPercentage: c.discountPercentage || 0,
-          outstandingBalance: c.outstandingBalance || 0,
-          maxCreditInvoices: c.maxCreditInvoices || 1
-        },
-        create: {
+    // 7. Customers
+    const seenCustomerCodes = new Set<string>();
+    const validCustomerIds = new Set<string>();
+
+    for (let i = 0; i < customers.length; i++) {
+      const c = customers[i];
+      let ccode = (c.code || `CUST-${(i + 1).toString().padStart(3, '0')}`).trim();
+      if (seenCustomerCodes.has(ccode.toLowerCase())) {
+        ccode = `${ccode}-${i + 1}`;
+      }
+      seenCustomerCodes.add(ccode.toLowerCase());
+
+      const routeId = (c.routeId && validRouteIds.has(c.routeId)) ? c.routeId : null;
+
+      const created = await prisma.customer.create({
+        data: {
           id: c.id,
-          code: c.code,
-          name: c.name,
+          code: ccode,
+          name: c.name || `Customer ${ccode}`,
           companyName: c.companyName || null,
-          phone: c.phone,
-          deliveryAddress: c.deliveryAddress,
+          phone: c.phone || '0000000000',
+          deliveryAddress: c.deliveryAddress || 'Address',
           city: c.city || 'Local',
-          routeId: c.routeId || null,
+          routeId,
           pricingTier: c.pricingTier || 'STANDARD',
-          creditLimit: c.creditLimit || 50000,
-          discountPercentage: c.discountPercentage || 0,
-          outstandingBalance: c.outstandingBalance || 0,
-          maxCreditInvoices: c.maxCreditInvoices || 1
+          creditLimit: Number(c.creditLimit) || 50000,
+          discountPercentage: Number(c.discountPercentage) || 0,
+          outstandingBalance: Number(c.outstandingBalance) || 0,
+          maxCreditInvoices: Number(c.maxCreditInvoices) || 1
         }
       });
+      validCustomerIds.add(created.id);
     }
 
-    // 9. Loadings and Loading Items
-    for (const ld of loadings) {
-      await prisma.lorryLoading.upsert({
-        where: { id: ld.id },
-        update: {
-          loadingNumber: ld.loadingNumber,
-          lorryId: ld.lorryId,
-          routeId: ld.routeId || null,
-          date: new Date(ld.date),
-          status: ld.status || 'LOADED',
-          notes: ld.notes || null,
-          totalLoadedItems: ld.totalLoadedItems || 0,
-          totalSoldItems: ld.totalSoldItems || 0,
-          totalFreeItems: ld.totalFreeItems || 0,
-          totalReturnedItems: ld.totalReturnedItems || 0,
-          totalSalesAmount: ld.totalSalesAmount || 0,
-          cashCollected: ld.cashCollected || 0
-        },
-        create: {
+    // 8. Loadings and Loading Items
+    const seenLoadingNumbers = new Set<string>();
+
+    for (let i = 0; i < loadings.length; i++) {
+      const ld = loadings[i];
+      let lnum = (ld.loadingNumber || `LOAD-${i + 1}`).trim();
+      if (seenLoadingNumbers.has(lnum.toLowerCase())) {
+        lnum = `${lnum}-${i + 1}`;
+      }
+      seenLoadingNumbers.add(lnum.toLowerCase());
+
+      const lorryId = (ld.lorryId && validLorryIds.has(ld.lorryId)) ? ld.lorryId : Array.from(validLorryIds)[0];
+      if (!lorryId) continue;
+
+      const routeId = (ld.routeId && validRouteIds.has(ld.routeId)) ? ld.routeId : null;
+
+      await prisma.lorryLoading.create({
+        data: {
           id: ld.id,
-          loadingNumber: ld.loadingNumber,
-          lorryId: ld.lorryId,
-          routeId: ld.routeId || null,
-          date: new Date(ld.date),
+          loadingNumber: lnum,
+          lorryId,
+          routeId,
+          date: ld.date ? new Date(ld.date) : new Date(),
           status: ld.status || 'LOADED',
           notes: ld.notes || null,
-          totalLoadedItems: ld.totalLoadedItems || 0,
-          totalSoldItems: ld.totalSoldItems || 0,
-          totalFreeItems: ld.totalFreeItems || 0,
-          totalReturnedItems: ld.totalReturnedItems || 0,
-          totalSalesAmount: ld.totalSalesAmount || 0,
-          cashCollected: ld.cashCollected || 0
+          totalLoadedItems: Number(ld.totalLoadedItems) || 0,
+          totalSoldItems: Number(ld.totalSoldItems) || 0,
+          totalFreeItems: Number(ld.totalFreeItems) || 0,
+          totalReturnedItems: Number(ld.totalReturnedItems) || 0,
+          totalSalesAmount: Number(ld.totalSalesAmount) || 0,
+          cashCollected: Number(ld.cashCollected) || 0
         }
       });
 
       if (Array.isArray(ld.items)) {
         for (const item of ld.items) {
-          await prisma.lorryLoadingItem.upsert({
-            where: { id: item.id },
-            update: {
-              loadingId: ld.id,
-              productId: item.productId,
-              loadedQty: item.loadedQty || 0,
-              soldQty: item.soldQty || 0,
-              freeQty: item.freeQty || 0,
-              returnedQty: item.returnedQty || 0,
-              discrepancyQty: item.discrepancyQty || 0
-            },
-            create: {
-              id: item.id,
-              loadingId: ld.id,
-              productId: item.productId,
-              loadedQty: item.loadedQty || 0,
-              soldQty: item.soldQty || 0,
-              freeQty: item.freeQty || 0,
-              returnedQty: item.returnedQty || 0,
-              discrepancyQty: item.discrepancyQty || 0
-            }
-          });
+          if (validProductIds.has(item.productId)) {
+            await prisma.lorryLoadingItem.create({
+              data: {
+                id: item.id,
+                loadingId: ld.id,
+                productId: item.productId,
+                loadedQty: Number(item.loadedQty) || 0,
+                soldQty: Number(item.soldQty) || 0,
+                freeQty: Number(item.freeQty) || 0,
+                returnedQty: Number(item.returnedQty) || 0,
+                discrepancyQty: Number(item.discrepancyQty) || 0
+              }
+            });
+          }
         }
       }
     }
 
-    // 10. Orders & Order Items
-    for (const ord of orders) {
-      await prisma.order.upsert({
-        where: { id: ord.id },
-        update: {
-          orderNumber: ord.orderNumber,
-          paperBillNumber: ord.paperBillNumber || null,
-          customerId: ord.customerId,
-          lorryId: ord.lorryId || null,
-          routeId: ord.routeId || null,
-          subtotal: ord.subtotal || 0,
-          discountAmount: ord.discountAmount || 0,
-          taxAmount: ord.taxAmount || 0,
-          netTotal: ord.netTotal || 0,
-          cashReceived: ord.cashReceived || 0,
-          paidAmount: ord.paidAmount || 0,
-          balanceAmount: ord.balanceAmount || 0,
-          paymentMethod: ord.paymentMethod || 'CASH',
-          paymentStatus: ord.paymentStatus || 'PAID',
-          status: ord.status || 'COMPLETED',
-          notes: ord.notes || null,
-          createdAt: new Date(ord.createdAt)
-        },
-        create: {
+    // 9. Orders & Order Items
+    const seenOrderNumbers = new Set<string>();
+    const validOrderIds = new Set<string>();
+
+    for (let i = 0; i < orders.length; i++) {
+      const ord = orders[i];
+      let onum = (ord.orderNumber || `ORD-${i + 1}`).trim();
+      if (seenOrderNumbers.has(onum.toLowerCase())) {
+        onum = `${onum}-${i + 1}`;
+      }
+      seenOrderNumbers.add(onum.toLowerCase());
+
+      const customerId = (ord.customerId && validCustomerIds.has(ord.customerId))
+        ? ord.customerId
+        : Array.from(validCustomerIds)[0];
+
+      if (!customerId) continue;
+
+      const lorryId = (ord.lorryId && validLorryIds.has(ord.lorryId)) ? ord.lorryId : null;
+      const routeId = (ord.routeId && validRouteIds.has(ord.routeId)) ? ord.routeId : null;
+
+      const createdOrder = await prisma.order.create({
+        data: {
           id: ord.id,
-          orderNumber: ord.orderNumber,
+          orderNumber: onum,
           paperBillNumber: ord.paperBillNumber || null,
-          customerId: ord.customerId,
-          lorryId: ord.lorryId || null,
-          routeId: ord.routeId || null,
-          subtotal: ord.subtotal || 0,
-          discountAmount: ord.discountAmount || 0,
-          taxAmount: ord.taxAmount || 0,
-          netTotal: ord.netTotal || 0,
-          cashReceived: ord.cashReceived || 0,
-          paidAmount: ord.paidAmount || 0,
-          balanceAmount: ord.balanceAmount || 0,
+          customerId,
+          lorryId,
+          routeId,
+          subtotal: Number(ord.subtotal) || 0,
+          discountAmount: Number(ord.discountAmount) || 0,
+          taxAmount: Number(ord.taxAmount) || 0,
+          netTotal: Number(ord.netTotal) || 0,
+          cashReceived: Number(ord.cashReceived) || 0,
+          paidAmount: Number(ord.paidAmount) || 0,
+          balanceAmount: Number(ord.balanceAmount) || 0,
           paymentMethod: ord.paymentMethod || 'CASH',
           paymentStatus: ord.paymentStatus || 'PAID',
           status: ord.status || 'COMPLETED',
           notes: ord.notes || null,
-          createdAt: new Date(ord.createdAt)
+          createdAt: ord.createdAt ? new Date(ord.createdAt) : new Date()
         }
       });
+      validOrderIds.add(createdOrder.id);
 
       if (Array.isArray(ord.items)) {
         for (const it of ord.items) {
-          await prisma.orderItem.upsert({
-            where: { id: it.id },
-            update: {
-              orderId: ord.id,
-              productId: it.productId,
-              unitPrice: it.unitPrice || 0,
-              quantity: it.quantity || 1,
-              freeQuantity: it.freeQuantity || 0,
-              lineTotal: it.lineTotal || 0
-            },
-            create: {
-              id: it.id,
-              orderId: ord.id,
-              productId: it.productId,
-              unitPrice: it.unitPrice || 0,
-              quantity: it.quantity || 1,
-              freeQuantity: it.freeQuantity || 0,
-              lineTotal: it.lineTotal || 0
-            }
-          });
+          if (validProductIds.has(it.productId)) {
+            await prisma.orderItem.create({
+              data: {
+                id: it.id,
+                orderId: ord.id,
+                productId: it.productId,
+                unitPrice: Number(it.unitPrice) || 0,
+                quantity: Number(it.quantity) || 1,
+                freeQuantity: Number(it.freeQuantity) || 0,
+                lineTotal: Number(it.lineTotal) || 0
+              }
+            });
+          }
         }
       }
 
       if (Array.isArray(ord.returns)) {
         for (const ret of ord.returns) {
-          await prisma.orderReturn.upsert({
-            where: { id: ret.id },
-            update: {
-              orderId: ord.id,
-              productId: ret.productId,
-              quantity: ret.quantity || 0,
-              unitPrice: ret.unitPrice || 0,
-              total: ret.total || 0,
-              returnType: ret.returnType || 'DAMAGE',
-              reason: ret.reason || null
-            },
-            create: {
-              id: ret.id,
-              orderId: ord.id,
-              productId: ret.productId,
-              quantity: ret.quantity || 0,
-              unitPrice: ret.unitPrice || 0,
-              total: ret.total || 0,
-              returnType: ret.returnType || 'DAMAGE',
-              reason: ret.reason || null
-            }
-          });
+          if (validProductIds.has(ret.productId)) {
+            await prisma.orderReturn.create({
+              data: {
+                id: ret.id,
+                orderId: ord.id,
+                productId: ret.productId,
+                quantity: Number(ret.quantity) || 0,
+                unitPrice: Number(ret.unitPrice) || 0,
+                total: Number(ret.total) || 0,
+                returnType: ret.returnType || 'DAMAGE',
+                reason: ret.reason || null
+              }
+            });
+          }
         }
       }
     }
 
-    // 11. Customer Payments
-    for (const cp of customerPayments) {
-      await prisma.customerPayment.upsert({
-        where: { id: cp.id },
-        update: {
-          receiptNumber: cp.receiptNumber,
-          customerId: cp.customerId,
-          lorryId: cp.lorryId || null,
-          amount: cp.amount,
-          paymentMethod: cp.paymentMethod || 'CASH',
-          chequeNumber: cp.chequeNumber || null,
-          bankName: cp.bankName || null,
-          reference: cp.reference || null,
-          notes: cp.notes || null,
-          collectedBy: cp.collectedBy || null,
-          createdAt: new Date(cp.createdAt)
-        },
-        create: {
+    // 10. Customer Payments
+    const seenReceiptNumbers = new Set<string>();
+    const validPaymentIds = new Set<string>();
+
+    for (let i = 0; i < customerPayments.length; i++) {
+      const cp = customerPayments[i];
+      let rnum = (cp.receiptNumber || `RCPT-${i + 1}`).trim();
+      if (seenReceiptNumbers.has(rnum.toLowerCase())) {
+        rnum = `${rnum}-${i + 1}`;
+      }
+      seenReceiptNumbers.add(rnum.toLowerCase());
+
+      const customerId = (cp.customerId && validCustomerIds.has(cp.customerId))
+        ? cp.customerId
+        : Array.from(validCustomerIds)[0];
+
+      if (!customerId) continue;
+
+      const lorryId = (cp.lorryId && validLorryIds.has(cp.lorryId)) ? cp.lorryId : null;
+
+      const createdPayment = await prisma.customerPayment.create({
+        data: {
           id: cp.id,
-          receiptNumber: cp.receiptNumber,
-          customerId: cp.customerId,
-          lorryId: cp.lorryId || null,
-          amount: cp.amount,
+          receiptNumber: rnum,
+          customerId,
+          lorryId,
+          amount: Number(cp.amount) || 0,
           paymentMethod: cp.paymentMethod || 'CASH',
           chequeNumber: cp.chequeNumber || null,
           bankName: cp.bankName || null,
+          chequeDate: cp.chequeDate ? new Date(cp.chequeDate) : null,
+          chequeStatus: cp.chequeStatus || 'PENDING',
+          depositDate: cp.depositDate ? new Date(cp.depositDate) : null,
+          clearedDate: cp.clearedDate ? new Date(cp.clearedDate) : null,
+          bouncedDate: cp.bouncedDate ? new Date(cp.bouncedDate) : null,
+          depositBank: cp.depositBank || null,
+          bounceReason: cp.bounceReason || null,
           reference: cp.reference || null,
           notes: cp.notes || null,
           collectedBy: cp.collectedBy || null,
-          createdAt: new Date(cp.createdAt)
+          createdAt: cp.createdAt ? new Date(cp.createdAt) : new Date()
         }
       });
+      validPaymentIds.add(createdPayment.id);
     }
 
-    // 11.1 Bill Payment Allocations
+    // 11. Bill Payment Allocations
     for (const bpa of billPaymentAllocations) {
-      await prisma.billPaymentAllocation.upsert({
-        where: { id: bpa.id },
-        update: {
-          paymentId: bpa.paymentId,
-          orderId: bpa.orderId,
-          amount: bpa.amount
-        },
-        create: {
-          id: bpa.id,
-          paymentId: bpa.paymentId,
-          orderId: bpa.orderId,
-          amount: bpa.amount
-        }
-      });
+      if (validPaymentIds.has(bpa.paymentId) && validOrderIds.has(bpa.orderId)) {
+        await prisma.billPaymentAllocation.create({
+          data: {
+            id: bpa.id,
+            paymentId: bpa.paymentId,
+            orderId: bpa.orderId,
+            amount: Number(bpa.amount) || 0
+          }
+        });
+      }
     }
 
     // 12. Expenses
-    for (const exp of expenses) {
-      await prisma.expense.upsert({
-        where: { id: exp.id },
-        update: {
-          expenseNumber: exp.expenseNumber,
-          category: exp.category,
-          title: exp.title,
-          amount: exp.amount,
-          paymentMethod: exp.paymentMethod || 'CASH',
-          referenceNumber: exp.referenceNumber || null,
-          paidTo: exp.paidTo || null,
-          notes: exp.notes || null,
-          lorryId: exp.lorryId || null,
-          date: new Date(exp.date),
-          createdAt: new Date(exp.createdAt)
-        },
-        create: {
+    const seenExpenseNumbers = new Set<string>();
+
+    for (let i = 0; i < expenses.length; i++) {
+      const exp = expenses[i];
+      let expNum = (exp.expenseNumber || `EXP-${i + 1}`).trim();
+      if (seenExpenseNumbers.has(expNum.toLowerCase())) {
+        expNum = `${expNum}-${i + 1}`;
+      }
+      seenExpenseNumbers.add(expNum.toLowerCase());
+
+      const lorryId = (exp.lorryId && validLorryIds.has(exp.lorryId)) ? exp.lorryId : null;
+
+      await prisma.expense.create({
+        data: {
           id: exp.id,
-          expenseNumber: exp.expenseNumber,
-          category: exp.category,
-          title: exp.title,
-          amount: exp.amount,
+          expenseNumber: expNum,
+          category: exp.category || 'General',
+          title: exp.title || 'Expense',
+          amount: Number(exp.amount) || 0,
           paymentMethod: exp.paymentMethod || 'CASH',
           referenceNumber: exp.referenceNumber || null,
           paidTo: exp.paidTo || null,
           notes: exp.notes || null,
-          lorryId: exp.lorryId || null,
-          date: new Date(exp.date),
-          createdAt: new Date(exp.createdAt)
+          lorryId,
+          date: exp.date ? new Date(exp.date) : new Date(),
+          createdAt: exp.createdAt ? new Date(exp.createdAt) : new Date()
         }
       });
     }
 
-
-
     // 13. Recipes & Recipe Items
-    for (const r of recipes) {
-      await prisma.recipe.upsert({
-        where: { id: r.id },
-        update: {
-          code: r.code,
-          name: r.name,
-          productId: r.productId,
-          outputYield: r.outputYield || 1,
-          estimatedOverheadCost: r.estimatedOverheadCost || 0,
-          notes: r.notes || null
-        },
-        create: {
+    const seenRecipeCodes = new Set<string>();
+    const validRecipeIds = new Set<string>();
+
+    for (let i = 0; i < recipes.length; i++) {
+      const r = recipes[i];
+      let rcode = (r.code || `BOM-${i + 1}`).trim();
+      if (seenRecipeCodes.has(rcode.toLowerCase())) {
+        rcode = `${rcode}-${i + 1}`;
+      }
+      seenRecipeCodes.add(rcode.toLowerCase());
+
+      const productId = (r.productId && validProductIds.has(r.productId))
+        ? r.productId
+        : Array.from(validProductIds)[0];
+
+      if (!productId) continue;
+
+      const createdRecipe = await prisma.recipe.create({
+        data: {
           id: r.id,
-          code: r.code,
-          name: r.name,
-          productId: r.productId,
-          outputYield: r.outputYield || 1,
-          estimatedOverheadCost: r.estimatedOverheadCost || 0,
+          code: rcode,
+          name: r.name || `Recipe ${rcode}`,
+          productId,
+          outputYield: Number(r.outputYield) || 1,
+          estimatedOverheadCost: Number(r.estimatedOverheadCost) || 0,
           notes: r.notes || null
         }
       });
+      validRecipeIds.add(createdRecipe.id);
 
       if (Array.isArray(r.items)) {
         for (const item of r.items) {
-          await prisma.recipeItem.upsert({
-            where: { id: item.id },
-            update: {
-              recipeId: r.id,
-              componentProductId: item.componentProductId,
-              quantity: item.quantity,
-              notes: item.notes || null
-            },
-            create: {
-              id: item.id,
-              recipeId: r.id,
-              componentProductId: item.componentProductId,
-              quantity: item.quantity,
-              notes: item.notes || null
-            }
-          });
+          if (validProductIds.has(item.componentProductId)) {
+            await prisma.recipeItem.create({
+              data: {
+                id: item.id,
+                recipeId: r.id,
+                componentProductId: item.componentProductId,
+                quantity: Number(item.quantity) || 0,
+                notes: item.notes || null
+              }
+            });
+          }
         }
       }
     }
 
     // 14. Production Runs & Items
-    for (const pr of productionRuns) {
-      await prisma.productionRun.upsert({
-        where: { id: pr.id },
-        update: {
-          batchNumber: pr.batchNumber,
-          recipeId: pr.recipeId,
-          targetQuantity: pr.targetQuantity,
-          actualQuantity: pr.actualQuantity || 0,
-          status: pr.status || 'COMPLETED',
-          totalRawMaterialCost: pr.totalRawMaterialCost || 0,
-          overheadCost: pr.overheadCost || 0,
-          totalProductionCost: pr.totalProductionCost || 0,
-          unitCost: pr.unitCost || 0,
-          producedBy: pr.producedBy || null,
-          notes: pr.notes || null,
-          startDate: new Date(pr.startDate),
-          completedAt: pr.completedAt ? new Date(pr.completedAt) : null
-        },
-        create: {
+    const seenBatchNumbers = new Set<string>();
+
+    for (let i = 0; i < productionRuns.length; i++) {
+      const pr = productionRuns[i];
+      let bnum = (pr.batchNumber || `BATCH-${i + 1}`).trim();
+      if (seenBatchNumbers.has(bnum.toLowerCase())) {
+        bnum = `${bnum}-${i + 1}`;
+      }
+      seenBatchNumbers.add(bnum.toLowerCase());
+
+      const recipeId = (pr.recipeId && validRecipeIds.has(pr.recipeId))
+        ? pr.recipeId
+        : Array.from(validRecipeIds)[0];
+
+      if (!recipeId) continue;
+
+      await prisma.productionRun.create({
+        data: {
           id: pr.id,
-          batchNumber: pr.batchNumber,
-          recipeId: pr.recipeId,
-          targetQuantity: pr.targetQuantity,
-          actualQuantity: pr.actualQuantity || 0,
+          batchNumber: bnum,
+          recipeId,
+          targetQuantity: Number(pr.targetQuantity) || 1,
+          actualQuantity: Number(pr.actualQuantity) || 0,
           status: pr.status || 'COMPLETED',
-          totalRawMaterialCost: pr.totalRawMaterialCost || 0,
-          overheadCost: pr.overheadCost || 0,
-          totalProductionCost: pr.totalProductionCost || 0,
-          unitCost: pr.unitCost || 0,
+          totalRawMaterialCost: Number(pr.totalRawMaterialCost) || 0,
+          overheadCost: Number(pr.overheadCost) || 0,
+          totalProductionCost: Number(pr.totalProductionCost) || 0,
+          unitCost: Number(pr.unitCost) || 0,
           producedBy: pr.producedBy || null,
           notes: pr.notes || null,
-          startDate: new Date(pr.startDate),
+          startDate: pr.startDate ? new Date(pr.startDate) : new Date(),
           completedAt: pr.completedAt ? new Date(pr.completedAt) : null
         }
       });
 
       if (Array.isArray(pr.items)) {
         for (const it of pr.items) {
-          await prisma.productionRunItem.upsert({
-            where: { id: it.id },
-            update: {
-              productionRunId: pr.id,
-              productId: it.productId,
-              plannedQuantity: it.plannedQuantity,
-              actualQuantity: it.actualQuantity,
-              unitCost: it.unitCost,
-              lineCost: it.lineCost
-            },
-            create: {
-              id: it.id,
-              productionRunId: pr.id,
-              productId: it.productId,
-              plannedQuantity: it.plannedQuantity,
-              actualQuantity: it.actualQuantity,
-              unitCost: it.unitCost,
-              lineCost: it.lineCost
-            }
-          });
+          if (validProductIds.has(it.productId)) {
+            await prisma.productionRunItem.create({
+              data: {
+                id: it.id,
+                productionRunId: pr.id,
+                productId: it.productId,
+                plannedQuantity: Number(it.plannedQuantity) || 0,
+                actualQuantity: Number(it.actualQuantity) || 0,
+                unitCost: Number(it.unitCost) || 0,
+                lineCost: Number(it.lineCost) || 0
+              }
+            });
+          }
         }
       }
     }
 
     // 15. Employees
-    for (const emp of employees) {
-      await prisma.employee.upsert({
-        where: { id: emp.id },
-        update: {
-          employeeNumber: emp.employeeNumber,
-          fullName: emp.fullName,
-          callingName: emp.callingName || null,
-          nicNumber: emp.nicNumber || null,
-          phone: emp.phone,
-          address: emp.address || null,
-          designation: emp.designation,
-          department: emp.department || 'SALES_FLEET',
-          employmentType: emp.employmentType || 'FULL_TIME',
-          joinDate: new Date(emp.joinDate || Date.now()),
-          status: emp.status || 'ACTIVE',
-          basicSalary: emp.basicSalary || 0,
-          dailyRate: emp.dailyRate || 0,
-          otHourlyRate: emp.otHourlyRate || 0,
-          allowances: emp.allowances || 0,
-          commissionRate: emp.commissionRate || 0,
-          bankName: emp.bankName || null,
-          branchName: emp.branchName || null,
-          accountNumber: emp.accountNumber || null,
-          epfNumber: emp.epfNumber || null,
-          userId: emp.userId || null,
-          lorryId: emp.lorryId || null,
-          notes: emp.notes || null
-        },
-        create: {
+    const seenEmployeeNumbers = new Set<string>();
+    const validEmployeeIds = new Set<string>();
+
+    for (let i = 0; i < employees.length; i++) {
+      const emp = employees[i];
+      let empNum = (emp.employeeNumber || `EMP-${(i + 1).toString().padStart(3, '0')}`).trim();
+      if (seenEmployeeNumbers.has(empNum.toLowerCase())) {
+        empNum = `${empNum}-${i + 1}`;
+      }
+      seenEmployeeNumbers.add(empNum.toLowerCase());
+
+      const userId = (emp.userId && validUserIds.has(emp.userId)) ? emp.userId : null;
+      const lorryId = (emp.lorryId && validLorryIds.has(emp.lorryId)) ? emp.lorryId : null;
+
+      const createdEmp = await prisma.employee.create({
+        data: {
           id: emp.id,
-          employeeNumber: emp.employeeNumber,
-          fullName: emp.fullName,
+          employeeNumber: empNum,
+          fullName: emp.fullName || `Employee ${empNum}`,
           callingName: emp.callingName || null,
           nicNumber: emp.nicNumber || null,
-          phone: emp.phone,
+          phone: emp.phone || '0000000000',
           address: emp.address || null,
-          designation: emp.designation,
+          designation: emp.designation || 'Staff',
           department: emp.department || 'SALES_FLEET',
           employmentType: emp.employmentType || 'FULL_TIME',
-          joinDate: new Date(emp.joinDate || Date.now()),
+          joinDate: emp.joinDate ? new Date(emp.joinDate) : new Date(),
           status: emp.status || 'ACTIVE',
-          basicSalary: emp.basicSalary || 0,
-          dailyRate: emp.dailyRate || 0,
-          otHourlyRate: emp.otHourlyRate || 0,
-          allowances: emp.allowances || 0,
-          commissionRate: emp.commissionRate || 0,
+          basicSalary: Number(emp.basicSalary) || 0,
+          dailyRate: Number(emp.dailyRate) || 0,
+          otHourlyRate: Number(emp.otHourlyRate) || 0,
+          allowances: Number(emp.allowances) || 0,
+          commissionRate: Number(emp.commissionRate) || 0,
           bankName: emp.bankName || null,
           branchName: emp.branchName || null,
           accountNumber: emp.accountNumber || null,
           epfNumber: emp.epfNumber || null,
-          userId: emp.userId || null,
-          lorryId: emp.lorryId || null,
+          userId,
+          lorryId,
           notes: emp.notes || null
         }
       });
+      validEmployeeIds.add(createdEmp.id);
     }
 
     // 16. Attendances
     for (const att of attendances) {
-      await prisma.attendance.upsert({
-        where: { id: att.id },
-        update: {
-          employeeId: att.employeeId,
-          date: new Date(att.date),
-          status: att.status || 'PRESENT',
-          checkInTime: att.checkInTime || null,
-          checkOutTime: att.checkOutTime || null,
-          otHours: att.otHours || 0,
-          notes: att.notes || null
-        },
-        create: {
-          id: att.id,
-          employeeId: att.employeeId,
-          date: new Date(att.date),
-          status: att.status || 'PRESENT',
-          checkInTime: att.checkInTime || null,
-          checkOutTime: att.checkOutTime || null,
-          otHours: att.otHours || 0,
-          notes: att.notes || null
-        }
-      });
+      if (validEmployeeIds.has(att.employeeId)) {
+        await prisma.attendance.create({
+          data: {
+            id: att.id,
+            employeeId: att.employeeId,
+            date: att.date ? new Date(att.date) : new Date(),
+            status: att.status || 'PRESENT',
+            checkInTime: att.checkInTime || null,
+            checkOutTime: att.checkOutTime || null,
+            otHours: Number(att.otHours) || 0,
+            notes: att.notes || null
+          }
+        });
+      }
     }
 
     // 17. Salary Advances
-    for (const adv of salaryAdvances) {
-      await prisma.salaryAdvance.upsert({
-        where: { id: adv.id },
-        update: {
-          advanceNumber: adv.advanceNumber,
-          employeeId: adv.employeeId,
-          amount: adv.amount,
-          date: new Date(adv.date),
-          reason: adv.reason || null,
-          paymentMethod: adv.paymentMethod || 'CASH',
-          status: adv.status || 'PENDING',
-          payrollId: adv.payrollId || null,
-          notes: adv.notes || null
-        },
-        create: {
-          id: adv.id,
-          advanceNumber: adv.advanceNumber,
-          employeeId: adv.employeeId,
-          amount: adv.amount,
-          date: new Date(adv.date),
-          reason: adv.reason || null,
-          paymentMethod: adv.paymentMethod || 'CASH',
-          status: adv.status || 'PENDING',
-          payrollId: adv.payrollId || null,
-          notes: adv.notes || null
-        }
-      });
+    const seenAdvanceNumbers = new Set<string>();
+
+    for (let i = 0; i < salaryAdvances.length; i++) {
+      const adv = salaryAdvances[i];
+      let advNum = (adv.advanceNumber || `ADV-${i + 1}`).trim();
+      if (seenAdvanceNumbers.has(advNum.toLowerCase())) {
+        advNum = `${advNum}-${i + 1}`;
+      }
+      seenAdvanceNumbers.add(advNum.toLowerCase());
+
+      if (validEmployeeIds.has(adv.employeeId)) {
+        await prisma.salaryAdvance.create({
+          data: {
+            id: adv.id,
+            advanceNumber: advNum,
+            employeeId: adv.employeeId,
+            amount: Number(adv.amount) || 0,
+            date: adv.date ? new Date(adv.date) : new Date(),
+            reason: adv.reason || null,
+            paymentMethod: adv.paymentMethod || 'CASH',
+            status: adv.status || 'PENDING',
+            payrollId: adv.payrollId || null,
+            notes: adv.notes || null
+          }
+        });
+      }
     }
 
     // 18. Payrolls
-    for (const pay of payrolls) {
-      await prisma.payroll.upsert({
-        where: { id: pay.id },
-        update: {
-          payslipNumber: pay.payslipNumber,
-          employeeId: pay.employeeId,
-          month: pay.month,
-          year: pay.year,
-          workedDays: pay.workedDays || 0,
-          absentDays: pay.absentDays || 0,
-          leaveDays: pay.leaveDays || 0,
-          otHours: pay.otHours || 0,
-          basicSalary: pay.basicSalary || 0,
-          otAmount: pay.otAmount || 0,
-          allowances: pay.allowances || 0,
-          salesCommission: pay.salesCommission || 0,
-          performanceBonus: pay.performanceBonus || 0,
-          grossEarnings: pay.grossEarnings || 0,
-          advancesDeducted: pay.advancesDeducted || 0,
-          epfDeduction: pay.epfDeduction || 0,
-          employerEpf: pay.employerEpf || 0,
-          employerEtf: pay.employerEtf || 0,
-          otherDeductions: pay.otherDeductions || 0,
-          totalDeductions: pay.totalDeductions || 0,
-          netPayable: pay.netPayable || 0,
-          paymentStatus: pay.paymentStatus || 'PAID',
-          paymentMethod: pay.paymentMethod || 'CASH',
-          paidAt: pay.paidAt ? new Date(pay.paidAt) : null,
-          expenseId: pay.expenseId || null,
-          notes: pay.notes || null
-        },
-        create: {
-          id: pay.id,
-          payslipNumber: pay.payslipNumber,
-          employeeId: pay.employeeId,
-          month: pay.month,
-          year: pay.year,
-          workedDays: pay.workedDays || 0,
-          absentDays: pay.absentDays || 0,
-          leaveDays: pay.leaveDays || 0,
-          otHours: pay.otHours || 0,
-          basicSalary: pay.basicSalary || 0,
-          otAmount: pay.otAmount || 0,
-          allowances: pay.allowances || 0,
-          salesCommission: pay.salesCommission || 0,
-          performanceBonus: pay.performanceBonus || 0,
-          grossEarnings: pay.grossEarnings || 0,
-          advancesDeducted: pay.advancesDeducted || 0,
-          epfDeduction: pay.epfDeduction || 0,
-          employerEpf: pay.employerEpf || 0,
-          employerEtf: pay.employerEtf || 0,
-          otherDeductions: pay.otherDeductions || 0,
-          totalDeductions: pay.totalDeductions || 0,
-          netPayable: pay.netPayable || 0,
-          paymentStatus: pay.paymentStatus || 'PAID',
-          paymentMethod: pay.paymentMethod || 'CASH',
-          paidAt: pay.paidAt ? new Date(pay.paidAt) : null,
-          expenseId: pay.expenseId || null,
-          notes: pay.notes || null
-        }
-      });
+    const seenPayslipNumbers = new Set<string>();
+
+    for (let i = 0; i < payrolls.length; i++) {
+      const pay = payrolls[i];
+      let payNum = (pay.payslipNumber || `PAY-${i + 1}`).trim();
+      if (seenPayslipNumbers.has(payNum.toLowerCase())) {
+        payNum = `${payNum}-${i + 1}`;
+      }
+      seenPayslipNumbers.add(payNum.toLowerCase());
+
+      if (validEmployeeIds.has(pay.employeeId)) {
+        await prisma.payroll.create({
+          data: {
+            id: pay.id,
+            payslipNumber: payNum,
+            employeeId: pay.employeeId,
+            month: pay.month || 1,
+            year: pay.year || new Date().getFullYear(),
+            workedDays: Number(pay.workedDays) || 0,
+            absentDays: Number(pay.absentDays) || 0,
+            leaveDays: Number(pay.leaveDays) || 0,
+            otHours: Number(pay.otHours) || 0,
+            basicSalary: Number(pay.basicSalary) || 0,
+            otAmount: Number(pay.otAmount) || 0,
+            allowances: Number(pay.allowances) || 0,
+            salesCommission: Number(pay.salesCommission) || 0,
+            performanceBonus: Number(pay.performanceBonus) || 0,
+            grossEarnings: Number(pay.grossEarnings) || 0,
+            advancesDeducted: Number(pay.advancesDeducted) || 0,
+            epfDeduction: Number(pay.epfDeduction) || 0,
+            employerEpf: Number(pay.employerEpf) || 0,
+            employerEtf: Number(pay.employerEtf) || 0,
+            otherDeductions: Number(pay.otherDeductions) || 0,
+            totalDeductions: Number(pay.totalDeductions) || 0,
+            netPayable: Number(pay.netPayable) || 0,
+            paymentStatus: pay.paymentStatus || 'PAID',
+            paymentMethod: pay.paymentMethod || 'CASH',
+            paidAt: pay.paidAt ? new Date(pay.paidAt) : null,
+            expenseId: pay.expenseId || null,
+            notes: pay.notes || null
+          }
+        });
+      }
     }
+
+    console.log('[Backup Restore] Snapshot restored successfully!');
 
     return res.json({
       success: true,
