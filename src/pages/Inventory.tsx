@@ -8,12 +8,14 @@ import {
   Trash2, 
   Package,
   Boxes,
-  Truck
+  Truck,
+  FileSpreadsheet
 } from 'lucide-react';
 import { ProductService } from '../services/api';
 import { Product } from '../types';
 import { ProductModal } from '../components/ProductModal';
 import { StockAdjustModal } from '../components/StockAdjustModal';
+import { BulkStockImportModal } from '../components/BulkStockImportModal';
 import { useCurrency } from '../context/CurrencyContext';
 
 interface InventoryProps {
@@ -34,6 +36,7 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigateToSuppliers }) =
 
   const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
   const [adjustingProduct, setAdjustingProduct] = useState<Product | null>(null);
+  const [isBulkImportModalOpen, setIsBulkImportModalOpen] = useState(false);
 
   const loadProducts = async () => {
     try {
@@ -94,6 +97,14 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigateToSuppliers }) =
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+          <button
+            onClick={() => setIsBulkImportModalOpen(true)}
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-3 bg-white hover:bg-slate-50 active:scale-[0.98] text-slate-700 font-semibold rounded-2xl border border-slate-200/90 hover:border-slate-300 transition text-xs shadow-2xs cursor-pointer"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+            Bulk Import (.CSV)
+          </button>
+
           {onNavigateToSuppliers && (
             <button
               onClick={onNavigateToSuppliers}
@@ -413,6 +424,13 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigateToSuppliers }) =
         product={adjustingProduct}
         onClose={() => setIsAdjustModalOpen(false)}
         onAdjusted={loadProducts}
+      />
+
+      <BulkStockImportModal
+        isOpen={isBulkImportModalOpen}
+        onClose={() => setIsBulkImportModalOpen(false)}
+        onSuccess={loadProducts}
+        existingProducts={products}
       />
     </div>
   );

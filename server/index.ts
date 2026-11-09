@@ -1649,6 +1649,186 @@ app.post('/api/products/:id/stock-adjust', async (req: Request, res: Response) =
   }
 });
 
+// Bulk CSV Stock Import (Creates new products and/or adjusts warehouse stock)
+app.post('/api/products/bulk-import', async (req: Request, res: Response) => {
+  try {
+    const { mode = 'ADD', items } = req.body;
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'Items array is required and must not be empty.' });
+    }
+
+    const importMode = mode === 'REPLACE' ? 'REPLACE' : 'ADD';
+
+    // Preload all existing products for rapid matching
+    const existingProducts = await prisma.product.findMany();
+    const bySku = new Map<string, typeof existingProducts[0]>();
+    const byName = new Map<string, typeof existingProducts[0]>();
+
+    for (const p of existingProducts) {
+      if (p.sku) bySku.set(p.sku.trim().toLowerCase(), p);
+      if (p.name) byName.set(p.name.trim().toLowerCase(), p);
+    }
+
+    let createdCount = 0;
+    let updatedCount = 0;
+    const errors: { row: number; name: string; error: string }[] = [];
+
+    await prisma.$transaction(async (tx) => {
+      let counter = existingProducts.length;
+
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        const rawName = String(item.name || '').trim();
+        if (!rawName) {
+          errors.push({ row: i + 1, name: 'Unknown', error: 'Product name is required.' });
+          continue;
+        }
+
+        const rawSku = String(item.sku || '').trim().toUpperCase();
+        const skuKey = rawSku.toLowerCase();
+        const nameKey = rawName.toLowerCase();
+
+        // Find existing match by SKU or Name
+        let existing = skuKey ? bySku.get(skuKey) : undefined;
+        if (!existing) {
+          existing = byName.get(nameKey);
+        }
+
+        const importQty = parseInt(item.quantity ?? item.stockQuantity ?? 0, 10);
+        const freeQty = parseInt(item.freeStock ?? 0, 10);
+        const costPrice = parseFloat(item.costPrice ?? 0);
+        const unitPrice = parseFloat(item.unitPrice ?? item.sellingPrice ?? 0);
+        const isRaw = Boolean(item.isRawMaterial);
+
+        if (existing) {
+          // UPDATE EXISTING PRODUCT
+          const oldStock = existing.currentStock;
+          const newStock = importMode === 'ADD'
+            ? Math.max(0, oldStock + (isNaN(importQty) ? 0 : importQty))
+            : Math.max(0, isNaN(importQty) ? 0 : importQty);
+
+          const oldFree = existing.freeStock || 0;
+          const newFree = importMode === 'ADD'
+            ? Math.max(0, oldFree + (isNaN(freeQty) ? 0 : freeQty))
+            : Math.max(0, isNaN(freeQty) ? 0 : freeQty);
+
+          const updateData: any = {
+            currentStock: newStock,
+            freeStock: newFree
+          };
+
+          if (!isNaN(costPrice) && costPrice > 0) updateData.costPrice = costPrice;
+          if (!isNaN(unitPrice) && unitPrice > 0) updateData.unitPrice = unitPrice;
+          if (item.category && String(item.category).trim()) updateData.category = String(item.category).trim();
+          if (item.unit && String(item.unit).trim()) updateData.unit = String(item.unit).trim();
+          if (item.minStockAlert !== undefined && !isNaN(parseInt(item.minStockAlert, 10))) {
+            updateData.minStockAlert = parseInt(item.minStockAlert, 10);
+          }
+
+          const updated = await tx.product.update({
+            where: { id: existing.id },
+            data: updateData
+          });
+
+          // Stock movement record
+          const deltaPaid = newStock - oldStock;
+          if (deltaPaid !== 0) {
+            await tx.stockMovement.create({
+              data: {
+                productId: existing.id,
+                type: deltaPaid > 0 ? 'INBOUND' : 'ADJUSTMENT',
+                quantity: deltaPaid,
+                isFreeIssue: false,
+                notes: `CSV Bulk Stock Import (${importMode === 'ADD' ? 'Added +' + importQty : 'Set to ' + newStock})`
+              }
+            });
+          }
+
+          const deltaFree = newFree - oldFree;
+          if (deltaFree !== 0) {
+            await tx.stockMovement.create({
+              data: {
+                productId: existing.id,
+                type: deltaFree > 0 ? 'INBOUND' : 'ADJUSTMENT',
+                quantity: deltaFree,
+                isFreeIssue: true,
+                notes: `CSV Bulk Free Stock Import (${importMode === 'ADD' ? 'Added +' + freeQty : 'Set to ' + newFree})`
+              }
+            });
+          }
+
+          // Update memory lookup
+          bySku.set(updated.sku.toLowerCase(), updated);
+          byName.set(updated.name.toLowerCase(), updated);
+          updatedCount++;
+        } else {
+          // CREATE NEW PRODUCT
+          counter++;
+          const finalSku = rawSku || `SKU-${counter.toString().padStart(4, '0')}`;
+          const initialStock = Math.max(0, isNaN(importQty) ? 0 : importQty);
+          const initialFree = Math.max(0, isNaN(freeQty) ? 0 : freeQty);
+
+          const created = await tx.product.create({
+            data: {
+              sku: finalSku,
+              name: rawName,
+              category: String(item.category || '').trim() || (isRaw ? 'Raw Materials' : 'General'),
+              unit: String(item.unit || '').trim() || (isRaw ? 'Kg' : 'Unit'),
+              costPrice: isNaN(costPrice) ? 0 : costPrice,
+              unitPrice: isRaw ? 0 : (isNaN(unitPrice) ? 0 : unitPrice),
+              currentStock: initialStock,
+              freeStock: initialFree,
+              minStockAlert: item.minStockAlert ? parseInt(item.minStockAlert, 10) : 10,
+              isRawMaterial: isRaw
+            }
+          });
+
+          if (initialStock > 0) {
+            await tx.stockMovement.create({
+              data: {
+                productId: created.id,
+                type: 'INBOUND',
+                quantity: initialStock,
+                isFreeIssue: false,
+                notes: 'Initial warehouse intake stock from CSV bulk import'
+              }
+            });
+          }
+
+          if (initialFree > 0) {
+            await tx.stockMovement.create({
+              data: {
+                productId: created.id,
+                type: 'INBOUND',
+                quantity: initialFree,
+                isFreeIssue: true,
+                notes: 'Initial promotional free stock from CSV bulk import'
+              }
+            });
+          }
+
+          bySku.set(created.sku.toLowerCase(), created);
+          byName.set(created.name.toLowerCase(), created);
+          createdCount++;
+        }
+      }
+    });
+
+    return res.json({
+      success: true,
+      mode: importMode,
+      createdCount,
+      updatedCount,
+      totalProcessed: createdCount + updatedCount,
+      errors
+    });
+  } catch (error: any) {
+    console.error('Bulk import error:', error);
+    res.status(500).json({ error: error.message || 'Failed to complete bulk import' });
+  }
+});
+
 // Delete product
 app.delete('/api/products/:id', async (req: Request, res: Response) => {
   try {
