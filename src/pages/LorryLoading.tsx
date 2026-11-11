@@ -12,11 +12,13 @@ import {
   RotateCcw,
   Search,
   ChevronDown,
-  X
+  X,
+  Printer
 } from 'lucide-react';
 import { Lorry, Product, LorryLoading as LorryLoadingType } from '../types';
 import { LorryService, ProductService } from '../services/api';
 import { useCurrency } from '../context/CurrencyContext';
+import { LorryLoadingPrintModal } from '../components/LorryLoadingPrintModal';
 
 interface LoadingRow {
   productId: string;
@@ -37,6 +39,10 @@ export const LorryLoading: React.FC = () => {
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Printing state for morning lorry load
+  const [printLoadingData, setPrintLoadingData] = useState<LorryLoadingType | null>(null);
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState<boolean>(false);
 
   // Search & Combobox states for items
   const [activeDropdownIndex, setActiveDropdownIndex] = useState<number | null>(null);
@@ -274,6 +280,8 @@ export const LorryLoading: React.FC = () => {
       setSuccessMessage(
         `Successfully loaded ${res.totalLoadedItems} units into Lorry ${selectedLorry?.vehicleNumber}! Warehouse stock deducted.`
       );
+      setPrintLoadingData(res);
+      setIsPrintModalOpen(true);
       try {
         localStorage.removeItem(DRAFT_KEY);
       } catch (e) {}
@@ -318,9 +326,21 @@ export const LorryLoading: React.FC = () => {
 
       {/* Notifications */}
       {successMessage && (
-        <div className="p-3.5 sm:p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-3 text-emerald-800 text-xs sm:text-sm font-medium animate-fadeIn">
-          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-          <span>{successMessage}</span>
+        <div className="p-3.5 sm:p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-emerald-800 text-xs sm:text-sm font-medium animate-fadeIn">
+          <div className="flex items-center gap-3">
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+            <span>{successMessage}</span>
+          </div>
+          {printLoadingData && (
+            <button
+              type="button"
+              onClick={() => setIsPrintModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-bold text-xs shadow-2xs transition shrink-0 cursor-pointer self-start sm:self-auto"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>Print Loading Sheet</span>
+            </button>
+          )}
         </div>
       )}
 
@@ -804,9 +824,23 @@ export const LorryLoading: React.FC = () => {
                 </h3>
               </div>
               {activeLoading && (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-blue-50 text-blue-700 border border-blue-200/60">
-                  {activeLoading.status}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-blue-50 text-blue-700 border border-blue-200/60">
+                    {activeLoading.status}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPrintLoadingData(activeLoading);
+                      setIsPrintModalOpen(true);
+                    }}
+                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-blue-700 bg-blue-100/70 hover:bg-blue-200/80 rounded-lg transition cursor-pointer"
+                    title="Print Morning Loading Sheet"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    <span>Print Sheet</span>
+                  </button>
+                </div>
               )}
             </div>
 
@@ -969,6 +1003,14 @@ export const LorryLoading: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Printable Loading Sheet Modal */}
+      <LorryLoadingPrintModal
+        loading={printLoadingData}
+        isOpen={isPrintModalOpen}
+        onClose={() => setIsPrintModalOpen(false)}
+        defaultFormat="80mm"
+      />
     </div>
   );
 };

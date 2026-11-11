@@ -123,16 +123,19 @@
     inset: auto !important;
   }
 
-  /* Make ONLY the printable invoice / summary visible and dock it to the very top */
+  /* Make ONLY the printable invoice / summary / loading sheet visible and dock it to the very top */
   #printable-invoice,
   #printable-invoice *,
   #printable-summary,
-  #printable-summary * {
+  #printable-summary *,
+  #printable-loading-sheet,
+  #printable-loading-sheet * {
     visibility: visible !important;
   }
 
   #printable-invoice,
-  #printable-summary {
+  #printable-summary,
+  #printable-loading-sheet {
     position: absolute !important;
     left: 0 !important;
     top: 0 !important;

@@ -237,7 +237,7 @@ export const BulkStockImportModal: React.FC<BulkStockImportModalProps> = ({
           quantity,
           freeStock,
           minStockAlert: minAlert,
-          isRawMaterial: isRawMaterial || (matched ? matched.isRawMaterial : false),
+          isRawMaterial: Boolean(isRawMaterial ?? matched?.isRawMaterial ?? false),
           isExisting: Boolean(matched),
           existingProduct: matched,
           projectedStock: Math.max(0, projectedStock),

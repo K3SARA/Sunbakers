@@ -6,7 +6,7 @@
  * 3. Fallback to System Print Spooler / Android Bluetooth Print Services (RawBT, Bluetooth Print)
  */
 
-import { Order, SystemSettings } from '../types';
+import { Order, SystemSettings, LorryLoading } from '../types';
 
 // Standard 80mm thermal receipt character width (Font A: 42-48 chars, using 42 for safe margins)
 const RECEIPT_WIDTH = 42;
@@ -586,6 +586,150 @@ export async function printBillsSummaryToBluetooth(
   try {
     const summaryBytes = build80mmEscPosBillsSummary(data, settings);
     return await sendEscPosToBluetoothDevice(summaryBytes, onStatusChange);
+  } catch (err: any) {
+    return { success: false, message: err?.message || 'Bluetooth printing failed' };
+  }
+}
+
+/**
+ * Build ESC/POS Byte Buffer for 80mm Lorry Morning Load Sheet
+ */
+export function build80mmEscPosLorryLoading(
+  loading: LorryLoading,
+  settings?: SystemSettings | null
+): Uint8Array {
+  const chunks: number[] = [];
+
+  const addBytes = (bytes: number[]) => {
+    for (const b of bytes) chunks.push(b);
+  };
+
+  const addText = (text: string) => {
+    const encoded = encodeText(text);
+    for (let i = 0; i < encoded.length; i++) {
+      chunks.push(encoded[i]);
+    }
+  };
+
+  const addLine = (text = '') => {
+    addText(text);
+    addBytes(COMMANDS.LINE_FEED);
+  };
+
+  // 1. Initialize
+  addBytes(COMMANDS.INIT);
+
+  // 2. Header
+  addBytes(COMMANDS.ALIGN_CENTER);
+  addBytes(COMMANDS.DOUBLE_SIZE);
+  addBytes(COMMANDS.BOLD_ON);
+  addLine(settings?.companyName || 'Sunbakers & confectionary');
+  addBytes(COMMANDS.NORMAL_SIZE);
+  addBytes(COMMANDS.BOLD_OFF);
+
+  addLine(settings?.address || '239,kurukutthala ,kadugannawa');
+  addLine(`Tel: ${settings?.phone || '+94 77 254 9414'}`);
+
+  addLine(dividerLine('='));
+  addBytes(COMMANDS.BOLD_ON);
+  addLine('*** MORNING LORRY LOAD SHEET ***');
+  addLine('GATE PASS & DISPATCH NOTE');
+  addBytes(COMMANDS.BOLD_OFF);
+  addLine(dividerLine('='));
+
+  // 3. Metadata
+  addBytes(COMMANDS.ALIGN_LEFT);
+  const loadDate = new Date(loading.date || loading.createdAt || new Date());
+  const dateStr = loadDate.toLocaleDateString();
+  const timeStr = loadDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  addLine(padTwoColumns(`Gate Pass: ${loading.loadingNumber}`, `Status: ${loading.status}`));
+  addLine(padTwoColumns(`Date: ${dateStr}`, `Time: ${timeStr}`));
+  addLine(padTwoColumns(`Lorry: ${loading.lorry?.vehicleNumber || 'Lorry'}`, `Driver: ${(loading.lorry?.driverName || 'Driver').slice(0, 16)}`));
+  if (loading.lorry?.route?.name) {
+    addLine(`Route: ${loading.lorry.route.name}`);
+  }
+  addLine(dividerLine('-'));
+
+  // 4. Items Table
+  addBytes(COMMANDS.BOLD_ON);
+  addLine(padTwoColumns('ITEM DESCRIPTION', 'LOADED [FREE]'));
+  addBytes(COMMANDS.BOLD_OFF);
+  addLine(dividerLine('-'));
+
+  let totalRegularUnits = 0;
+  let totalFreeUnits = 0;
+  let totalEstimatedValue = 0;
+
+  loading.items.forEach((item, idx) => {
+    const reg = item.loadedQty || 0;
+    const free = item.loadedFreeQty || 0;
+    const price = item.product?.unitPrice || 0;
+    const itemValue = reg * price;
+
+    totalRegularUnits += reg;
+    totalFreeUnits += free;
+    totalEstimatedValue += itemValue;
+
+    const name = item.product?.name || `Item ${idx + 1}`;
+    const qtyStr = `${reg} ${item.product?.unit || 'u'}${free > 0 ? ` (+${free}F)` : ''}`;
+    addLine(padTwoColumns(`${idx + 1}. ${name.slice(0, 26)}`, qtyStr));
+    addLine(padTwoColumns(`   SKU: ${item.product?.sku || '—'} @ Rs.${price.toFixed(2)}`, `Val: Rs.${itemValue.toFixed(2)}`));
+  });
+
+  addLine(dividerLine('-'));
+
+  // 5. Totals
+  addBytes(COMMANDS.BOLD_ON);
+  addLine(padTwoColumns('TOTAL REGULAR UNITS:', `${totalRegularUnits}`));
+  if (totalFreeUnits > 0) {
+    addLine(padTwoColumns('TOTAL FREE ISSUE:', `${totalFreeUnits}`));
+  }
+  addLine(padTwoColumns('GRAND TOTAL UNITS:', `${totalRegularUnits + totalFreeUnits} units`));
+  addBytes(COMMANDS.DOUBLE_HEIGHT);
+  addLine(padTwoColumns('ESTIMATED LOAD VALUE:', `Rs.${totalEstimatedValue.toFixed(2)}`));
+  addBytes(COMMANDS.NORMAL_SIZE);
+  addBytes(COMMANDS.BOLD_OFF);
+  addLine(dividerLine('='));
+
+  if (loading.notes) {
+    addLine(`Notes: ${loading.notes}`);
+    addLine(dividerLine('-'));
+  }
+
+  // 6. Signatures Handover
+  addLine('');
+  addBytes(COMMANDS.ALIGN_LEFT);
+  addLine(padTwoColumns('Dispatched (Warehouse):', 'Received (Driver/Rep):'));
+  addLine('');
+  addLine(padTwoColumns('____________________', '____________________'));
+  addLine(padTwoColumns('Warehouse Keeper', loading.lorry?.driverName || 'Driver / Rep'));
+  addLine('');
+
+  // 7. Footer
+  addBytes(COMMANDS.ALIGN_CENTER);
+  addLine('*** VERIFIED FOR MORNING ROUTE ***');
+  addLine('Sunbakers Distribution Management');
+  addLine(dividerLine('.'));
+
+  // 8. Feed & Cut
+  addBytes(COMMANDS.PAPER_FEED_5);
+  addBytes(COMMANDS.PARTIAL_CUT);
+
+  return new Uint8Array(chunks);
+}
+
+/**
+ * Direct Print Lorry Loading Sheet to Bluetooth Thermal Printer
+ */
+export async function printLorryLoadingToBluetooth(
+  loading: LorryLoading,
+  settings?: SystemSettings | null,
+  onStatusChange?: (status: string) => void
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const bytes = build80mmEscPosLorryLoading(loading, settings);
+    return await sendEscPosToBluetoothDevice(bytes, onStatusChange);
   } catch (err: any) {
     return { success: false, message: err?.message || 'Bluetooth printing failed' };
   }
