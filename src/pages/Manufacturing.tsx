@@ -75,6 +75,7 @@ export const Manufacturing: React.FC = () => {
   const [runRecipeId, setRunRecipeId] = useState<string>('');
   const [runTargetQty, setRunTargetQty] = useState<string>('100');
   const [runOverhead, setRunOverhead] = useState<string>('0');
+  const [runOverheadMode, setRunOverheadMode] = useState<'FIXED' | 'PERCENT'>('FIXED');
   const [runProducedBy, setRunProducedBy] = useState<string>('Production Line 1');
   const [runNotes, setRunNotes] = useState<string>('');
   const [submittingRun, setSubmittingRun] = useState<boolean>(false);
@@ -84,6 +85,7 @@ export const Manufacturing: React.FC = () => {
   const [recipeProductId, setRecipeProductId] = useState<string>('');
   const [recipeYield, setRecipeYield] = useState<string>('1');
   const [recipeOverhead, setRecipeOverhead] = useState<string>('0');
+  const [recipeOverheadMode, setRecipeOverheadMode] = useState<'FIXED' | 'PERCENT'>('FIXED');
   const [recipeNotes, setRecipeNotes] = useState<string>('');
   const [recipeItems, setRecipeItems] = useState<RecipeRowItem[]>([
     { componentProductId: '', quantity: '', unit: 'KG' }
@@ -242,6 +244,7 @@ export const Manufacturing: React.FC = () => {
     setRunRecipeId(recId);
     setRunTargetQty('100');
     setRunOverhead('0');
+    setRunOverheadMode('FIXED');
     setIsRunModalOpen(true);
   };
 
@@ -258,7 +261,7 @@ export const Manufacturing: React.FC = () => {
       setErrorMessage(null);
 
       const targetQty = parseInt(runTargetQty, 10);
-      const overhead = parseFloat(runOverhead || '0');
+      const overhead = computedRunOverhead;
 
       const created = await ManufacturingService.createProductionRun({
         recipeId: runRecipeId,
@@ -315,6 +318,7 @@ export const Manufacturing: React.FC = () => {
     setRecipeProductId('');
     setRecipeYield('1');
     setRecipeOverhead('0');
+    setRecipeOverheadMode('FIXED');
     setRecipeNotes('');
     setRecipeItems([{ componentProductId: '', quantity: '', unit: 'KG' }]);
     setIsRecipeModalOpen(true);
@@ -327,6 +331,7 @@ export const Manufacturing: React.FC = () => {
     setRecipeProductId(recipe.productId);
     setRecipeYield(String(recipe.outputYield || 1));
     setRecipeOverhead(String(recipe.estimatedOverheadCost || 0));
+    setRecipeOverheadMode('FIXED');
     setRecipeNotes(recipe.notes || '');
 
     if (recipe.items && recipe.items.length > 0) {
@@ -412,7 +417,7 @@ export const Manufacturing: React.FC = () => {
           name: recipeName.trim(),
           productId: recipeProductId,
           outputYield: parseInt(recipeYield || '1', 10),
-          estimatedOverheadCost: parseFloat(recipeOverhead || '0'),
+          estimatedOverheadCost: computedRecipeOverhead,
           notes: recipeNotes.trim() || undefined,
           items: validItems
         });
@@ -422,7 +427,7 @@ export const Manufacturing: React.FC = () => {
           name: recipeName.trim(),
           productId: recipeProductId,
           outputYield: parseInt(recipeYield || '1', 10),
-          estimatedOverheadCost: parseFloat(recipeOverhead || '0'),
+          estimatedOverheadCost: computedRecipeOverhead,
           notes: recipeNotes.trim() || undefined,
           items: validItems
         });
@@ -464,10 +469,52 @@ export const Manufacturing: React.FC = () => {
     ? targetOutput / activeRunRecipe.outputYield
     : 1;
 
+  // Estimated raw material cost for the active run
+  const runRawMaterialCost = useMemo(() => {
+    if (!activeRunRecipe) return 0;
+    return activeRunRecipe.items.reduce((sum, item) => {
+      const comp =
+        item.componentProduct ||
+        products.find((p) => p.id === item.componentProductId);
+      const needed = item.quantity * multiplier;
+      const rate = comp?.costPrice || 0;
+      return sum + needed * rate;
+    }, 0);
+  }, [activeRunRecipe, multiplier, products]);
+
+  const computedRunOverhead = useMemo(() => {
+    const val = parseFloat(runOverhead || '0') || 0;
+    if (runOverheadMode === 'PERCENT') {
+      return (runRawMaterialCost * val) / 100;
+    }
+    return val;
+  }, [runOverhead, runOverheadMode, runRawMaterialCost]);
+
   // Raw materials list (ingredients & packaging)
   const rawMaterials = products.filter(p => Boolean(p.isRawMaterial) || p.category.toLowerCase().includes('raw') || p.category.toLowerCase().includes('pack'));
   // Finished goods list (sellable products produced by manufacturing)
   const finishedGoods = products.filter(p => !p.isRawMaterial && !p.category.toLowerCase().includes('raw') && !p.category.toLowerCase().includes('pack'));
+
+  // Estimated raw material cost for the recipe modal
+  const recipeBatchMaterialCost = useMemo(() => {
+    return recipeItems.reduce((sum, row) => {
+      const comp =
+        rawMaterials.find((r) => r.id === row.componentProductId) ||
+        products.find((p) => p.id === row.componentProductId);
+      const rawQty = parseFloat(row.quantity as any) || 0;
+      const baseQty = convertToInventoryBaseQty(rawQty, row.unit || 'KG', comp?.unit);
+      const rate = comp?.costPrice || 0;
+      return sum + baseQty * rate;
+    }, 0);
+  }, [recipeItems, rawMaterials, products]);
+
+  const computedRecipeOverhead = useMemo(() => {
+    const val = parseFloat(recipeOverhead || '0') || 0;
+    if (recipeOverheadMode === 'PERCENT') {
+      return (recipeBatchMaterialCost * val) / 100;
+    }
+    return val;
+  }, [recipeOverhead, recipeOverheadMode, recipeBatchMaterialCost]);
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-4 sm:space-y-6 overflow-y-auto h-full pb-24 md:pb-8">
@@ -1689,18 +1736,69 @@ export const Manufacturing: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1.5">
-                    Overhead Cost (Optional)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={runOverhead}
-                    onChange={(e) => setRunOverhead(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-sm font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <span className="text-[10px] text-slate-400 mt-0.5 block">Labor / electricity</span>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-bold text-slate-700">
+                      Overhead Cost
+                    </label>
+                    <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200/60">
+                      <button
+                        type="button"
+                        onClick={() => setRunOverheadMode('FIXED')}
+                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md transition ${
+                          runOverheadMode === 'FIXED'
+                            ? 'bg-white text-blue-700 shadow-2xs font-extrabold'
+                            : 'text-slate-500 hover:text-slate-700'
+                        }`}
+                      >
+                        Fixed
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRunOverheadMode('PERCENT')}
+                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md transition ${
+                          runOverheadMode === 'PERCENT'
+                            ? 'bg-white text-blue-700 shadow-2xs font-extrabold'
+                            : 'text-slate-500 hover:text-slate-700'
+                        }`}
+                      >
+                        % Percent
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={runOverhead}
+                      onChange={(e) => setRunOverhead(e.target.value)}
+                      placeholder={runOverheadMode === 'PERCENT' ? 'e.g. 10' : '0'}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-3.5 pr-8 py-2 text-sm font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    {runOverheadMode === 'PERCENT' && (
+                      <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                        %
+                      </span>
+                    )}
+                  </div>
+
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">
+                    {runOverheadMode === 'PERCENT' ? (
+                      <span className="text-purple-700 font-semibold">
+                        = {formatMoney(computedRunOverhead)} ({parseFloat(runOverhead) || 0}% of {formatMoney(runRawMaterialCost)} materials)
+                      </span>
+                    ) : (
+                      <>
+                        Labor / electricity
+                        {runRawMaterialCost > 0 && parseFloat(runOverhead) > 0 && (
+                          <span className="text-purple-600 ml-1 font-semibold">
+                            (= {((parseFloat(runOverhead) / runRawMaterialCost) * 100).toFixed(1)}% of materials)
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </span>
                 </div>
               </div>
 
@@ -1751,6 +1849,34 @@ export const Manufacturing: React.FC = () => {
                         </div>
                       );
                     })}
+                  </div>
+                </div>
+              )}
+
+              {/* Live Cost Summary Preview */}
+              {activeRunRecipe && (
+                <div className="p-3 bg-blue-50/70 rounded-2xl border border-blue-100/80 flex items-center justify-between text-xs">
+                  <div>
+                    <span className="text-[10px] text-blue-800 font-bold uppercase tracking-wider block">
+                      Total Production Cost
+                    </span>
+                    <span className="text-sm font-mono font-bold text-blue-950">
+                      {formatMoney(runRawMaterialCost + computedRunOverhead)}
+                    </span>
+                    <span className="text-[10px] text-slate-500 block">
+                      Materials: {formatMoney(runRawMaterialCost)} + Overhead: {formatMoney(computedRunOverhead)}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] text-emerald-800 font-bold uppercase tracking-wider block">
+                      Est. Unit Cost
+                    </span>
+                    <span className="text-sm font-mono font-bold text-emerald-700">
+                      {formatMoney(targetOutput > 0 ? (runRawMaterialCost + computedRunOverhead) / targetOutput : 0)}
+                    </span>
+                    <span className="text-[10px] text-slate-500 block">
+                      per {activeRunRecipe?.product?.unit || 'Unit'}
+                    </span>
                   </div>
                 </div>
               )}
@@ -2012,18 +2138,66 @@ export const Manufacturing: React.FC = () => {
               {/* Overhead & Remarks */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">
-                    Est. Overhead Cost per Batch
-                  </label>
-                  <input
-                    type="number"
-                    step="any"
-                    min="0"
-                    value={recipeOverhead}
-                    onChange={(e) => setRecipeOverhead(e.target.value)}
-                    placeholder="0.00"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-bold text-slate-700">
+                      Est. Overhead Cost per Batch
+                    </label>
+                    <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200/60">
+                      <button
+                        type="button"
+                        onClick={() => setRecipeOverheadMode('FIXED')}
+                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md transition ${
+                          recipeOverheadMode === 'FIXED'
+                            ? 'bg-white text-blue-700 shadow-2xs font-extrabold'
+                            : 'text-slate-500 hover:text-slate-700'
+                        }`}
+                      >
+                        Fixed
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRecipeOverheadMode('PERCENT')}
+                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md transition ${
+                          recipeOverheadMode === 'PERCENT'
+                            ? 'bg-white text-blue-700 shadow-2xs font-extrabold'
+                            : 'text-slate-500 hover:text-slate-700'
+                        }`}
+                      >
+                        % Percent
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      value={recipeOverhead}
+                      onChange={(e) => setRecipeOverhead(e.target.value)}
+                      placeholder={recipeOverheadMode === 'PERCENT' ? 'e.g. 10' : '0.00'}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    {recipeOverheadMode === 'PERCENT' && (
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                        %
+                      </span>
+                    )}
+                  </div>
+
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">
+                    {recipeOverheadMode === 'PERCENT' ? (
+                      <span className="text-purple-700 font-semibold">
+                        = {formatMoney(computedRecipeOverhead)} ({parseFloat(recipeOverhead) || 0}% of {formatMoney(recipeBatchMaterialCost)} batch materials)
+                      </span>
+                    ) : (
+                      recipeBatchMaterialCost > 0 && parseFloat(recipeOverhead) > 0 && (
+                        <span className="text-purple-600 font-semibold">
+                          (= {((parseFloat(recipeOverhead) / recipeBatchMaterialCost) * 100).toFixed(1)}% of batch materials)
+                        </span>
+                      )
+                    )}
+                  </span>
                 </div>
 
                 <div>
