@@ -17,6 +17,19 @@ import { Recipe, ProductionRun, Product, ManufacturingSummary } from '../types';
 import { ManufacturingService, ProductService } from '../services/api';
 import { useCurrency } from '../context/CurrencyContext';
 import { ProductModal } from '../components/ProductModal';
+import {
+  isGramUnit,
+  isKgUnit,
+  isWeightUnit,
+  formatIngredientQty,
+  convertToInventoryBaseQty
+} from '../utils/weightUnits';
+
+interface RecipeRowItem {
+  componentProductId: string;
+  quantity: string | number;
+  unit: string;
+}
 
 export const Manufacturing: React.FC = () => {
   const { formatMoney } = useCurrency();
@@ -56,8 +69,8 @@ export const Manufacturing: React.FC = () => {
   const [recipeYield, setRecipeYield] = useState<string>('1');
   const [recipeOverhead, setRecipeOverhead] = useState<string>('0');
   const [recipeNotes, setRecipeNotes] = useState<string>('');
-  const [recipeItems, setRecipeItems] = useState<Array<{ componentProductId: string; quantity: number }>>([
-    { componentProductId: '', quantity: 1 }
+  const [recipeItems, setRecipeItems] = useState<RecipeRowItem[]>([
+    { componentProductId: '', quantity: '', unit: 'KG' }
   ]);
   const [submittingRecipe, setSubmittingRecipe] = useState<boolean>(false);
 
@@ -137,16 +150,27 @@ export const Manufacturing: React.FC = () => {
 
   // Recipe Component Row Handlers
   const addRecipeRow = () => {
-    setRecipeItems([...recipeItems, { componentProductId: '', quantity: 1 }]);
+    setRecipeItems([...recipeItems, { componentProductId: '', quantity: '', unit: 'KG' }]);
   };
 
   const removeRecipeRow = (idx: number) => {
     setRecipeItems(recipeItems.filter((_, i) => i !== idx));
   };
 
-  const updateRecipeRow = (idx: number, field: 'componentProductId' | 'quantity', val: any) => {
+  const updateRecipeRow = (idx: number, field: keyof RecipeRowItem, val: any) => {
     const updated = [...recipeItems];
-    updated[idx] = { ...updated[idx], [field]: val };
+    if (field === 'componentProductId') {
+      const comp = rawMaterials.find(r => r.id === val);
+      const isWeight = comp && (isGramUnit(comp.unit) || isKgUnit(comp.unit));
+      const defaultUnit = isWeight ? 'KG' : (comp?.unit || 'Unit');
+      updated[idx] = {
+        ...updated[idx],
+        componentProductId: val,
+        unit: defaultUnit
+      };
+    } else {
+      updated[idx] = { ...updated[idx], [field]: val };
+    }
     setRecipeItems(updated);
   };
 
@@ -158,7 +182,20 @@ export const Manufacturing: React.FC = () => {
       return;
     }
 
-    const validItems = recipeItems.filter(i => i.componentProductId && i.quantity > 0);
+    const validItems = recipeItems
+      .filter(i => i.componentProductId && parseFloat(i.quantity as any) > 0)
+      .map(i => {
+        const comp = rawMaterials.find(r => r.id === i.componentProductId);
+        const rawQty = parseFloat(i.quantity as any);
+        const baseQty = convertToInventoryBaseQty(rawQty, i.unit || 'KG', comp?.unit);
+
+        return {
+          componentProductId: i.componentProductId,
+          quantity: baseQty,
+          notes: i.unit === 'KG' && comp && isGramUnit(comp.unit) ? `${rawQty} KG` : undefined
+        };
+      });
+
     if (validItems.length === 0) {
       setErrorMessage('Please add at least 1 raw material / component with a valid quantity.');
       return;
@@ -184,7 +221,7 @@ export const Manufacturing: React.FC = () => {
       setRecipeYield('1');
       setRecipeOverhead('0');
       setRecipeNotes('');
-      setRecipeItems([{ componentProductId: '', quantity: 1 }]);
+      setRecipeItems([{ componentProductId: '', quantity: '', unit: 'KG' }]);
       await loadAllData();
     } catch (err: any) {
       setErrorMessage(err.response?.data?.error || err.message || 'Failed to create BOM recipe.');
@@ -515,7 +552,7 @@ export const Manufacturing: React.FC = () => {
                           {item.componentProduct?.name || 'Raw Material'}
                         </span>
                         <span className="font-mono font-bold text-slate-900">
-                          {item.quantity} {item.componentProduct?.unit || 'u'}
+                          {formatIngredientQty(item.quantity, item.componentProduct?.unit)}
                         </span>
                       </div>
                     ))}
@@ -633,10 +670,22 @@ export const Manufacturing: React.FC = () => {
                       </td>
                       <td className="py-3 px-4 font-mono font-semibold text-purple-700">
                         {formatMoney(prod.costPrice)}
-                        <span className="text-[10px] text-slate-400 block font-normal font-sans">per {prod.unit}</span>
+                        <span className="text-[10px] text-slate-400 block font-normal font-sans">
+                          per {prod.unit}
+                          {isGramUnit(prod.unit) && (
+                            <span className="text-purple-600 block font-semibold">
+                              ({formatMoney(prod.costPrice * 1000)} / KG)
+                            </span>
+                          )}
+                        </span>
                       </td>
                       <td className="py-3 px-4 font-mono font-bold text-slate-900">
-                        {prod.currentStock} {prod.unit}
+                        {prod.currentStock.toLocaleString()} {prod.unit}
+                        {isGramUnit(prod.unit) && prod.currentStock >= 1000 && (
+                          <span className="text-[10px] text-purple-700 block font-semibold">
+                            (= {(prod.currentStock / 1000).toFixed(2)} KG)
+                          </span>
+                        )}
                       </td>
                       <td className="py-3 px-4 font-mono font-bold text-emerald-600">
                         {formatMoney(prod.currentStock * prod.costPrice)}
@@ -805,13 +854,13 @@ export const Manufacturing: React.FC = () => {
                               {item.componentProduct?.name}
                             </span>
                             <span className="text-[10px] text-slate-400">
-                              Stock: {avail} {item.componentProduct?.unit || 'u'}
+                              Stock: {formatIngredientQty(avail, item.componentProduct?.unit)}
                             </span>
                           </div>
 
                           <div className="text-right">
                             <span className="font-mono font-bold text-slate-900 block">
-                              {needed.toFixed(1)} {item.componentProduct?.unit || 'u'}
+                              {formatIngredientQty(needed, item.componentProduct?.unit)}
                             </span>
                             <span
                               className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
@@ -987,50 +1036,89 @@ export const Manufacturing: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  {recipeItems.map((row, idx) => (
-                    <div key={idx} className="flex items-center gap-2 p-2 bg-slate-50 rounded-xl border border-slate-200/60">
-                      <select
-                        value={row.componentProductId}
-                        onChange={(e) => updateRecipeRow(idx, 'componentProductId', e.target.value)}
-                        className="flex-1 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
-                      >
-                        <option value="">Select Raw Material / Ingredient...</option>
-                        {rawMaterials.length === 0 ? (
-                          <option value="" disabled>No raw materials registered — click "+ New Raw Material" above</option>
-                        ) : (
-                          rawMaterials.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.name} ({p.unit}) • Stock: {p.currentStock}
-                            </option>
-                          ))
+                <div className="space-y-2.5">
+                  {recipeItems.map((row, idx) => {
+                    const selectedComp = rawMaterials.find(p => p.id === row.componentProductId);
+                    const isWeight = selectedComp && isWeightUnit(selectedComp.unit);
+                    const numQty = parseFloat(row.quantity as string) || 0;
+
+                    return (
+                      <div key={idx} className="p-2.5 bg-slate-50 rounded-2xl border border-slate-200/70 space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={row.componentProductId}
+                            onChange={(e) => updateRecipeRow(idx, 'componentProductId', e.target.value)}
+                            className="flex-1 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+                          >
+                            <option value="">Select Raw Material / Ingredient...</option>
+                            {rawMaterials.length === 0 ? (
+                              <option value="" disabled>No raw materials registered — click "+ New Raw Material" above</option>
+                            ) : (
+                              rawMaterials.map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.name} • Stock: {formatIngredientQty(p.currentStock, p.unit)}
+                                </option>
+                              ))
+                            )}
+                          </select>
+
+                          <div className="w-24">
+                            <input
+                              type="number"
+                              step="any"
+                              min="0.0001"
+                              required
+                              value={row.quantity}
+                              onChange={(e) => updateRecipeRow(idx, 'quantity', e.target.value)}
+                              placeholder={isWeight ? 'e.g. 1.5' : 'Qty'}
+                              className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
+                            />
+                          </div>
+
+                          {isWeight ? (
+                            <select
+                              value={row.unit || 'KG'}
+                              onChange={(e) => updateRecipeRow(idx, 'unit', e.target.value)}
+                              className="w-20 bg-purple-50 border border-purple-200 text-purple-900 rounded-lg px-2 py-1.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-purple-500 cursor-pointer"
+                              title="Recipe unit (KG or g)"
+                            >
+                              <option value="KG">KG</option>
+                              <option value="g">g</option>
+                            </select>
+                          ) : (
+                            <span className="w-16 px-2 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-semibold text-center shrink-0">
+                              {selectedComp?.unit || 'Unit'}
+                            </span>
+                          )}
+
+                          {recipeItems.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeRecipeRow(idx)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition"
+                              title="Remove item"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Live Conversion Helper Note */}
+                        {isWeight && numQty > 0 && selectedComp && isGramUnit(selectedComp.unit) && (
+                          <div className="text-[11px] font-medium text-purple-800 bg-purple-50 px-2.5 py-1 rounded-xl flex items-center justify-between border border-purple-100 animate-fadeIn">
+                            <span>
+                              Recipe: <strong>{row.quantity} {row.unit || 'KG'}</strong>
+                            </span>
+                            <span className="font-mono font-bold text-purple-700">
+                              {row.unit === 'g'
+                                ? (numQty >= 1000 ? `= ${(numQty / 1000).toFixed(2)} KG` : 'Direct Grams')
+                                : `= ${(numQty * 1000).toLocaleString()} grams in inventory`}
+                            </span>
+                          </div>
                         )}
-                      </select>
-
-                      <div className="w-24">
-                        <input
-                          type="number"
-                          step="any"
-                          min="0.001"
-                          required
-                          value={row.quantity}
-                          onChange={(e) => updateRecipeRow(idx, 'quantity', parseFloat(e.target.value) || 0)}
-                          placeholder="Qty"
-                          className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
                       </div>
-
-                      {recipeItems.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeRecipeRow(idx)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
@@ -1176,7 +1264,7 @@ export const Manufacturing: React.FC = () => {
                       </div>
                       <div className="text-right">
                         <span className="font-mono font-bold text-slate-900 block">
-                          {item.actualQuantity} {item.product?.unit}
+                          {formatIngredientQty(item.actualQuantity, item.product?.unit)}
                         </span>
                         <span className="text-[10px] font-mono text-slate-500">
                           {formatMoney(item.lineCost)}

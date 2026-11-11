@@ -3,6 +3,7 @@ import { X, Check, Layers, Package, Sparkles } from 'lucide-react';
 import { Product } from '../types';
 import { ProductService } from '../services/api';
 import { useCurrency } from '../context/CurrencyContext';
+import { isGramUnit, isKgUnit } from '../utils/weightUnits';
 
 interface ProductModalProps {
   product: Product | null;
@@ -58,7 +59,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         sku: '',
         name: '',
         category: defaultIsRawMaterial ? 'Raw Materials' : 'Beverages',
-        unit: defaultIsRawMaterial ? 'Kg' : 'Case',
+        unit: defaultIsRawMaterial ? 'g' : 'Case',
         unitPrice: '',
         costPrice: '',
         currentStock: '0',
@@ -254,13 +255,11 @@ export const ProductModal: React.FC<ProductModalProps> = ({
               >
                 {formData.isRawMaterial ? (
                   <>
-                    <option value="Kg">Kg (Kilogram)</option>
-                    <option value="g">g (Gram)</option>
+                    <option value="g">g (Grams)</option>
+                    <option value="Kg">Kg (Kilograms)</option>
                     <option value="Litre">Litre</option>
                     <option value="ml">ml (Millilitre)</option>
                     <option value="Pieces">Pieces</option>
-                    <option value="Roll">Roll</option>
-                    <option value="Meter">Meter</option>
                     <option value="Bag">Bag</option>
                     <option value="Box">Box</option>
                     <option value="Unit">Unit</option>
@@ -280,9 +279,16 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
             {formData.isRawMaterial ? (
               <div className="sm:col-span-2">
-                <label className="text-xs font-bold uppercase tracking-wider text-purple-700 block mb-1">
-                  Purchase / Cost Price ({currencyConfig.symbol}) *
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-bold uppercase tracking-wider text-purple-700">
+                    Purchase / Cost Price ({currencyConfig.symbol}) *
+                  </label>
+                  {isGramUnit(formData.unit) && (
+                    <span className="text-[10px] text-purple-600 font-semibold">
+                      Base unit: Grams (g)
+                    </span>
+                  )}
+                </div>
                 <input
                   type="number"
                   step="0.0001"
@@ -292,6 +298,37 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   placeholder="0.00"
                   className="w-full bg-purple-50/40 border border-purple-200 rounded-xl px-3 py-2 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-500"
                 />
+
+                {/* Gram to KG cost helper */}
+                {isGramUnit(formData.unit) && (
+                  <div className="mt-1.5 p-2 bg-purple-50/60 border border-purple-100 rounded-xl space-y-1">
+                    {parseFloat(formData.costPrice) > 0 && (
+                      <div className="text-[11px] font-semibold text-purple-900 flex items-center justify-between">
+                        <span>Rate: <strong>Rs. {formData.costPrice} / gram</strong></span>
+                        <span className="font-mono text-purple-700 font-bold">
+                          = Rs. {(parseFloat(formData.costPrice) * 1000).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / 1 KG
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-1.5 pt-0.5">
+                      <span className="text-[10.5px] text-slate-500 font-medium">Or enter 1 KG Price:</span>
+                      <input
+                        type="number"
+                        step="any"
+                        placeholder="e.g. 350"
+                        className="w-24 bg-white border border-purple-200 rounded-lg px-2 py-0.5 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                        onChange={(e) => {
+                          const kgVal = parseFloat(e.target.value);
+                          if (!isNaN(kgVal) && kgVal >= 0) {
+                            setFormData(prev => ({ ...prev, costPrice: (kgVal / 1000).toString() }));
+                          }
+                        }}
+                      />
+                      <span className="text-[10px] text-purple-600 font-medium">Auto-divides by 1,000 for per-gram cost</span>
+                    </div>
+                  </div>
+                )}
+
                 <span className="text-[10px] text-slate-400 mt-1 block">
                   Acquisition cost per {formData.unit} (used to compute recipe batch costs)
                 </span>
@@ -358,6 +395,31 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     onChange={e => setFormData({ ...formData, currentStock: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0071E3]"
                   />
+                  {/* Gram stock helper */}
+                  {formData.isRawMaterial && isGramUnit(formData.unit) && (
+                    <div className="mt-1 space-y-1">
+                      {parseFloat(formData.currentStock) > 0 && (
+                        <div className="text-[11px] font-semibold text-purple-700">
+                          = {(parseFloat(formData.currentStock) / 1000).toFixed(2)} KG
+                        </div>
+                      )}
+                      <div className="flex items-center gap-1.5 pt-0.5">
+                        <span className="text-[10px] text-slate-500">Or enter in KG:</span>
+                        <input
+                          type="number"
+                          step="any"
+                          placeholder="e.g. 50"
+                          className="w-20 bg-white border border-purple-200 rounded px-1.5 py-0.5 text-xs font-mono font-bold"
+                          onChange={(e) => {
+                            const kg = parseFloat(e.target.value);
+                            if (!isNaN(kg) && kg >= 0) {
+                              setFormData(prev => ({ ...prev, currentStock: Math.round(kg * 1000).toString() }));
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1">
