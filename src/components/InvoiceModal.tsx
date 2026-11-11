@@ -38,7 +38,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
     if (order) {
       SettingsService.get()
         .then((s) => setCompanySettings(s))
-        .catch(() => {});
+        .catch(() => { });
     }
   }, [order]);
 
@@ -107,9 +107,8 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
       className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 print:static print:inset-auto print:bg-white print:p-0 print:m-0 print:block print:h-auto print:min-h-0 print:overflow-visible print:shadow-none"
       style={{ zIndex: 100 }}
     >
-      <div className={`bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full overflow-hidden flex flex-col max-h-[95vh] transition-all duration-200 print:max-w-none print:w-full print:rounded-none print:shadow-none print:border-none print:p-0 print:m-0 print:max-h-none print:overflow-visible print:block ${
-        format === '80mm' ? 'max-w-md' : 'max-w-2xl'
-      }`}>
+      <div className={`bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full overflow-hidden flex flex-col max-h-[95vh] transition-all duration-200 print:max-w-none print:w-full print:rounded-none print:shadow-none print:border-none print:p-0 print:m-0 print:max-h-none print:overflow-visible print:block ${format === '80mm' ? 'max-w-md' : 'max-w-2xl'
+        }`}>
         {/* Modal Controls Toolbar */}
         <div className="px-3 sm:px-5 py-3 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 bg-slate-50/80 print:hidden shrink-0">
           <div className="flex items-center gap-1.5 sm:gap-2">
@@ -118,11 +117,10 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
               <button
                 type="button"
                 onClick={() => setFormat('80mm')}
-                className={`px-2.5 py-1 rounded-lg flex items-center gap-1 transition ${
-                  format === '80mm'
+                className={`px-2.5 py-1 rounded-lg flex items-center gap-1 transition ${format === '80mm'
                     ? 'bg-white text-blue-700 shadow-2xs font-bold'
                     : 'text-slate-600 hover:text-slate-900'
-                }`}
+                  }`}
                 title="80mm Thermal Receipt (Mobile / Bluetooth)"
               >
                 <Smartphone className="w-3.5 h-3.5 text-blue-600" />
@@ -132,11 +130,10 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
               <button
                 type="button"
                 onClick={() => setFormat('a4')}
-                className={`px-2.5 py-1 rounded-lg flex items-center gap-1 transition ${
-                  format === 'a4'
+                className={`px-2.5 py-1 rounded-lg flex items-center gap-1 transition ${format === 'a4'
                     ? 'bg-white text-blue-700 shadow-2xs font-bold'
                     : 'text-slate-600 hover:text-slate-900'
-                }`}
+                  }`}
                 title="Full A4 / Slip"
               >
                 <FileText className="w-3.5 h-3.5 text-slate-500" />
@@ -195,13 +192,12 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
 
         {/* Live Bluetooth Status Banner (if active) */}
         {btStatus && (
-          <div className={`px-4 py-2 text-xs font-medium flex items-center gap-2 border-b print:hidden transition-all ${
-            btSuccess
+          <div className={`px-4 py-2 text-xs font-medium flex items-center gap-2 border-b print:hidden transition-all ${btSuccess
               ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
               : btStatus.includes('failed') || btStatus.includes('not supported') || btStatus.includes('cancelled')
-              ? 'bg-amber-50 text-amber-800 border-amber-200'
-              : 'bg-blue-50 text-blue-800 border-blue-200 animate-pulse'
-          }`}>
+                ? 'bg-amber-50 text-amber-800 border-amber-200'
+                : 'bg-blue-50 text-blue-800 border-blue-200 animate-pulse'
+            }`}>
             {btSuccess ? (
               <Check className="w-4 h-4 text-emerald-600 shrink-0" />
             ) : (
@@ -224,7 +220,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                 <div className="flex justify-center mb-1.5">
                   <img
                     src={samanthaLogo}
-                    alt="Samantha Distributor"
+                    alt="Sun Bakers & Confectionary"
                     className="w-16 h-16 sm:w-20 sm:h-20 object-contain mx-auto rounded-full border border-slate-200/60 shadow-2xs print:border-none"
                   />
                 </div>
@@ -232,7 +228,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                 <h2 className="text-base sm:text-lg font-black tracking-wider uppercase text-black leading-tight">
                   {companySettings?.companyName || 'Sunbakers & confectionary'}
                 </h2>
-                
+
                 <p className="text-[11.5px] sm:text-[12px] text-black font-semibold leading-tight">
                   {companySettings?.address || '239,kurukutthala ,kadugannawa'}
                 </p>
@@ -476,7 +472,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                   <div className="flex items-center gap-3 sm:justify-end">
                     <img
                       src={samanthaLogo}
-                      alt="Samantha Distributor"
+                      alt="Sun Bakers & Confectionary"
                       className="w-12 h-12 object-contain rounded-full border border-slate-100 shadow-2xs shrink-0"
                     />
                     <div>
@@ -601,11 +597,10 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                       {order.returns.map((ret) => (
                         <tr key={ret.id}>
                           <td className="p-2 pl-3">
-                            <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold ${
-                              ret.returnType === 'DAMAGE'
+                            <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold ${ret.returnType === 'DAMAGE'
                                 ? 'bg-rose-100 text-rose-800 border border-rose-200/80'
                                 : 'bg-emerald-100 text-emerald-800 border border-emerald-200/80'
-                            }`}>
+                              }`}>
                               {ret.returnType === 'DAMAGE' ? '💥 Damaged / Expired' : '✨ Good Resellable'}
                             </span>
                           </td>

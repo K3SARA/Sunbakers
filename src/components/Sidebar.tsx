@@ -119,12 +119,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="flex items-center gap-3.5">
             <img
               src={samanthaLogo}
-              alt="Samantha Distributor"
+              alt="Sun Bakers & Confectionary"
               className="w-10 h-10 rounded-xl object-contain drop-shadow-xs shrink-0"
             />
             <div>
               <h1 className="font-bold text-slate-900 text-base tracking-tight leading-snug">
-                Samantha Distributor
+                Sun Bakers & Confectionary
               </h1>
               <span className="text-xs font-medium text-slate-400 block -mt-0.5">
                 Fleet &amp; Distribution
@@ -173,8 +173,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       key={item.id}
                       onClick={() => handleItemClick(item.id)}
                       className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-[13.5px] transition-all duration-150 text-left group ${isActive
-                          ? 'bg-[#0071E3] text-white shadow-sm shadow-blue-500/20 font-semibold'
-                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 font-medium'
+                        ? 'bg-[#0071E3] text-white shadow-sm shadow-blue-500/20 font-semibold'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 font-medium'
                         }`}
                     >
                       <div className="flex items-center gap-3 min-w-0 pr-2">

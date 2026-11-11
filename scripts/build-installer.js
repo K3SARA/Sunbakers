@@ -2,7 +2,7 @@ const { execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
-console.log('=== Building Samantha Distributor Offline Release ===');
+console.log('=== Building Sun Bakers & Confectionary Offline Release ===');
 
 // 1. Run build:all
 console.log('\n[1/3] Building frontend, backend bundle, and electron files...');
@@ -22,7 +22,7 @@ const makensisPath = path.join(
 const nsiScript = path.join(__dirname, 'installer.nsi');
 if (fs.existsSync(makensisPath) && fs.existsSync(nsiScript)) {
   execSync(`"${makensisPath}" "${nsiScript}"`, { stdio: 'inherit' });
-  console.log('\n✔ Successfully created release/Samantha Distributor Setup 1.0.0.exe');
+  console.log('\n✔ Successfully created release/Sun Bakers & Confectionary Setup 1.0.0.exe');
 } else {
   console.log('\n✔ Portable executable created. (makensis not found at cached path for setup installer)');
 }

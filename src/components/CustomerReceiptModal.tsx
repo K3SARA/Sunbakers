@@ -52,7 +52,7 @@ export const CustomerReceiptModal: React.FC<CustomerReceiptModalProps> = ({
             <div className="flex justify-center mb-1.5">
               <img
                 src={samanthaLogo}
-                alt="Samantha Distributor"
+                alt="Sun Bakers & Confectionary"
                 className="w-14 h-14 object-contain rounded-full border border-slate-100 shadow-2xs"
               />
             </div>

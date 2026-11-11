@@ -62,7 +62,7 @@ function startBackendServer() {
           if (Module.globalPaths && !Module.globalPaths.includes(resNodeModules)) {
             Module.globalPaths.unshift(resNodeModules);
           }
-        } catch {}
+        } catch { }
       }
     }
     if (!isDev) {
@@ -75,7 +75,7 @@ function startBackendServer() {
     try {
       const logPath = path.join(app.getPath('userData'), 'server-error.log');
       fs.writeFileSync(logPath, `Error starting server: ${err?.stack || err}\n`, 'utf8');
-    } catch {}
+    } catch { }
   }
 }
 
@@ -122,7 +122,7 @@ function createWindow() {
     minWidth: 1080,
     minHeight: 720,
     backgroundColor: '#F1F3F6',
-    title: 'Samantha Distributor Management',
+    title: 'Sun Bakers & Confectionary Management',
     icon: iconPath,
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     autoHideMenuBar: true,
