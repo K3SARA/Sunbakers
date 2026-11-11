@@ -12,6 +12,7 @@ import {
   Trash2,
   Check,
   Edit2,
+  Pencil,
   PieChart,
   BarChart3,
   Scale,
@@ -61,6 +62,7 @@ export const Manufacturing: React.FC = () => {
   // Modals
   const [isRunModalOpen, setIsRunModalOpen] = useState<boolean>(false);
   const [isRecipeModalOpen, setIsRecipeModalOpen] = useState<boolean>(false);
+  const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
   const [selectedRunDetail, setSelectedRunDetail] = useState<ProductionRun | null>(null);
   const [isRawMaterialModalOpen, setIsRawMaterialModalOpen] = useState<boolean>(false);
   const [editingRawMaterial, setEditingRawMaterial] = useState<Product | null>(null);
@@ -306,8 +308,74 @@ export const Manufacturing: React.FC = () => {
     setRecipeItems(updated);
   };
 
-  // Handle Create Recipe
-  const handleCreateRecipe = async (e: React.FormEvent) => {
+  // Open Create Recipe Modal
+  const openCreateRecipeModal = () => {
+    setEditingRecipe(null);
+    setRecipeName('');
+    setRecipeProductId('');
+    setRecipeYield('1');
+    setRecipeOverhead('0');
+    setRecipeNotes('');
+    setRecipeItems([{ componentProductId: '', quantity: '', unit: 'KG' }]);
+    setIsRecipeModalOpen(true);
+  };
+
+  // Open Edit Recipe Modal
+  const openEditRecipeModal = (recipe: Recipe) => {
+    setEditingRecipe(recipe);
+    setRecipeName(recipe.name);
+    setRecipeProductId(recipe.productId);
+    setRecipeYield(String(recipe.outputYield || 1));
+    setRecipeOverhead(String(recipe.estimatedOverheadCost || 0));
+    setRecipeNotes(recipe.notes || '');
+
+    if (recipe.items && recipe.items.length > 0) {
+      setRecipeItems(
+        recipe.items.map((it) => {
+          const comp =
+            it.componentProduct ||
+            rawMaterials.find((r) => r.id === it.componentProductId) ||
+            products.find((p) => p.id === it.componentProductId);
+
+          if (comp && isGramUnit(comp.unit)) {
+            // Check if it was saved in KG
+            const noteMatch = it.notes?.match(/^([\d.]+)\s*KG$/i);
+            if (noteMatch) {
+              return {
+                componentProductId: it.componentProductId,
+                quantity: noteMatch[1],
+                unit: 'KG'
+              };
+            }
+            if (it.quantity >= 1000) {
+              return {
+                componentProductId: it.componentProductId,
+                quantity: (it.quantity / 1000).toString(),
+                unit: 'KG'
+              };
+            }
+            return {
+              componentProductId: it.componentProductId,
+              quantity: it.quantity.toString(),
+              unit: 'g'
+            };
+          }
+
+          return {
+            componentProductId: it.componentProductId,
+            quantity: it.quantity.toString(),
+            unit: comp?.unit || 'Unit'
+          };
+        })
+      );
+    } else {
+      setRecipeItems([{ componentProductId: '', quantity: '', unit: 'KG' }]);
+    }
+    setIsRecipeModalOpen(true);
+  };
+
+  // Handle Save Recipe (Create or Update)
+  const handleSaveRecipe = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!recipeName.trim() || !recipeProductId) {
       setErrorMessage('Recipe name and finished product are required.');
@@ -315,9 +383,11 @@ export const Manufacturing: React.FC = () => {
     }
 
     const validItems = recipeItems
-      .filter(i => i.componentProductId && parseFloat(i.quantity as any) > 0)
-      .map(i => {
-        const comp = rawMaterials.find(r => r.id === i.componentProductId);
+      .filter((i) => i.componentProductId && parseFloat(i.quantity as any) > 0)
+      .map((i) => {
+        const comp =
+          rawMaterials.find((r) => r.id === i.componentProductId) ||
+          products.find((p) => p.id === i.componentProductId);
         const rawQty = parseFloat(i.quantity as any);
         const baseQty = convertToInventoryBaseQty(rawQty, i.unit || 'KG', comp?.unit);
 
@@ -337,17 +407,30 @@ export const Manufacturing: React.FC = () => {
       setSubmittingRecipe(true);
       setErrorMessage(null);
 
-      await ManufacturingService.createRecipe({
-        name: recipeName.trim(),
-        productId: recipeProductId,
-        outputYield: parseInt(recipeYield || '1', 10),
-        estimatedOverheadCost: parseFloat(recipeOverhead || '0'),
-        notes: recipeNotes.trim() || undefined,
-        items: validItems
-      });
+      if (editingRecipe) {
+        await ManufacturingService.updateRecipe(editingRecipe.id, {
+          name: recipeName.trim(),
+          productId: recipeProductId,
+          outputYield: parseInt(recipeYield || '1', 10),
+          estimatedOverheadCost: parseFloat(recipeOverhead || '0'),
+          notes: recipeNotes.trim() || undefined,
+          items: validItems
+        });
+        setSuccessMessage(`BOM Recipe "${recipeName.trim()}" updated successfully!`);
+      } else {
+        await ManufacturingService.createRecipe({
+          name: recipeName.trim(),
+          productId: recipeProductId,
+          outputYield: parseInt(recipeYield || '1', 10),
+          estimatedOverheadCost: parseFloat(recipeOverhead || '0'),
+          notes: recipeNotes.trim() || undefined,
+          items: validItems
+        });
+        setSuccessMessage(`BOM Recipe "${recipeName.trim()}" created successfully!`);
+      }
 
-      setSuccessMessage(`BOM Recipe "${recipeName.trim()}" created successfully!`);
       setIsRecipeModalOpen(false);
+      setEditingRecipe(null);
       setRecipeName('');
       setRecipeProductId('');
       setRecipeYield('1');
@@ -356,7 +439,7 @@ export const Manufacturing: React.FC = () => {
       setRecipeItems([{ componentProductId: '', quantity: '', unit: 'KG' }]);
       await loadAllData();
     } catch (err: any) {
-      setErrorMessage(err.response?.data?.error || err.message || 'Failed to create BOM recipe.');
+      setErrorMessage(err.response?.data?.error || err.message || 'Failed to save BOM recipe.');
     } finally {
       setSubmittingRecipe(false);
     }
@@ -405,7 +488,7 @@ export const Manufacturing: React.FC = () => {
 
         <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
           <button
-            onClick={() => setIsRecipeModalOpen(true)}
+            onClick={openCreateRecipeModal}
             className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-slate-200/80 hover:bg-slate-50 active:scale-[0.98] text-slate-700 font-bold rounded-2xl shadow-2xs transition text-xs"
           >
             <Plus className="w-4 h-4 stroke-[2.5]" />
@@ -416,7 +499,7 @@ export const Manufacturing: React.FC = () => {
             onClick={() => {
               if (recipes.length === 0) {
                 alert('Please create a BOM Recipe first before running production.');
-                setIsRecipeModalOpen(true);
+                openCreateRecipeModal();
                 return;
               }
               setIsRunModalOpen(true);
@@ -574,7 +657,7 @@ export const Manufacturing: React.FC = () => {
               <p className="text-xs text-slate-500 font-medium">No production runs executed yet.</p>
               <button
                 onClick={() => {
-                  if (recipes.length === 0) setIsRecipeModalOpen(true);
+                  if (recipes.length === 0) openCreateRecipeModal();
                   else setIsRunModalOpen(true);
                 }}
                 className="px-4 py-2 bg-[#0071E3] text-white text-xs font-bold rounded-xl shadow-xs"
@@ -795,6 +878,14 @@ export const Manufacturing: React.FC = () => {
                   </button>
 
                   <button
+                    onClick={() => openEditRecipeModal(recipe)}
+                    className="p-1.5 text-slate-400 hover:text-amber-600 rounded-lg hover:bg-slate-100 transition"
+                    title="Edit Recipe"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
                     onClick={() => handleDeleteRecipe(recipe.id, recipe.name)}
                     className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-slate-100 transition"
                     title="Delete Recipe"
@@ -824,7 +915,7 @@ export const Manufacturing: React.FC = () => {
                 Create a Bill of Materials formula specifying which raw materials produce your finished goods.
               </p>
               <button
-                onClick={() => setIsRecipeModalOpen(true)}
+                onClick={openCreateRecipeModal}
                 className="px-4 py-2 bg-[#0071E3] text-white text-xs font-bold rounded-xl shadow-xs"
               >
                 Create First BOM Recipe
@@ -1727,19 +1818,28 @@ export const Manufacturing: React.FC = () => {
                   <Sparkles className="w-5 h-5" />
                 </div>
                 <div>
-                  <h2 className="text-sm sm:text-base font-bold text-slate-900">Define BOM Recipe</h2>
-                  <p className="text-xs text-slate-500">Configure finished product recipe and raw materials.</p>
+                  <h2 className="text-sm sm:text-base font-bold text-slate-900">
+                    {editingRecipe ? `Edit Recipe: ${editingRecipe.name}` : 'Define BOM Recipe'}
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    {editingRecipe
+                      ? 'Update ingredients, yield, overhead, and formula specifications.'
+                      : 'Configure finished product recipe and raw materials.'}
+                  </p>
                 </div>
               </div>
               <button
-                onClick={() => setIsRecipeModalOpen(false)}
+                onClick={() => {
+                  setIsRecipeModalOpen(false);
+                  setEditingRecipe(null);
+                }}
                 className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateRecipe} className="p-5 space-y-4 overflow-y-auto flex-1">
+            <form onSubmit={handleSaveRecipe} className="p-5 space-y-4 overflow-y-auto flex-1">
               <div>
                 <label className="text-xs font-bold text-slate-700 block mb-1">
                   Recipe Name *
@@ -1944,7 +2044,10 @@ export const Manufacturing: React.FC = () => {
             <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2.5">
               <button
                 type="button"
-                onClick={() => setIsRecipeModalOpen(false)}
+                onClick={() => {
+                  setIsRecipeModalOpen(false);
+                  setEditingRecipe(null);
+                }}
                 disabled={submittingRecipe}
                 className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-200 transition"
               >
@@ -1952,12 +2055,18 @@ export const Manufacturing: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={handleCreateRecipe}
+                onClick={handleSaveRecipe}
                 disabled={submittingRecipe || !recipeName.trim() || !recipeProductId}
                 className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-2 disabled:opacity-50"
               >
                 <Check className="w-4 h-4" />
-                <span>{submittingRecipe ? 'Saving Recipe...' : 'Save BOM Recipe'}</span>
+                <span>
+                  {submittingRecipe
+                    ? 'Saving Recipe...'
+                    : editingRecipe
+                    ? 'Update Recipe'
+                    : 'Save BOM Recipe'}
+                </span>
               </button>
             </div>
           </div>
