@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Factory,
   Plus,
@@ -11,7 +11,16 @@ import {
   PackageCheck,
   Trash2,
   Check,
-  Edit2
+  Edit2,
+  PieChart,
+  BarChart3,
+  Scale,
+  Filter,
+  Printer,
+  Calendar,
+  ArrowRight,
+  ChevronRight,
+  Eye
 } from 'lucide-react';
 import { Recipe, ProductionRun, Product, ManufacturingSummary } from '../types';
 import { ManufacturingService, ProductService } from '../services/api';
@@ -35,7 +44,12 @@ export const Manufacturing: React.FC = () => {
   const { formatMoney } = useCurrency();
 
   // Active Tab
-  const [activeTab, setActiveTab] = useState<'RUNS' | 'RECIPES' | 'MATERIALS'>('RUNS');
+  const [activeTab, setActiveTab] = useState<'RUNS' | 'RECIPES' | 'MATERIALS' | 'USAGE'>('RUNS');
+
+  // Produce Material Usage Filters & View State
+  const [selectedProduceId, setSelectedProduceId] = useState<string>('ALL');
+  const [usagePeriod, setUsagePeriod] = useState<'ALL' | 'TODAY' | '7D' | '30D'>('ALL');
+  const [recipeDisplayMode, setRecipeDisplayMode] = useState<Record<string, 'BATCH' | 'UNIT'>>({});
 
   // Core Data
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -73,6 +87,124 @@ export const Manufacturing: React.FC = () => {
     { componentProductId: '', quantity: '', unit: 'KG' }
   ]);
   const [submittingRecipe, setSubmittingRecipe] = useState<boolean>(false);
+
+  // Filter completed runs by period
+  const periodFilteredRuns = useMemo(() => {
+    const now = new Date();
+    return productionRuns.filter((run) => {
+      if (run.status !== 'COMPLETED') return false;
+      if (usagePeriod === 'ALL') return true;
+      const runDate = new Date(run.createdAt);
+      if (usagePeriod === 'TODAY') {
+        return runDate.toDateString() === now.toDateString();
+      }
+      if (usagePeriod === '7D') {
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(now.getDate() - 7);
+        return runDate >= sevenDaysAgo;
+      }
+      if (usagePeriod === '30D') {
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(now.getDate() - 30);
+        return runDate >= thirtyDaysAgo;
+      }
+      return true;
+    });
+  }, [productionRuns, usagePeriod]);
+
+  // Aggregate Material Usage for each finished produce / recipe
+  const produceUsageStats = useMemo(() => {
+    return recipes.map((recipe) => {
+      const finishedProduct =
+        recipe.product || products.find((p) => p.id === recipe.productId);
+      const runs = periodFilteredRuns.filter((r) => r.recipeId === recipe.id);
+      const totalUnitsProduced = runs.reduce(
+        (sum, r) => sum + (r.actualQuantity || r.targetQuantity || 0),
+        0
+      );
+      const totalBatches = runs.length;
+
+      // Calculate ingredient details
+      const ingredients = recipe.items.map((item) => {
+        const comp =
+          item.componentProduct ||
+          products.find((p) => p.id === item.componentProductId);
+        const unitQty = (item.quantity || 0) / (recipe.outputYield || 1);
+        const rate = comp?.costPrice || 0;
+        const costPerProduce = unitQty * rate;
+
+        // Total actual consumption across runs
+        let totalConsumed = 0;
+        let totalCost = 0;
+
+        runs.forEach((run) => {
+          const runItem = run.items?.find(
+            (ri) => ri.productId === item.componentProductId
+          );
+          if (runItem) {
+            const qty = runItem.actualQuantity || runItem.plannedQuantity || 0;
+            totalConsumed += qty;
+            totalCost += runItem.lineCost || qty * (runItem.unitCost || rate);
+          } else {
+            const runUnits = run.actualQuantity || run.targetQuantity || 0;
+            const computedQty = unitQty * runUnits;
+            totalConsumed += computedQty;
+            totalCost += computedQty * rate;
+          }
+        });
+
+        return {
+          itemId: item.id,
+          componentId: item.componentProductId,
+          componentName: comp?.name || 'Raw Material',
+          componentSku: comp?.sku || '',
+          unit: comp?.unit || 'KG',
+          currentStock: comp?.currentStock || 0,
+          rate,
+          unitQty,
+          costPerProduce,
+          totalConsumed,
+          totalCost
+        };
+      });
+
+      const totalMaterialCostStandard = ingredients.reduce(
+        (sum, ing) => sum + ing.costPerProduce,
+        0
+      );
+      const totalPeriodSpend = ingredients.reduce(
+        (sum, ing) => sum + ing.totalCost,
+        0
+      );
+
+      return {
+        recipeId: recipe.id,
+        recipeCode: recipe.code,
+        recipeName: recipe.name,
+        recipeYield: recipe.outputYield,
+        productId: recipe.productId,
+        productName: finishedProduct?.name || recipe.name,
+        productSku: finishedProduct?.sku || '',
+        productUnit: finishedProduct?.unit || 'Units',
+        totalBatches,
+        totalUnitsProduced,
+        totalPeriodSpend,
+        totalMaterialCostStandard,
+        ingredients,
+        runs
+      };
+    });
+  }, [recipes, products, periodFilteredRuns]);
+
+  // Selected produce stats (if single produce chosen)
+  const currentProduceStat = useMemo(() => {
+    if (selectedProduceId === 'ALL') return null;
+    return (
+      produceUsageStats.find(
+        (p) => p.productId === selectedProduceId || p.recipeId === selectedProduceId
+      ) || null
+    );
+  }, [produceUsageStats, selectedProduceId]);
 
   useEffect(() => {
     loadAllData();
@@ -366,11 +498,11 @@ export const Manufacturing: React.FC = () => {
       </div>
 
       {/* Clean Tab Navigator */}
-      <div className="flex items-center gap-1.5 p-1 bg-slate-100/80 rounded-2xl max-w-md border border-slate-200/60">
+      <div className="flex flex-wrap sm:flex-nowrap items-center gap-1.5 p-1 bg-slate-100/80 rounded-2xl max-w-2xl border border-slate-200/60">
         <button
           type="button"
           onClick={() => setActiveTab('RUNS')}
-          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 whitespace-nowrap ${
             activeTab === 'RUNS'
               ? 'bg-white text-blue-600 shadow-2xs'
               : 'text-slate-600 hover:text-slate-900'
@@ -383,7 +515,7 @@ export const Manufacturing: React.FC = () => {
         <button
           type="button"
           onClick={() => setActiveTab('RECIPES')}
-          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 whitespace-nowrap ${
             activeTab === 'RECIPES'
               ? 'bg-white text-blue-600 shadow-2xs'
               : 'text-slate-600 hover:text-slate-900'
@@ -396,7 +528,7 @@ export const Manufacturing: React.FC = () => {
         <button
           type="button"
           onClick={() => setActiveTab('MATERIALS')}
-          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 whitespace-nowrap ${
             activeTab === 'MATERIALS'
               ? 'bg-white text-blue-600 shadow-2xs'
               : 'text-slate-600 hover:text-slate-900'
@@ -404,6 +536,19 @@ export const Manufacturing: React.FC = () => {
         >
           <Boxes className="w-3.5 h-3.5" />
           <span>Raw Materials</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('USAGE')}
+          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 whitespace-nowrap ${
+            activeTab === 'USAGE'
+              ? 'bg-white text-blue-600 shadow-2xs'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <Scale className="w-3.5 h-3.5" />
+          <span>Produce Material Usage</span>
         </button>
       </div>
 
@@ -539,23 +684,79 @@ export const Manufacturing: React.FC = () => {
 
                 {/* Ingredients & Raw Materials Breakdown */}
                 <div className="mt-4 pt-3 border-t border-slate-100 space-y-1.5">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                    Components Required Per {recipe.outputYield} Units:
-                  </span>
-                  <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
-                    {recipe.items.map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex items-center justify-between text-xs py-1 px-2 rounded-lg bg-slate-50"
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                      {recipeDisplayMode[recipe.id] === 'UNIT'
+                        ? 'Formula Per 1 Finished Pc:'
+                        : `Batch Components (${recipe.outputYield} ${recipe.product?.unit || 'Units'}):`}
+                    </span>
+                    <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200/60">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setRecipeDisplayMode((prev) => ({ ...prev, [recipe.id]: 'BATCH' }))
+                        }
+                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md transition ${
+                          recipeDisplayMode[recipe.id] !== 'UNIT'
+                            ? 'bg-white text-blue-700 shadow-2xs font-extrabold'
+                            : 'text-slate-500 hover:text-slate-700'
+                        }`}
                       >
-                        <span className="font-medium text-slate-700 truncate max-w-[170px]">
-                          {item.componentProduct?.name || 'Raw Material'}
-                        </span>
-                        <span className="font-mono font-bold text-slate-900">
-                          {formatIngredientQty(item.quantity, item.componentProduct?.unit)}
-                        </span>
-                      </div>
-                    ))}
+                        Batch
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setRecipeDisplayMode((prev) => ({ ...prev, [recipe.id]: 'UNIT' }))
+                        }
+                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md transition ${
+                          recipeDisplayMode[recipe.id] === 'UNIT'
+                            ? 'bg-white text-blue-700 shadow-2xs font-extrabold'
+                            : 'text-slate-500 hover:text-slate-700'
+                        }`}
+                      >
+                        Per 1 Pc
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
+                    {recipe.items.map((item) => {
+                      const isPerUnit = recipeDisplayMode[recipe.id] === 'UNIT';
+                      const displayQty = isPerUnit
+                        ? (item.quantity || 0) / (recipe.outputYield || 1)
+                        : item.quantity;
+                      const itemRate = item.componentProduct?.costPrice || 0;
+                      const lineCost = displayQty * itemRate;
+
+                      return (
+                        <div
+                          key={item.id}
+                          className="flex items-center justify-between text-xs py-1 px-2 rounded-lg bg-slate-50 border border-slate-100/80"
+                        >
+                          <div className="flex flex-col min-w-0 pr-2">
+                            <span className="font-medium text-slate-700 truncate max-w-[150px]">
+                              {item.componentProduct?.name || 'Raw Material'}
+                            </span>
+                            {isPerUnit && itemRate > 0 && (
+                              <span className="text-[9px] text-slate-400">
+                                {formatMoney(itemRate)} / {item.componentProduct?.unit || 'KG'}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span className="font-mono font-bold text-slate-900 block">
+                              {formatIngredientQty(displayQty, item.componentProduct?.unit)}
+                            </span>
+                            {isPerUnit && lineCost > 0 && (
+                              <span className="text-[10px] font-mono text-emerald-600 block">
+                                {formatMoney(lineCost)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -564,14 +765,35 @@ export const Manufacturing: React.FC = () => {
               <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-between">
                 <div>
                   <span className="text-[10px] text-slate-400 font-bold block uppercase">
-                    Est. Overhead
+                    {recipeDisplayMode[recipe.id] === 'UNIT'
+                      ? 'Material Cost / Pc'
+                      : 'Est. Overhead'}
                   </span>
                   <span className="text-xs font-mono font-bold text-slate-800">
-                    {formatMoney(recipe.estimatedOverheadCost || 0)}
+                    {recipeDisplayMode[recipe.id] === 'UNIT'
+                      ? formatMoney(
+                          recipe.items.reduce((sum, item) => {
+                            const unitQty = (item.quantity || 0) / (recipe.outputYield || 1);
+                            const rate = item.componentProduct?.costPrice || 0;
+                            return sum + unitQty * rate;
+                          }, 0)
+                        )
+                      : formatMoney(recipe.estimatedOverheadCost || 0)}
                   </span>
                 </div>
 
                 <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => {
+                      setSelectedProduceId(recipe.productId || recipe.id);
+                      setActiveTab('USAGE');
+                    }}
+                    className="p-1.5 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-slate-100 transition"
+                    title="View Material Usage Analytics"
+                  >
+                    <Scale className="w-3.5 h-3.5" />
+                  </button>
+
                   <button
                     onClick={() => handleDeleteRecipe(recipe.id, recipe.name)}
                     className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-slate-100 transition"
@@ -747,6 +969,571 @@ export const Manufacturing: React.FC = () => {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* Tab 4: Produce Material Usage Analysis */}
+      {activeTab === 'USAGE' && (
+        <div className="space-y-6">
+          {/* Controls Bar: Finished Produce Selector & Period Filter */}
+          <div className="bg-white border border-slate-200/80 p-4 rounded-3xl shadow-2xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-1">
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-700 shrink-0">
+                <Scale className="w-4 h-4 text-blue-600" />
+                <span>Finished Produce:</span>
+              </div>
+              <select
+                value={selectedProduceId}
+                onChange={(e) => setSelectedProduceId(e.target.value)}
+                className="flex-1 max-w-md px-3.5 py-2 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+              >
+                <option value="ALL">All Finished Produces (Consolidated Summary)</option>
+                {recipes.map((r) => {
+                  const prod = r.product || products.find((p) => p.id === r.productId);
+                  return (
+                    <option key={r.id} value={r.productId || r.id}>
+                      {prod?.name || r.name} ({r.code} - Yield: {r.outputYield}{' '}
+                      {prod?.unit || 'Units'})
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2 self-end sm:self-auto">
+              {/* Period Filter */}
+              <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200/60">
+                {(
+                  [
+                    { key: 'ALL', label: 'All Time' },
+                    { key: 'TODAY', label: 'Today' },
+                    { key: '7D', label: 'Last 7 Days' },
+                    { key: '30D', label: 'Last 30 Days' }
+                  ] as const
+                ).map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setUsagePeriod(tab.key)}
+                    className={`text-xs font-bold px-3 py-1.5 rounded-lg transition ${
+                      usagePeriod === tab.key
+                        ? 'bg-white text-blue-600 shadow-2xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition border border-slate-200/80"
+                title="Print Usage Report"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Print</span>
+              </button>
+            </div>
+          </div>
+
+          {/* VIEW A: Single Produce Deep-Dive View */}
+          {currentProduceStat ? (
+            <div className="space-y-6">
+              {/* Produce Header Banner */}
+              <div className="bg-gradient-to-r from-blue-900 to-indigo-900 text-white rounded-3xl p-5 sm:p-6 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shrink-0">
+                    <Factory className="w-6 h-6 text-blue-200" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-md bg-blue-500/30 text-blue-200 font-mono text-[11px] font-bold border border-blue-400/30">
+                        {currentProduceStat.recipeCode}
+                      </span>
+                      {currentProduceStat.productSku && (
+                        <span className="text-xs font-mono text-slate-300">
+                          SKU: {currentProduceStat.productSku}
+                        </span>
+                      )}
+                    </div>
+                    <h2 className="text-xl font-bold mt-1 text-white">
+                      {currentProduceStat.productName}
+                    </h2>
+                    <p className="text-xs text-blue-200 mt-0.5">
+                      Standard Batch Yield: {currentProduceStat.recipeYield}{' '}
+                      {currentProduceStat.productUnit} | Formula:{' '}
+                      {currentProduceStat.ingredients.length} Raw Materials
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md px-4 py-3 rounded-2xl border border-white/10 text-right">
+                  <div>
+                    <span className="text-[10px] text-blue-200 uppercase font-bold tracking-wider block">
+                      Standard Material Cost
+                    </span>
+                    <span className="text-lg font-mono font-bold text-white">
+                      {formatMoney(currentProduceStat.totalMaterialCostStandard)}
+                    </span>
+                    <span className="text-[10px] text-blue-300 block">
+                      per 1 {currentProduceStat.productUnit}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 4 Hero KPI Cards for this produce */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <div className="bg-white border border-slate-200/80 p-4 sm:p-5 rounded-3xl shadow-2xs">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                    Total Produced ({usagePeriod === 'ALL' ? 'All Time' : usagePeriod})
+                  </span>
+                  <div className="text-xl sm:text-2xl font-bold font-mono text-emerald-600">
+                    {currentProduceStat.totalUnitsProduced.toLocaleString()}{' '}
+                    <span className="text-xs font-medium text-slate-500">
+                      {currentProduceStat.productUnit}
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-medium text-slate-400 mt-1 block">
+                    Across {currentProduceStat.totalBatches} completed batches
+                  </span>
+                </div>
+
+                <div className="bg-white border border-slate-200/80 p-4 sm:p-5 rounded-3xl shadow-2xs">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                    Batches Executed
+                  </span>
+                  <div className="text-xl sm:text-2xl font-bold font-mono text-blue-600">
+                    {currentProduceStat.totalBatches} Runs
+                  </div>
+                  <span className="text-[10px] font-medium text-slate-400 mt-1 block">
+                    Completed production orders
+                  </span>
+                </div>
+
+                <div className="bg-white border border-slate-200/80 p-4 sm:p-5 rounded-3xl shadow-2xs">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                    Total Material Spend
+                  </span>
+                  <div className="text-xl sm:text-2xl font-bold font-mono text-slate-900">
+                    {formatMoney(currentProduceStat.totalPeriodSpend)}
+                  </div>
+                  <span className="text-[10px] font-medium text-slate-400 mt-1 block">
+                    Direct ingredients consumed
+                  </span>
+                </div>
+
+                <div className="bg-white border border-slate-200/80 p-4 sm:p-5 rounded-3xl shadow-2xs">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                    Avg Material Cost / Unit
+                  </span>
+                  <div className="text-xl sm:text-2xl font-bold font-mono text-purple-700">
+                    {formatMoney(
+                      currentProduceStat.totalUnitsProduced > 0
+                        ? currentProduceStat.totalPeriodSpend /
+                            currentProduceStat.totalUnitsProduced
+                        : currentProduceStat.totalMaterialCostStandard
+                    )}
+                  </div>
+                  <span className="text-[10px] font-medium text-slate-400 mt-1 block">
+                    Standard:{' '}
+                    {formatMoney(currentProduceStat.totalMaterialCostStandard)} /{' '}
+                    {currentProduceStat.productUnit}
+                  </span>
+                </div>
+              </div>
+
+              {/* Itemized Raw Material Consumption Breakdown Table */}
+              <div className="bg-white border border-slate-200/80 rounded-3xl shadow-2xs overflow-hidden">
+                <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">
+                      Raw Materials Consumed for {currentProduceStat.productName}
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Exact ingredients required per unit and total consumed in the selected period
+                    </p>
+                  </div>
+                  <span className="text-xs font-mono font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-xl">
+                    {currentProduceStat.ingredients.length} Ingredients
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50/80 border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                      <tr>
+                        <th className="py-3 px-5">Raw Material</th>
+                        <th className="py-3 px-4">Formula (Per 1 {currentProduceStat.productUnit})</th>
+                        <th className="py-3 px-4">Current Stock</th>
+                        <th className="py-3 px-4">Material Rate</th>
+                        <th className="py-3 px-4">Cost / 1 {currentProduceStat.productUnit}</th>
+                        <th className="py-3 px-4">Total Consumed ({usagePeriod})</th>
+                        <th className="py-3 px-4">Total Cost ({usagePeriod})</th>
+                        <th className="py-3 px-5 text-right">% Share of Formula</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                      {currentProduceStat.ingredients.map((ing) => {
+                        const sharePercent =
+                          currentProduceStat.totalMaterialCostStandard > 0
+                            ? (ing.costPerProduce /
+                                currentProduceStat.totalMaterialCostStandard) *
+                              100
+                            : 0;
+
+                        return (
+                          <tr key={ing.itemId} className="hover:bg-slate-50/60 transition">
+                            <td className="py-3.5 px-5">
+                              <div className="font-bold text-slate-900">{ing.componentName}</div>
+                              {ing.componentSku && (
+                                <span className="font-mono text-[10px] text-slate-400">
+                                  {ing.componentSku}
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Formula Per 1 finished unit */}
+                            <td className="py-3.5 px-4 font-mono font-bold text-blue-700">
+                              {formatIngredientQty(ing.unitQty, ing.unit)}
+                            </td>
+
+                            {/* Current inventory stock */}
+                            <td className="py-3.5 px-4 font-mono text-slate-700">
+                              {ing.currentStock.toLocaleString()} {ing.unit}
+                              {isGramUnit(ing.unit) && ing.currentStock >= 1000 && (
+                                <span className="text-[10px] text-slate-400 block font-sans">
+                                  (= {(ing.currentStock / 1000).toFixed(2)} KG)
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Material Rate */}
+                            <td className="py-3.5 px-4 font-mono text-slate-600">
+                              {formatMoney(ing.rate)} / {ing.unit}
+                              {isGramUnit(ing.unit) && (
+                                <span className="text-[10px] text-purple-600 block">
+                                  ({formatMoney(ing.rate * 1000)} / KG)
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Cost per single produce */}
+                            <td className="py-3.5 px-4 font-mono font-bold text-emerald-600">
+                              {formatMoney(ing.costPerProduce)}
+                            </td>
+
+                            {/* Total consumed in period */}
+                            <td className="py-3.5 px-4">
+                              <span className="font-mono font-bold text-slate-900">
+                                {formatIngredientQty(ing.totalConsumed, ing.unit)}
+                              </span>
+                              {isGramUnit(ing.unit) && ing.totalConsumed >= 1000 && (
+                                <span className="text-[10px] font-mono text-purple-700 block font-semibold">
+                                  (= {(ing.totalConsumed / 1000).toFixed(2)} KG)
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Total cost in period */}
+                            <td className="py-3.5 px-4 font-mono font-bold text-slate-900">
+                              {formatMoney(ing.totalCost)}
+                            </td>
+
+                            {/* Share of formula */}
+                            <td className="py-3.5 px-5 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <span className="font-mono font-bold text-[11px] text-slate-600">
+                                  {sharePercent.toFixed(1)}%
+                                </span>
+                                <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-blue-600 rounded-full"
+                                    style={{ width: `${Math.min(100, Math.max(0, sharePercent))}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot className="bg-slate-50/90 font-bold border-t border-slate-200">
+                      <tr>
+                        <td className="py-3 px-5 text-slate-900" colSpan={4}>
+                          Total Standard Raw Material Cost Per 1 {currentProduceStat.productUnit}
+                        </td>
+                        <td className="py-3 px-4 font-mono text-emerald-700 text-sm">
+                          {formatMoney(currentProduceStat.totalMaterialCostStandard)}
+                        </td>
+                        <td className="py-3 px-4 text-slate-500 font-sans text-[11px]">
+                          Period Total ({usagePeriod}):
+                        </td>
+                        <td className="py-3 px-4 font-mono text-slate-900 text-sm">
+                          {formatMoney(currentProduceStat.totalPeriodSpend)}
+                        </td>
+                        <td className="py-3 px-5 text-right font-mono text-slate-500">100.0%</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+
+              {/* Batches Log for This Produce */}
+              <div className="bg-white border border-slate-200/80 rounded-3xl shadow-2xs overflow-hidden">
+                <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Completed Batches for {currentProduceStat.productName} ({currentProduceStat.runs.length})
+                  </h3>
+                  <span className="text-xs text-slate-400">
+                    Period: {usagePeriod === 'ALL' ? 'All Time' : usagePeriod}
+                  </span>
+                </div>
+
+                {currentProduceStat.runs.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-50/80 border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                        <tr>
+                          <th className="py-3 px-5">Batch #</th>
+                          <th className="py-3 px-4">Date</th>
+                          <th className="py-3 px-4">Line / Produced By</th>
+                          <th className="py-3 px-4">Manufactured Qty</th>
+                          <th className="py-3 px-4">Total Material Cost</th>
+                          <th className="py-3 px-4">Unit Cost</th>
+                          <th className="py-3 px-5 text-right">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                        {currentProduceStat.runs.map((r) => (
+                          <tr key={r.id} className="hover:bg-slate-50/60 transition">
+                            <td className="py-3 px-5 font-mono font-bold text-blue-600">
+                              {r.batchNumber}
+                            </td>
+                            <td className="py-3 px-4 text-slate-500">
+                              {new Date(r.createdAt).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric'
+                              })}
+                            </td>
+                            <td className="py-3 px-4 text-slate-700">
+                              {r.producedBy || 'Line 1'}
+                            </td>
+                            <td className="py-3 px-4 font-mono font-bold text-emerald-600">
+                              {(r.actualQuantity || r.targetQuantity).toLocaleString()}{' '}
+                              {currentProduceStat.productUnit}
+                            </td>
+                            <td className="py-3 px-4 font-mono font-bold text-slate-900">
+                              {formatMoney(r.totalRawMaterialCost || 0)}
+                            </td>
+                            <td className="py-3 px-4 font-mono font-semibold text-purple-700">
+                              {formatMoney(r.unitCost || 0)}
+                            </td>
+                            <td className="py-3 px-5 text-right">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedRunDetail(r)}
+                                className="px-2.5 py-1 text-blue-600 hover:bg-blue-50 rounded-lg font-semibold transition"
+                              >
+                                View BOM
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="py-10 text-center text-xs text-slate-400">
+                    No production runs completed for this produce during the selected period.
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            /* VIEW B: Consolidated Matrix Summary Across ALL Finished Goods */
+            <div className="space-y-6">
+              {/* Consolidated Metrics */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <div className="bg-white border border-slate-200/80 p-4 sm:p-5 rounded-3xl shadow-2xs">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                    Formulated Produces
+                  </span>
+                  <div className="text-xl sm:text-2xl font-bold font-mono text-blue-600">
+                    {produceUsageStats.length} Items
+                  </div>
+                  <span className="text-[10px] font-medium text-slate-400 mt-1 block">
+                    With active BOM recipes
+                  </span>
+                </div>
+
+                <div className="bg-white border border-slate-200/80 p-4 sm:p-5 rounded-3xl shadow-2xs">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                    Total Units Manufactured
+                  </span>
+                  <div className="text-xl sm:text-2xl font-bold font-mono text-emerald-600">
+                    {produceUsageStats
+                      .reduce((s, p) => s + p.totalUnitsProduced, 0)
+                      .toLocaleString()}{' '}
+                    Units
+                  </div>
+                  <span className="text-[10px] font-medium text-slate-400 mt-1 block">
+                    In selected period ({usagePeriod})
+                  </span>
+                </div>
+
+                <div className="bg-white border border-slate-200/80 p-4 sm:p-5 rounded-3xl shadow-2xs">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                    Total Batches Run
+                  </span>
+                  <div className="text-xl sm:text-2xl font-bold font-mono text-indigo-600">
+                    {produceUsageStats.reduce((s, p) => s + p.totalBatches, 0)} Batches
+                  </div>
+                  <span className="text-[10px] font-medium text-slate-400 mt-1 block">
+                    Completed production orders
+                  </span>
+                </div>
+
+                <div className="bg-white border border-slate-200/80 p-4 sm:p-5 rounded-3xl shadow-2xs">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                    Total Raw Material Spend
+                  </span>
+                  <div className="text-xl sm:text-2xl font-bold font-mono text-slate-900">
+                    {formatMoney(
+                      produceUsageStats.reduce((s, p) => s + p.totalPeriodSpend, 0)
+                    )}
+                  </div>
+                  <span className="text-[10px] font-medium text-slate-400 mt-1 block">
+                    Ingredients consumed in period
+                  </span>
+                </div>
+              </div>
+
+              {/* Consolidated Matrix Table */}
+              <div className="bg-white border border-slate-200/80 rounded-3xl shadow-2xs overflow-hidden">
+                <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">
+                      Finished Produces & Raw Material Consumption Summary
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Click any produce to drill down into the exact ingredient amounts and batch history
+                    </p>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50/80 border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                      <tr>
+                        <th className="py-3 px-5">Produce (Finished Good)</th>
+                        <th className="py-3 px-4">BOM Formula</th>
+                        <th className="py-3 px-4">Key Raw Materials</th>
+                        <th className="py-3 px-4">Standard Mat. Cost / Pc</th>
+                        <th className="py-3 px-4">Manufactured ({usagePeriod})</th>
+                        <th className="py-3 px-4">Batches</th>
+                        <th className="py-3 px-4">Total Material Spend</th>
+                        <th className="py-3 px-5 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                      {produceUsageStats.map((item) => (
+                        <tr
+                          key={item.recipeId}
+                          onClick={() => setSelectedProduceId(item.productId || item.recipeId)}
+                          className="hover:bg-blue-50/40 cursor-pointer transition"
+                        >
+                          <td className="py-3.5 px-5">
+                            <div className="font-bold text-slate-900">{item.productName}</div>
+                            <span className="font-mono text-[10px] text-slate-400">
+                              {item.productSku || item.recipeCode}
+                            </span>
+                          </td>
+
+                          <td className="py-3.5 px-4">
+                            <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-mono text-[11px] font-bold border border-blue-200/60 block w-fit">
+                              Yield: {item.recipeYield} {item.productUnit}
+                            </span>
+                            <span className="text-[10px] text-slate-400 block mt-0.5">
+                              {item.ingredients.length} Ingredients
+                            </span>
+                          </td>
+
+                          {/* Key Ingredients tags */}
+                          <td className="py-3.5 px-4 max-w-xs">
+                            <div className="flex flex-wrap gap-1">
+                              {item.ingredients.slice(0, 3).map((ing) => (
+                                <span
+                                  key={ing.itemId}
+                                  className="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] truncate max-w-[110px]"
+                                >
+                                  {ing.componentName}: {formatIngredientQty(ing.unitQty, ing.unit)}
+                                </span>
+                              ))}
+                              {item.ingredients.length > 3 && (
+                                <span className="px-1.5 py-0.5 bg-slate-100 text-slate-400 rounded text-[10px]">
+                                  +{item.ingredients.length - 3} more
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Standard Raw Material Cost Per Produce */}
+                          <td className="py-3.5 px-4 font-mono font-bold text-emerald-600">
+                            {formatMoney(item.totalMaterialCostStandard)}
+                            <span className="text-[10px] text-slate-400 block font-normal font-sans">
+                              per {item.productUnit}
+                            </span>
+                          </td>
+
+                          {/* Manufactured units */}
+                          <td className="py-3.5 px-4 font-mono font-bold text-slate-900">
+                            {item.totalUnitsProduced.toLocaleString()} {item.productUnit}
+                          </td>
+
+                          {/* Batches */}
+                          <td className="py-3.5 px-4 font-mono text-slate-600">
+                            {item.totalBatches} runs
+                          </td>
+
+                          {/* Total Spend */}
+                          <td className="py-3.5 px-4 font-mono font-bold text-slate-900">
+                            {formatMoney(item.totalPeriodSpend)}
+                          </td>
+
+                          {/* Action */}
+                          <td className="py-3.5 px-5 text-right">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedProduceId(item.productId || item.recipeId);
+                              }}
+                              className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl text-xs font-bold inline-flex items-center gap-1 transition"
+                            >
+                              <span>Inspect</span>
+                              <ChevronRight className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+
+                      {produceUsageStats.length === 0 && (
+                        <tr>
+                          <td colSpan={8} className="py-14 text-center text-xs text-slate-400">
+                            No BOM recipes configured yet. Create BOM formulas to track raw material usage per produce.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
