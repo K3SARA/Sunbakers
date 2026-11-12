@@ -196,7 +196,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
             /* ========================================================
                80MM THERMAL RECEIPT LAYOUT (OPTIMIZED FOR BLUETOOTH PRINTERS)
                ======================================================== */
-            <div className="receipt-80mm max-w-[340px] w-full mx-auto bg-white p-3.5 sm:p-4 shadow-sm border border-slate-300 rounded-xl text-black font-mono text-[13.5px] sm:text-[14px] leading-snug select-text print:max-w-full print:w-full print:border-none print:shadow-none print:rounded-none print:p-0 print:m-0 print:bg-white font-bold">
+            <div className="receipt-80mm w-full max-w-[360px] mx-auto bg-white p-3.5 sm:p-4 shadow-sm border border-slate-300 rounded-xl text-black font-mono text-[13.5px] sm:text-[14px] leading-snug select-text print:max-w-none print:w-full print:border-none print:shadow-none print:rounded-none print:p-0 print:m-0 print:bg-white font-bold">
               {/* Receipt Logo & Header */}
               <div className="text-center space-y-1 pb-2">
                 {/* Sunbakers & Confectionary Logo */}

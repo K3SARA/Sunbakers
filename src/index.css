@@ -169,15 +169,16 @@
     break-after: avoid !important;
   }
 
-  /* 80mm Thermal Receipt Container - Solid Deep Dark Print */
+  /* 80mm Thermal Receipt Container - Solid Deep Dark Print Edge-to-Edge */
   .receipt-80mm {
     width: 100% !important;
-    max-width: 76mm !important;
-    margin: 0 auto !important;
-    padding: 0 1mm 2mm 1mm !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 1.5mm 1mm 1.5mm !important;
     font-family: 'Courier New', Courier, monospace, 'Lucida Console', -apple-system, sans-serif !important;
-    font-size: 13px !important;
-    line-height: 1.35 !important;
+    font-size: 13.5px !important;
+    line-height: 1.3 !important;
     font-weight: 700 !important;
     color: #000000 !important;
     background: #ffffff !important;
@@ -217,11 +218,14 @@
   .receipt-80mm p,
   .receipt-80mm span,
   .receipt-80mm div {
-    font-size: 12.5px !important;
+    font-size: 13px !important;
   }
 
+  .receipt-80mm .text-base,
+  .receipt-80mm .text-lg,
+  .receipt-80mm .text-xl,
   .receipt-80mm h2 {
-    font-size: 17px !important;
+    font-size: 16px !important;
     font-weight: 900 !important;
   }
 

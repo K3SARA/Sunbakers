@@ -8,8 +8,8 @@
 
 import { Order, SystemSettings, LorryLoading } from '../types';
 
-// Standard 80mm thermal receipt character width (Font A: 42-48 chars, using 42 for safe margins)
-const RECEIPT_WIDTH = 42;
+// Standard 80mm thermal receipt character width (Font A: 44-48 chars, using 46 for crisp full roll fit)
+const RECEIPT_WIDTH = 46;
 
 // Standard Bluetooth thermal printer GATT service & characteristic UUIDs
 const BLUETOOTH_PRINTER_SERVICES = [
@@ -246,10 +246,9 @@ export function build80mmEscPosReceipt(order: Order, settings?: SystemSettings |
   addLine(padTwoColumns('____________________', '____________________'));
   addLine(padTwoColumns(order.lorry?.driverName || 'Driver Sign', 'Customer Stamp / Sign'));
 
-  // 10. Feed and Cut
+  // 10. Feed and Cut (Trimmed feed to avoid trailing blank paper)
   addLine('');
-  addLine(dividerLine('.'));
-  addBytes(COMMANDS.PAPER_FEED_5);
+  addBytes(COMMANDS.PAPER_FEED_3);
   addBytes(COMMANDS.PARTIAL_CUT);
 
   return new Uint8Array(chunks);
