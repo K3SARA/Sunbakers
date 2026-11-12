@@ -127,6 +127,8 @@ export const CustomerService = {
   }) => api.post<{ message: string; payment: CustomerPayment; customer: Customer }>(`/customers/${id}/payments`, payload).then(r => r.data),
   getPayments: (id: string) =>
     api.get<CustomerPayment[]>(`/customers/${id}/payments`).then(r => r.data),
+  getAllPayments: (params?: { lorryId?: string; customerId?: string; from?: string; to?: string }) =>
+    api.get<CustomerPayment[]>('/customer-payments', { params }).then(r => r.data),
   deletePayment: (paymentId: string) =>
     api.delete<{ message: string }>(`/customer-payments/${paymentId}`).then(r => r.data)
 };

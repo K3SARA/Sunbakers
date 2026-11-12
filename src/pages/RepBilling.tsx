@@ -26,13 +26,16 @@ import {
   RefreshCw,
   Fuel,
   Percent,
-  Tag
+  Tag,
+  Wallet
 } from 'lucide-react';
-import { Customer, Product, Lorry, Order, User, RepTargetProgress, Expense } from '../types';
+import { Customer, Product, Lorry, Order, User, RepTargetProgress, Expense, CustomerPayment } from '../types';
 import { CustomerService, LorryService, ProductService, OrderService, AuthService, ExpenseService } from '../services/api';
 import { useCurrency } from '../context/CurrencyContext';
 import { CustomerModal } from '../components/CustomerModal';
 import { RepBillsSummaryModal } from '../components/RepBillsSummaryModal';
+import { CustomerPaymentModal } from '../components/CustomerPaymentModal';
+import { CustomerReceiptModal } from '../components/CustomerReceiptModal';
 
 interface CartItem {
   productId: string;
@@ -164,6 +167,19 @@ export const RepBilling: React.FC<RepBillingProps> = ({
   const [expenseNotes, setExpenseNotes] = useState<string>('');
   const [expenseSubmitting, setExpenseSubmitting] = useState<boolean>(false);
   const [expenseSuccessMsg, setExpenseSuccessMsg] = useState<string | null>(null);
+
+  // Customer Outstanding Collections State (Collect without billing)
+  const [customerFilterTab, setCustomerFilterTab] = useState<'ALL' | 'OUTSTANDING'>('ALL');
+  const [showCollectModal, setShowCollectModal] = useState<boolean>(false);
+  const [collectingCustomer, setCollectingCustomer] = useState<Customer | null>(null);
+  const [recordedPayment, setRecordedPayment] = useState<CustomerPayment | null>(null);
+  const [showReceiptModal, setShowReceiptModal] = useState<boolean>(false);
+
+  // Rep Daily Collections History
+  const [repCollections, setRepCollections] = useState<CustomerPayment[]>([]);
+  const [loadingCollections, setLoadingCollections] = useState<boolean>(false);
+  const [showCollectionsModal, setShowCollectionsModal] = useState<boolean>(false);
+  const [collectionsSearch, setCollectionsSearch] = useState<string>('');
 
   const getBillsRangeForPreset = (
     preset: BillsDatePreset,
@@ -372,16 +388,65 @@ export const RepBilling: React.FC<RepBillingProps> = ({
     }
   };
 
+  // Load customer debt payments collected today by this lorry/rep
+  const loadRepCollections = async (lorryIdToUse?: string) => {
+    try {
+      setLoadingCollections(true);
+      const targetLorry = lorryIdToUse || selectedLorryId || initialLorryId;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const payments = await CustomerService.getAllPayments({
+        lorryId: targetLorry || undefined,
+        from: today.toISOString()
+      });
+      setRepCollections(payments);
+    } catch (err) {
+      console.error('Failed to load rep collections', err);
+    } finally {
+      setLoadingCollections(false);
+    }
+  };
+
+  // Callback when an outstanding payment is successfully recorded
+  const handlePaymentRecorded = (payment: CustomerPayment) => {
+    // 1. Immediately update customer balance in local customers list
+    setCustomers((prev) =>
+      prev.map((c) => {
+        if (c.id === payment.customerId) {
+          const newBal = Math.max(0, (c.outstandingBalance || 0) - payment.amount);
+          return { ...c, outstandingBalance: newBal };
+        }
+        return c;
+      })
+    );
+
+    // 2. Refresh unpaid bills if this was the selected customer
+    if (selectedCustomerId === payment.customerId) {
+      CustomerService.getUnpaidBills(payment.customerId)
+        .then(setCustomerUnpaidBills)
+        .catch(() => {});
+    }
+
+    // 3. Refresh today's collections list
+    loadRepCollections(selectedLorryId || undefined);
+
+    // 4. Set recorded payment and open 80mm printable receipt
+    setRecordedPayment(payment);
+    setShowReceiptModal(true);
+  };
+
   useEffect(() => {
     loadData();
     loadTargets();
     loadFinishedBills();
     loadRepExpenses();
+    loadRepCollections();
   }, []);
 
   useEffect(() => {
     if (selectedLorryId) {
       loadRepExpenses(selectedLorryId);
+      loadRepCollections(selectedLorryId);
     }
   }, [selectedLorryId]);
 
@@ -459,17 +524,55 @@ export const RepBilling: React.FC<RepBillingProps> = ({
     }
   }, [selectedCustomerId]);
 
-  // Filtered customers
+  // Filtered customers (supports All vs Has Outstanding filter)
   const filteredCustomers = useMemo(() => {
-    if (!customerSearch.trim()) return customers;
+    let list = customers;
+    if (customerFilterTab === 'OUTSTANDING') {
+      list = list.filter(c => (c.outstandingBalance || 0) > 0);
+    }
+    if (!customerSearch.trim()) return list;
     const query = customerSearch.toLowerCase();
-    return customers.filter(c =>
+    return list.filter(c =>
       c.name.toLowerCase().includes(query) ||
       (c.phone && c.phone.toLowerCase().includes(query)) ||
       (c.code && c.code.toLowerCase().includes(query)) ||
+      (c.companyName && c.companyName.toLowerCase().includes(query)) ||
       (c.deliveryAddress && c.deliveryAddress.toLowerCase().includes(query))
     );
-  }, [customers, customerSearch]);
+  }, [customers, customerFilterTab, customerSearch]);
+
+  const customersWithDebtCount = useMemo(() => {
+    return customers.filter(c => (c.outstandingBalance || 0) > 0).length;
+  }, [customers]);
+
+  // Aggregate metrics for today's debt collections
+  const totalRepCollectionsToday = useMemo(() => {
+    return repCollections.reduce((sum, p) => sum + (p.amount || 0), 0);
+  }, [repCollections]);
+
+  const cashCollectionsToday = useMemo(() => {
+    return repCollections
+      .filter((p) => p.paymentMethod === 'CASH')
+      .reduce((sum, p) => sum + (p.amount || 0), 0);
+  }, [repCollections]);
+
+  const chequeCollectionsToday = useMemo(() => {
+    return repCollections
+      .filter((p) => p.paymentMethod === 'CHEQUE')
+      .reduce((sum, p) => sum + (p.amount || 0), 0);
+  }, [repCollections]);
+
+  const filteredRepCollections = useMemo(() => {
+    if (!collectionsSearch.trim()) return repCollections;
+    const q = collectionsSearch.toLowerCase();
+    return repCollections.filter(
+      (p) =>
+        p.receiptNumber.toLowerCase().includes(q) ||
+        (p.customer?.name && p.customer.name.toLowerCase().includes(q)) ||
+        (p.customer?.code && p.customer.code.toLowerCase().includes(q)) ||
+        (p.chequeNumber && p.chequeNumber.toLowerCase().includes(q))
+    );
+  }, [repCollections, collectionsSearch]);
 
   // Distinct Brands
   const availableBrands = useMemo(() => {
@@ -1092,6 +1195,45 @@ export const RepBilling: React.FC<RepBillingProps> = ({
               </button>
             </div>
 
+            {/* Quick Filter Tabs: All vs Has Outstanding */}
+            <div className="flex items-center gap-1.5 p-1 bg-slate-200/60 rounded-xl text-xs">
+              <button
+                type="button"
+                onClick={() => setCustomerFilterTab('ALL')}
+                className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  customerFilterTab === 'ALL'
+                    ? 'bg-white text-slate-900 shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>All Shops</span>
+                <span className="px-1.5 py-0.2 rounded-full bg-slate-200 text-slate-700 text-[10px] font-mono">
+                  {customers.length}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setCustomerFilterTab('OUTSTANDING')}
+                className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  customerFilterTab === 'OUTSTANDING'
+                    ? 'bg-rose-600 text-white shadow-2xs'
+                    : 'text-rose-700 hover:bg-rose-100/70'
+                }`}
+              >
+                <Wallet className="w-3.5 h-3.5" />
+                <span>Has Outstanding</span>
+                {customersWithDebtCount > 0 && (
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
+                    customerFilterTab === 'OUTSTANDING'
+                      ? 'bg-white/20 text-white'
+                      : 'bg-rose-100 text-rose-700 border border-rose-200'
+                  }`}>
+                    {customersWithDebtCount}
+                  </span>
+                )}
+              </button>
+            </div>
+
             {/* Empty State when no customer matches */}
             {filteredCustomers.length === 0 && (
               <div className="p-6 text-center bg-white rounded-2xl border border-dashed border-slate-200 space-y-2.5 my-2 shadow-2xs">
@@ -1148,11 +1290,26 @@ export const RepBilling: React.FC<RepBillingProps> = ({
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-2.5 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0">
                       {hasDue ? (
-                        <span className="text-[11px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-lg font-mono">
-                          Due: {formatMoney(balance)}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[11px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-lg font-mono">
+                            Due: {formatMoney(balance)}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCollectingCustomer(customer);
+                              setShowCollectModal(true);
+                            }}
+                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-2xs transition shrink-0 cursor-pointer"
+                            title="Collect Outstanding Payment without billing"
+                          >
+                            <Wallet className="w-3 h-3" />
+                            <span>Collect</span>
+                          </button>
+                        </div>
                       ) : (
                         <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg">
                           Clear
@@ -1175,6 +1332,33 @@ export const RepBilling: React.FC<RepBillingProps> = ({
             {/* Selected Customer Inline Drawer (Only if selected) */}
             {selectedCustomer && (
               <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-2.5 shadow-xs animate-in fade-in">
+                {/* Collect Outstanding Action Box (Direct without Billing) */}
+                <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between gap-2 shadow-2xs">
+                  <div className="min-w-0">
+                    <span className="text-[10px] uppercase font-bold text-emerald-800 tracking-wider block">
+                      {selectedCustomer.outstandingBalance > 0 ? 'Outstanding Credit Due' : 'Account Balance'}
+                    </span>
+                    <span className={`font-mono text-sm font-black ${
+                      selectedCustomer.outstandingBalance > 0 ? 'text-rose-600' : 'text-emerald-700'
+                    }`}>
+                      {formatMoney(selectedCustomer.outstandingBalance || 0)}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCollectingCustomer(selectedCustomer);
+                      setShowCollectModal(true);
+                    }}
+                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-xs transition shrink-0 cursor-pointer"
+                  >
+                    <Wallet className="w-4 h-4" />
+                    <span>
+                      {selectedCustomer.outstandingBalance > 0 ? 'Collect Outstanding (No Bill)' : 'Collect Advance / Due'}
+                    </span>
+                  </button>
+                </div>
+
                 {/* Method Switcher */}
                 <div className="grid grid-cols-2 gap-2">
                   <button
@@ -3567,9 +3751,9 @@ export const RepBilling: React.FC<RepBillingProps> = ({
         </div>
       )}
 
-      {/* PERSISTENT BOTTOM NAVIGATION DOCK (TARGETS, BILLS, EXPENSES) */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/80 px-3 py-2 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] print:hidden">
-        <div className="max-w-md mx-auto grid grid-cols-3 gap-2">
+      {/* PERSISTENT BOTTOM NAVIGATION DOCK (TARGETS, BILLS, COLLECTIONS, EXPENSES) */}
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/80 px-2 sm:px-3 py-2 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] print:hidden">
+        <div className="max-w-lg mx-auto grid grid-cols-4 gap-1.5 sm:gap-2">
           {/* 1. Daily Sales Target */}
           <button
             type="button"
@@ -3577,11 +3761,11 @@ export const RepBilling: React.FC<RepBillingProps> = ({
               loadTargets();
               setShowTargetModal(true);
             }}
-            className="flex flex-col items-center justify-center py-1.5 px-1.5 rounded-2xl bg-indigo-50/70 hover:bg-indigo-100/70 text-indigo-900 border border-indigo-200/60 transition shadow-2xs active:scale-95 cursor-pointer"
+            className="flex flex-col items-center justify-center py-1.5 px-1 rounded-2xl bg-indigo-50/70 hover:bg-indigo-100/70 text-indigo-900 border border-indigo-200/60 transition shadow-2xs active:scale-95 cursor-pointer"
             title="Daily & Monthly Sales Target Progress"
           >
-            <div className="flex items-center gap-1.5">
-              <Target className="w-4 h-4 text-indigo-600 shrink-0" />
+            <div className="flex items-center gap-1">
+              <Target className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
               <span className={`text-[10px] font-mono font-black px-1.5 py-0.2 rounded-full ${
                 (targetProgress?.dailyPercentage || 0) >= 100
                   ? 'bg-emerald-600 text-white'
@@ -3604,11 +3788,11 @@ export const RepBilling: React.FC<RepBillingProps> = ({
               loadFinishedBills();
               setShowFinishedBillsModal(true);
             }}
-            className="flex flex-col items-center justify-center py-1.5 px-1.5 rounded-2xl bg-blue-50/70 hover:bg-blue-100/70 text-blue-900 border border-blue-200/60 transition shadow-2xs active:scale-95 cursor-pointer"
+            className="flex flex-col items-center justify-center py-1.5 px-1 rounded-2xl bg-blue-50/70 hover:bg-blue-100/70 text-blue-900 border border-blue-200/60 transition shadow-2xs active:scale-95 cursor-pointer"
             title="Finished Bills History & Daily Summary"
           >
-            <div className="flex items-center gap-1.5">
-              <Receipt className="w-4 h-4 text-blue-600 shrink-0" />
+            <div className="flex items-center gap-1">
+              <Receipt className="w-3.5 h-3.5 text-blue-600 shrink-0" />
               {finishedBills.length > 0 && (
                 <span className="bg-blue-600 text-white text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-full">
                   {finishedBills.length}
@@ -3620,20 +3804,47 @@ export const RepBilling: React.FC<RepBillingProps> = ({
             </span>
           </button>
 
-          {/* 3. Route Running Expenses */}
+          {/* 3. Debt Collections (No Bill) */}
+          <button
+            type="button"
+            onClick={() => {
+              loadRepCollections();
+              setShowCollectionsModal(true);
+            }}
+            className="flex flex-col items-center justify-center py-1.5 px-1 rounded-2xl bg-emerald-50/70 hover:bg-emerald-100/70 text-emerald-950 border border-emerald-200/60 transition shadow-2xs active:scale-95 cursor-pointer"
+            title="Customer Debt & Outstanding Collections History"
+          >
+            <div className="flex items-center gap-1">
+              <Wallet className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              {totalRepCollectionsToday > 0 ? (
+                <span className="bg-emerald-600 text-white text-[9px] font-mono font-bold px-1 py-0.2 rounded-full truncate max-w-[65px]">
+                  {formatMoney(totalRepCollectionsToday)}
+                </span>
+              ) : (
+                <span className="text-emerald-700 text-[10px] font-bold font-mono">
+                  {repCollections.length > 0 ? repCollections.length : '+ Due'}
+                </span>
+              )}
+            </div>
+            <span className="text-[10px] font-bold text-emerald-900 tracking-tight mt-0.5">
+              Collections
+            </span>
+          </button>
+
+          {/* 4. Route Running Expenses */}
           <button
             type="button"
             onClick={() => {
               loadRepExpenses();
               setShowExpenseModal(true);
             }}
-            className="flex flex-col items-center justify-center py-1.5 px-1.5 rounded-2xl bg-amber-50/70 hover:bg-amber-100/70 text-amber-950 border border-amber-200/60 transition shadow-2xs active:scale-95 cursor-pointer"
+            className="flex flex-col items-center justify-center py-1.5 px-1 rounded-2xl bg-amber-50/70 hover:bg-amber-100/70 text-amber-950 border border-amber-200/60 transition shadow-2xs active:scale-95 cursor-pointer"
             title="Record Route Fuel & Running Expenses (Wired to Admin)"
           >
-            <div className="flex items-center gap-1.5">
-              <Fuel className="w-4 h-4 text-amber-600 shrink-0" />
+            <div className="flex items-center gap-1">
+              <Fuel className="w-3.5 h-3.5 text-amber-600 shrink-0" />
               {totalRepExpensesToday > 0 ? (
-                <span className="bg-amber-600 text-white text-[9px] font-mono font-bold px-1 py-0.2 rounded-full truncate max-w-[70px]">
+                <span className="bg-amber-600 text-white text-[9px] font-mono font-bold px-1 py-0.2 rounded-full truncate max-w-[65px]">
                   {formatMoney(totalRepExpensesToday)}
                 </span>
               ) : (
@@ -3646,6 +3857,201 @@ export const RepBilling: React.FC<RepBillingProps> = ({
           </button>
         </div>
       </nav>
+
+      {/* TODAY'S COLLECTIONS HISTORY MODAL */}
+      {showCollectionsModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-xl w-full max-h-[92vh] flex flex-col overflow-hidden shadow-2xl border border-slate-100">
+            {/* Header */}
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shadow-2xs shrink-0">
+                  <Wallet className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">
+                    Today's Debt Collections
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    {selectedLorry?.vehicleNumber || 'Route Lorry'} • {repCollections.length} Payment Receipts
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => loadRepCollections()}
+                  disabled={loadingCollections}
+                  className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition cursor-pointer"
+                  title="Refresh collections"
+                >
+                  <RefreshCw className={`w-4 h-4 ${loadingCollections ? 'animate-spin text-emerald-600' : ''}`} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowCollectionsModal(false)}
+                  className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* KPI Cards Strip */}
+            <div className="p-3 sm:px-5 bg-slate-50/80 border-b border-slate-100 shrink-0">
+              <div className="grid grid-cols-3 gap-2">
+                <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-tight">
+                    Total Collected
+                  </span>
+                  <span className="font-mono text-sm sm:text-base font-black text-emerald-600">
+                    {formatMoney(totalRepCollectionsToday)}
+                  </span>
+                </div>
+                <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-tight">
+                    Cash In Hand
+                  </span>
+                  <span className="font-mono text-xs sm:text-sm font-black text-slate-800">
+                    {formatMoney(cashCollectionsToday)}
+                  </span>
+                </div>
+                <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-tight">
+                    Cheques
+                  </span>
+                  <span className="font-mono text-xs sm:text-sm font-black text-blue-700">
+                    {formatMoney(chequeCollectionsToday)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Search filter */}
+            <div className="px-4 py-2.5 bg-white border-b border-slate-100 shrink-0">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
+                <input
+                  type="text"
+                  value={collectionsSearch}
+                  onChange={(e) => setCollectionsSearch(e.target.value)}
+                  placeholder="Search receipt #, customer name..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-1.5 text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+            </div>
+
+            {/* Scrollable Receipts List */}
+            <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2 bg-slate-50/50">
+              {loadingCollections && repCollections.length === 0 ? (
+                <div className="py-12 text-center text-slate-400 text-xs flex flex-col items-center gap-2">
+                  <div className="w-5 h-5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+                  <span>Loading collections...</span>
+                </div>
+              ) : filteredRepCollections.length === 0 ? (
+                <div className="py-12 text-center bg-white rounded-2xl border border-dashed border-slate-200 p-6 space-y-2">
+                  <Wallet className="w-8 h-8 text-slate-300 mx-auto" />
+                  <p className="text-xs font-bold text-slate-700">No collections found</p>
+                  <p className="text-[11px] text-slate-400">
+                    Collect money directly from any customer card on Step 1 without creating a bill.
+                  </p>
+                </div>
+              ) : (
+                filteredRepCollections.map((p) => (
+                  <div
+                    key={p.id}
+                    className="p-3 bg-white border border-slate-200/80 rounded-2xl shadow-2xs flex items-center justify-between gap-3 hover:border-emerald-200 transition"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-xs text-slate-900 truncate">
+                          {p.customer?.name || 'Customer'}
+                        </span>
+                        <span className="font-mono text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.2 rounded-md">
+                          {p.receiptNumber}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
+                        <span className="font-semibold text-slate-700">
+                          {p.paymentMethod}
+                          {p.chequeNumber ? ` • ${p.chequeNumber}` : ''}
+                        </span>
+                        <span>•</span>
+                        <span>
+                          {new Date(p.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                        {p.notes && <span className="italic truncate max-w-[120px]">({p.notes})</span>}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="font-mono font-black text-xs sm:text-sm text-emerald-600">
+                        +{formatMoney(p.amount)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRecordedPayment(p);
+                          setShowReceiptModal(true);
+                        }}
+                        className="p-1.5 bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 rounded-lg text-slate-600 transition cursor-pointer"
+                        title="Re-print 80mm Receipt"
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-3 bg-white border-t border-slate-100 flex items-center justify-between shrink-0">
+              <span className="text-[11px] text-slate-500 font-medium">
+                {repCollections.length} collections recorded today
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowCollectionsModal(false)}
+                className="px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* COLLECT OUTSTANDING PAYMENT MODAL */}
+      <CustomerPaymentModal
+        isOpen={showCollectModal}
+        customer={collectingCustomer}
+        onClose={() => {
+          setShowCollectModal(false);
+          setCollectingCustomer(null);
+        }}
+        onPaymentRecorded={handlePaymentRecorded}
+        defaultLorryId={selectedLorryId || user?.lorryId || undefined}
+        defaultCollectorName={
+          user?.fullName
+            ? `${user.fullName}${selectedLorry ? ` (${selectedLorry.vehicleNumber})` : ''}`
+            : selectedLorry
+            ? `${selectedLorry.driverName} (${selectedLorry.vehicleNumber})`
+            : undefined
+        }
+      />
+
+      {/* OFFICIAL 80MM PAYMENT RECEIPT MODAL */}
+      <CustomerReceiptModal
+        isOpen={showReceiptModal}
+        payment={recordedPayment}
+        customer={recordedPayment?.customer || customers.find(c => c.id === recordedPayment?.customerId) || collectingCustomer || null}
+        onClose={() => {
+          setShowReceiptModal(false);
+          setRecordedPayment(null);
+        }}
+      />
 
       {/* REP'S BILLS SUMMARY PRINT MODAL (80mm Thermal & Bluetooth) */}
       <RepBillsSummaryModal

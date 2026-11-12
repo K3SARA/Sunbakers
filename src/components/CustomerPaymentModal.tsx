@@ -17,13 +17,17 @@ interface CustomerPaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
   onPaymentRecorded: (payment: CustomerPayment) => void;
+  defaultLorryId?: string;
+  defaultCollectorName?: string;
 }
 
 export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
   customer,
   isOpen,
   onClose,
-  onPaymentRecorded
+  onPaymentRecorded,
+  defaultLorryId,
+  defaultCollectorName
 }) => {
   const { formatMoney, currencyConfig } = useCurrency();
   const [lorries, setLorries] = useState<Lorry[]>([]);
@@ -63,12 +67,12 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
       setBankName('');
       setChequeDate(new Date().toISOString().split('T')[0]);
       setReference('');
-      setCollectedBy('Office Counter');
-      setSelectedLorryId('');
+      setCollectedBy(defaultCollectorName || 'Office Counter');
+      setSelectedLorryId(defaultLorryId || '');
       setNotes('');
       setError(null);
     }
-  }, [isOpen, customer]);
+  }, [isOpen, customer, defaultLorryId, defaultCollectorName]);
 
   if (!isOpen || !customer) return null;
 

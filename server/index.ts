@@ -3481,6 +3481,48 @@ app.get('/api/customers/:id/payments', async (req: Request, res: Response) => {
   }
 });
 
+// List all customer payments (with optional filters by lorryId, customerId, date range)
+app.get('/api/customer-payments', async (req: Request, res: Response) => {
+  try {
+    const { lorryId, customerId, from, to } = req.query;
+    const where: any = {};
+    if (lorryId) where.lorryId = String(lorryId);
+    if (customerId) where.customerId = String(customerId);
+    if (from || to) {
+      where.createdAt = {};
+      if (from) where.createdAt.gte = new Date(String(from));
+      if (to) {
+        const toDate = new Date(String(to));
+        toDate.setHours(23, 59, 59, 999);
+        where.createdAt.lte = toDate;
+      }
+    }
+    const payments = await prisma.customerPayment.findMany({
+      where,
+      include: {
+        customer: true,
+        lorry: true,
+        allocations: {
+          include: {
+            order: {
+              select: {
+                id: true,
+                orderNumber: true,
+                netTotal: true,
+                paperBillNumber: true
+              }
+            }
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json(payments);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Void / Delete customer payment (restores credit balance and reverses allocations)
 app.delete('/api/customer-payments/:id', async (req: Request, res: Response) => {
   try {
