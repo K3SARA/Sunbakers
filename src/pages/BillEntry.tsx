@@ -11,7 +11,9 @@ import {
   CreditCard,
   Eye,
   Building2,
-  RotateCcw
+  RotateCcw,
+  Percent,
+  Tag
 } from 'lucide-react';
 import { Lorry, Customer, Order, Product } from '../types';
 import { LorryService, CustomerService, OrderService, ProductService } from '../services/api';
@@ -22,6 +24,8 @@ interface BillItemRow {
   productId: string;
   quantity: number;
   freeQuantity: number;
+  unitPrice?: number;
+  discountPercent?: number;
 }
 
 interface BillReturnRow {
@@ -297,7 +301,7 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
         }));
 
   const addItemRow = () => {
-    setBillItems([...billItems, { productId: '', quantity: 1, freeQuantity: 0 }]);
+    setBillItems([...billItems, { productId: '', quantity: 1, freeQuantity: 0, discountPercent: 0 }]);
   };
 
   const addReturnRow = () => {
@@ -320,6 +324,29 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
       } else if (field === 'productId') {
         currentRow.freeQuantity = 0;
       }
+
+      if (field === 'productId' && itemInfo) {
+        currentRow.unitPrice = itemInfo.unitPrice;
+        currentRow.discountPercent = 0;
+      }
+    }
+
+    if (field === 'discountPercent') {
+      const itemInfo = availableItems.find(s => s.productId === currentRow.productId);
+      const basePrice = itemInfo ? itemInfo.unitPrice : (currentRow.unitPrice || 0);
+      const pct = Math.min(100, Math.max(0, parseFloat(value) || 0));
+      currentRow.discountPercent = pct;
+      currentRow.unitPrice = Math.max(0, basePrice * (1 - pct / 100));
+    }
+
+    if (field === 'unitPrice') {
+      const itemInfo = availableItems.find(s => s.productId === currentRow.productId);
+      const basePrice = itemInfo ? itemInfo.unitPrice : 0;
+      const uPrice = Math.max(0, parseFloat(value) || 0);
+      currentRow.unitPrice = uPrice;
+      if (basePrice > 0) {
+        currentRow.discountPercent = parseFloat((((basePrice - uPrice) / basePrice) * 100).toFixed(2));
+      }
     }
 
     updated[index] = currentRow;
@@ -341,7 +368,7 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
 
   const removeItemRow = (index: number) => {
     if (billItems.length === 1) {
-      setBillItems([{ productId: '', quantity: 1, freeQuantity: 0 }]);
+      setBillItems([{ productId: '', quantity: 1, freeQuantity: 0, discountPercent: 0 }]);
       return;
     }
     setBillItems(billItems.filter((_, i) => i !== index));
@@ -352,11 +379,20 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
   };
 
   // Calculate bill totals
-  const calculateSubtotal = () => {
+  const calculateGrossSubtotal = () => {
     return billItems.reduce((acc, item) => {
       const itemInfo = availableItems.find(s => s.productId === item.productId);
       const price = itemInfo ? itemInfo.unitPrice : 0;
       return acc + (price * (item.quantity || 0));
+    }, 0);
+  };
+
+  const calculateSubtotal = () => {
+    return billItems.reduce((acc, item) => {
+      const itemInfo = availableItems.find(s => s.productId === item.productId);
+      const basePrice = itemInfo ? itemInfo.unitPrice : 0;
+      const effectivePrice = item.unitPrice !== undefined ? item.unitPrice : basePrice;
+      return acc + (effectivePrice * (item.quantity || 0));
     }, 0);
   };
 
@@ -369,7 +405,9 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
     }, 0);
   };
 
+  const grossSubtotal = calculateGrossSubtotal();
   const subtotal = calculateSubtotal();
+  const totalItemDiscounts = Math.max(0, grossSubtotal - subtotal);
   const returnAmount = calculateReturnAmount();
   const discountPercent = selectedCustomer?.discountPercentage || 0;
   const discountAmount = (subtotal * discountPercent) / 100;
@@ -461,7 +499,8 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
           items: validItems.map(i => ({
             productId: i.productId,
             quantity: i.quantity,
-            freeQuantity: i.freeQuantity || 0
+            freeQuantity: i.freeQuantity || 0,
+            unitPrice: i.unitPrice !== undefined ? i.unitPrice : undefined
           })),
           returnItems: formattedReturnsPayload.length > 0 ? formattedReturnsPayload : undefined,
           paymentMethod,
@@ -488,7 +527,8 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
           items: validItems.map(i => ({
             productId: i.productId,
             quantity: i.quantity,
-            freeQuantity: i.freeQuantity || 0
+            freeQuantity: i.freeQuantity || 0,
+            unitPrice: i.unitPrice !== undefined ? i.unitPrice : undefined
           })),
           returnItems: formattedReturnsPayload.length > 0 ? formattedReturnsPayload : undefined,
           paymentMethod,
@@ -894,14 +934,18 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
               ) : (
                 billItems.map((item, index) => {
                   const itemInfo = availableItems.find(s => s.productId === item.productId);
-                  const price = itemInfo ? itemInfo.unitPrice : 0;
-                  const lineTotal = price * (item.quantity || 0);
+                  const basePrice = itemInfo ? itemInfo.unitPrice : 0;
+                  const effectivePrice = item.unitPrice !== undefined ? item.unitPrice : basePrice;
+                  const lineTotal = effectivePrice * (item.quantity || 0);
+                  const hasDiscount = (item.discountPercent || 0) > 0;
                   const hasScheme = itemInfo && itemInfo.freeRatioBuy && itemInfo.freeRatioBuy > 0 && itemInfo.freeRatioGet;
 
                   return (
                     <div
                       key={index}
-                      className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 p-3 bg-slate-50 border border-slate-200/70 rounded-2xl"
+                      className={`flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 p-3 rounded-2xl border transition ${
+                        hasDiscount ? 'bg-emerald-50/20 border-emerald-200' : 'bg-slate-50 border-slate-200/70'
+                      }`}
                     >
                       {/* Product Selector */}
                       <div className="flex-1 w-full">
@@ -925,10 +969,10 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                         </select>
                       </div>
 
-                      {/* Quantity Controls Grid */}
-                      <div className="flex items-center gap-2">
+                      {/* Quantity & Discount Controls Grid */}
+                      <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
                         {/* Paid Qty */}
-                        <div className="w-24">
+                        <div className="w-20">
                           <input
                             type="number"
                             min="1"
@@ -943,7 +987,7 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                         </div>
 
                         {/* Free Issue Qty */}
-                        <div className="w-24 relative">
+                        <div className="w-20 relative">
                           <input
                             type="number"
                             min="0"
@@ -961,16 +1005,44 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                           )}
                         </div>
 
-                        {/* Line Total */}
-                        <div className="w-24 text-right font-mono text-xs font-bold text-slate-800">
-                          {formatMoney(lineTotal)}
+                        {/* Item Discount (%) */}
+                        <div className="w-20 relative" title="Item discount %">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="any"
+                            value={item.discountPercent !== undefined && item.discountPercent > 0 ? item.discountPercent : ''}
+                            onChange={(e) => updateItemRow(index, 'discountPercent', parseFloat(e.target.value) || 0)}
+                            placeholder="0%"
+                            className={`w-full border rounded-xl px-2 py-2 text-xs font-bold text-center focus:outline-none focus:ring-2 ${
+                              hasDiscount
+                                ? 'bg-emerald-100/70 border-emerald-300 text-emerald-900 focus:ring-emerald-500'
+                                : 'bg-white border-slate-200 text-slate-700 focus:ring-blue-500'
+                            }`}
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] font-bold pointer-events-none">
+                            %
+                          </span>
+                        </div>
+
+                        {/* Line Total & Unit Price */}
+                        <div className="w-24 text-right">
+                          <span className="block font-mono text-xs font-bold text-slate-800">
+                            {formatMoney(lineTotal)}
+                          </span>
+                          {hasDiscount && (
+                            <span className="block font-mono text-[10px] text-emerald-700 font-semibold">
+                              {formatMoney(effectivePrice)} <span className="line-through text-slate-400 font-normal">({formatMoney(basePrice)})</span>
+                            </span>
+                          )}
                         </div>
 
                         {/* Delete */}
                         <button
                           type="button"
                           onClick={() => removeItemRow(index)}
-                          className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-white transition-colors"
+                          className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-white transition-colors cursor-pointer"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -1248,11 +1320,31 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                     {totalReturnUnits > 0 && <span className="text-amber-700 font-bold ml-1">({totalReturnUnits} returned)</span>}
                   </span>
                 </div>
+                {totalItemDiscounts > 0 && (
+                  <>
+                    <div>
+                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
+                        Gross Subtotal
+                      </span>
+                      <span className="text-sm font-mono font-semibold text-slate-500">
+                        {formatMoney(grossSubtotal)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider block">
+                        Item Discounts
+                      </span>
+                      <span className="text-sm font-mono font-bold text-emerald-600">
+                        -{formatMoney(totalItemDiscounts)}
+                      </span>
+                    </div>
+                  </>
+                )}
                 <div>
                   <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
-                    Subtotal
+                    {totalItemDiscounts > 0 ? 'Net Subtotal' : 'Subtotal'}
                   </span>
-                  <span className="text-sm font-mono font-semibold text-slate-600">
+                  <span className="text-sm font-mono font-semibold text-slate-700">
                     {formatMoney(subtotal)}
                   </span>
                 </div>

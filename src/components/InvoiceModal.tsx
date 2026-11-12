@@ -301,6 +301,9 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                     <div className="flex justify-between pl-1 font-medium">
                       <span>
                         {item.quantity} {item.product.unit || 'pcs'} x {formatMoney(item.unitPrice)}
+                        {item.product && item.unitPrice < item.product.unitPrice && (
+                          <span className="text-[10.5px] font-bold"> (Disc: was {formatMoney(item.product.unitPrice)})</span>
+                        )}
                       </span>
                       <span className="font-bold">{formatMoney(item.lineTotal)}</span>
                     </div>
@@ -564,7 +567,14 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                             </span>
                           )}
                         </td>
-                        <td className="p-2.5 text-right font-mono text-slate-600">{formatMoney(item.unitPrice)}</td>
+                        <td className="p-2.5 text-right font-mono text-slate-600">
+                          <div>{formatMoney(item.unitPrice)}</div>
+                          {item.product && item.unitPrice < item.product.unitPrice && (
+                            <div className="text-[10px] text-emerald-600 font-bold">
+                              was <span className="line-through">{formatMoney(item.product.unitPrice)}</span>
+                            </div>
+                          )}
+                        </td>
                         <td className="p-2.5 pr-3 text-right font-bold text-slate-900 font-mono">
                           {formatMoney(item.lineTotal)}
                         </td>

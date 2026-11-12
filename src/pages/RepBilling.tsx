@@ -24,7 +24,9 @@ import {
   ChevronDown,
   ChevronUp,
   RefreshCw,
-  Fuel
+  Fuel,
+  Percent,
+  Tag
 } from 'lucide-react';
 import { Customer, Product, Lorry, Order, User, RepTargetProgress, Expense } from '../types';
 import { CustomerService, LorryService, ProductService, OrderService, AuthService, ExpenseService } from '../services/api';
@@ -114,6 +116,10 @@ export const RepBilling: React.FC<RepBillingProps> = ({
   const [bankName, setBankName] = useState<string>('');
   const [chequeDate, setChequeDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [globalDiscountPercent] = useState<number>(0);
+  // Item-level Discount Editing State
+  const [editingDiscountProductId, setEditingDiscountProductId] = useState<string | null>(null);
+  const [discountInputMode, setDiscountInputMode] = useState<'PERCENT' | 'AMOUNT'>('PERCENT');
+  const [discountInputValue, setDiscountInputValue] = useState<string>('');
   const [notes] = useState<string>('');
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [checkoutSuccessOrder, setCheckoutSuccessOrder] = useState<Order | null>(null);
@@ -566,6 +572,54 @@ export const RepBilling: React.FC<RepBillingProps> = ({
 
   const removeCartItem = (productId: string) => {
     setCart(prev => prev.filter(i => i.productId !== productId));
+    if (editingDiscountProductId === productId) {
+      setEditingDiscountProductId(null);
+    }
+  };
+
+  // Set discount percentage for a specific cart item
+  const setCartItemDiscountPercent = (productId: string, percent: number) => {
+    setCart(prev =>
+      prev.map(item => {
+        if (item.productId === productId) {
+          const safePercent = Math.min(100, Math.max(0, percent || 0));
+          const basePrice = item.originalUnitPrice || item.unitPrice;
+          const discountedPrice = Math.max(0, basePrice * (1 - safePercent / 100));
+          return {
+            ...item,
+            discountPercent: safePercent,
+            unitPrice: discountedPrice
+          };
+        }
+        return item;
+      })
+    );
+  };
+
+  // Set discount flat amount per unit for a specific cart item
+  const setCartItemDiscountAmountPerUnit = (productId: string, amountOff: number) => {
+    setCart(prev =>
+      prev.map(item => {
+        if (item.productId === productId) {
+          const basePrice = item.originalUnitPrice || item.unitPrice;
+          const safeAmount = Math.min(basePrice, Math.max(0, amountOff || 0));
+          const discountedPrice = Math.max(0, basePrice - safeAmount);
+          const percent = basePrice > 0 ? (safeAmount / basePrice) * 100 : 0;
+          return {
+            ...item,
+            discountPercent: parseFloat(percent.toFixed(2)),
+            unitPrice: discountedPrice
+          };
+        }
+        return item;
+      })
+    );
+  };
+
+  const openItemDiscountEditor = (item: CartItem) => {
+    setEditingDiscountProductId(item.productId);
+    setDiscountInputMode('PERCENT');
+    setDiscountInputValue(item.discountPercent > 0 ? item.discountPercent.toString() : '');
   };
 
   // Return Items Management
@@ -665,9 +719,20 @@ export const RepBilling: React.FC<RepBillingProps> = ({
     setReturnItems(prev => prev.filter(i => i.id !== id));
   };
 
+  // Gross subtotal (using original base unit price)
+  const cartGrossSubtotal = useMemo(() => {
+    return cart.reduce((sum, item) => sum + (item.originalUnitPrice || item.unitPrice) * item.quantity, 0);
+  }, [cart]);
+
+  // Net subtotal (after item-level discounts)
   const cartSubtotal = useMemo(() => {
     return cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
   }, [cart]);
+
+  // Total discounts given on individual items
+  const totalItemDiscounts = useMemo(() => {
+    return Math.max(0, cartGrossSubtotal - cartSubtotal);
+  }, [cartGrossSubtotal, cartSubtotal]);
 
   const totalItemsCount = useMemo(() => {
     return cart.reduce((sum, item) => sum + item.quantity, 0);
@@ -682,8 +747,8 @@ export const RepBilling: React.FC<RepBillingProps> = ({
   }, [returnItems]);
 
   const finalTotal = useMemo(() => {
-    const discount = (cartSubtotal * (globalDiscountPercent || 0)) / 100;
-    return Math.max(0, cartSubtotal - discount - totalReturnAmount);
+    const billDiscount = (cartSubtotal * (globalDiscountPercent || 0)) / 100;
+    return Math.max(0, cartSubtotal - billDiscount - totalReturnAmount);
   }, [cartSubtotal, globalDiscountPercent, totalReturnAmount]);
 
   // Date-filtered bills (filtered by selected date range)
@@ -847,6 +912,8 @@ export const RepBilling: React.FC<RepBillingProps> = ({
     setBankName('');
     setChequeDate(new Date().toISOString().split('T')[0]);
     setCheckoutSuccessOrder(null);
+    setEditingDiscountProductId(null);
+    setDiscountInputValue('');
     setCurrentStep(1);
     setCustomerSearch('');
     setItemSearch('');
@@ -1239,85 +1306,320 @@ export const RepBilling: React.FC<RepBillingProps> = ({
                   </button>
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                   {cart.map(item => {
+                    const originalPrice = item.originalUnitPrice || item.unitPrice;
+                    const hasDiscount = (item.discountPercent || 0) > 0;
                     const lineTotal = item.unitPrice * item.quantity;
+                    const totalSavings = (originalPrice - item.unitPrice) * item.quantity;
+                    const isEditingDiscount = editingDiscountProductId === item.productId;
+
                     return (
                       <div
                         key={item.productId}
-                        className="p-2.5 bg-slate-50/70 border border-slate-200/80 rounded-xl flex items-center justify-between gap-2"
+                        className={`p-2.5 bg-slate-50/70 border rounded-xl transition ${
+                          isEditingDiscount
+                            ? 'border-blue-400 bg-blue-50/30 ring-2 ring-blue-500/10'
+                            : hasDiscount
+                            ? 'border-emerald-200 bg-emerald-50/20'
+                            : 'border-slate-200/80'
+                        }`}
                       >
-                        <div className="min-w-0 flex-1">
-                          <h4 className="text-xs font-bold text-slate-900 truncate">{item.name}</h4>
-                          <p className="text-[11px] text-slate-500 font-mono">
-                            {formatMoney(item.unitPrice)} / {item.unit}
-                            {item.freeQuantity > 0 && (
-                              <span className="ml-1 text-[10px] font-bold text-emerald-600">
-                                +{item.freeQuantity} Free
-                              </span>
-                            )}
-                          </p>
-                        </div>
-
-                        <div className="flex items-center gap-2 shrink-0">
-                          {/* Stepper */}
-                          <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5">
-                            <button
-                              type="button"
-                              onClick={() => updateCartQty(item.productId, -1)}
-                              className="w-7 h-7 bg-slate-50 rounded flex items-center justify-center font-bold text-slate-700 text-xs hover:bg-slate-100 active:scale-95 transition"
-                              title="Decrease quantity"
-                            >
-                              -
-                            </button>
-                            <input
-                              type="number"
-                              min="1"
-                              step="1"
-                              value={item.quantity === 0 ? '' : item.quantity}
-                              onChange={(e) => {
-                                const val = e.target.value === '' ? 0 : parseInt(e.target.value, 10);
-                                setCartItemQty(item.productId, isNaN(val) ? 0 : Math.max(0, val));
-                              }}
-                              onBlur={() => {
-                                if (!item.quantity || item.quantity <= 0) {
-                                  setCartItemQty(item.productId, 1);
-                                }
-                              }}
-                              onFocus={(e) => e.target.select()}
-                              className="w-11 h-7 bg-transparent text-center font-mono font-bold text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => updateCartQty(item.productId, 1)}
-                              className="w-7 h-7 bg-slate-50 rounded flex items-center justify-center font-bold text-slate-700 text-xs hover:bg-slate-100 active:scale-95 transition"
-                              title="Increase quantity"
-                            >
-                              +
-                            </button>
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <h4 className="text-xs font-bold text-slate-900 truncate">{item.name}</h4>
+                              {hasDiscount && (
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-md font-mono">
+                                  <Percent className="w-2.5 h-2.5 stroke-[2.5]" />
+                                  <span>{item.discountPercent}% Off</span>
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-mono flex items-center gap-1.5 flex-wrap">
+                              {hasDiscount ? (
+                                <>
+                                  <span className="line-through text-slate-400 text-[10px]">{formatMoney(originalPrice)}</span>
+                                  <span className="font-bold text-emerald-600">{formatMoney(item.unitPrice)}</span>
+                                </>
+                              ) : (
+                                <span>{formatMoney(item.unitPrice)}</span>
+                              )}
+                              <span>/ {item.unit}</span>
+                              {item.freeQuantity > 0 && (
+                                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200">
+                                  +{item.freeQuantity} Free
+                                </span>
+                              )}
+                            </div>
                           </div>
 
-                          {/* Line Total */}
-                          <span className="w-16 text-right font-mono font-bold text-xs text-slate-900">
-                            {formatMoney(lineTotal)}
-                          </span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {/* Discount Toggle Button */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (isEditingDiscount) {
+                                  setEditingDiscountProductId(null);
+                                } else {
+                                  openItemDiscountEditor(item);
+                                }
+                              }}
+                              className={`px-1.5 py-1 rounded-lg text-[10px] font-bold transition flex items-center gap-1 cursor-pointer ${
+                                hasDiscount
+                                  ? 'bg-emerald-600 text-white shadow-2xs'
+                                  : isEditingDiscount
+                                  ? 'bg-blue-600 text-white shadow-2xs'
+                                  : 'bg-white border border-slate-200 text-slate-600 hover:text-blue-600 hover:border-blue-300'
+                              }`}
+                              title="Give discount on this item"
+                            >
+                              <Percent className="w-3 h-3" />
+                              <span>{hasDiscount ? `${item.discountPercent}%` : 'Disc'}</span>
+                            </button>
 
-                          {/* Trash */}
-                          <button
-                            type="button"
-                            onClick={() => removeCartItem(item.productId)}
-                            className="p-1 text-slate-300 hover:text-red-500 transition cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                            {/* Stepper */}
+                            <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5 shadow-2xs">
+                              <button
+                                type="button"
+                                onClick={() => updateCartQty(item.productId, -1)}
+                                className="w-6 h-6 bg-slate-50 rounded flex items-center justify-center font-bold text-slate-700 text-xs hover:bg-slate-100 active:scale-95 transition"
+                                title="Decrease quantity"
+                              >
+                                -
+                              </button>
+                              <input
+                                type="number"
+                                min="1"
+                                step="1"
+                                value={item.quantity === 0 ? '' : item.quantity}
+                                onChange={(e) => {
+                                  const val = e.target.value === '' ? 0 : parseInt(e.target.value, 10);
+                                  setCartItemQty(item.productId, isNaN(val) ? 0 : Math.max(0, val));
+                                }}
+                                onBlur={() => {
+                                  if (!item.quantity || item.quantity <= 0) {
+                                    setCartItemQty(item.productId, 1);
+                                  }
+                                }}
+                                onFocus={(e) => e.target.select()}
+                                className="w-10 h-6 bg-transparent text-center font-mono font-bold text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => updateCartQty(item.productId, 1)}
+                                className="w-6 h-6 bg-slate-50 rounded flex items-center justify-center font-bold text-slate-700 text-xs hover:bg-slate-100 active:scale-95 transition"
+                                title="Increase quantity"
+                              >
+                                +
+                              </button>
+                            </div>
+
+                            {/* Line Total */}
+                            <div className="w-16 text-right">
+                              <span className="block font-mono font-bold text-xs text-slate-900">
+                                {formatMoney(lineTotal)}
+                              </span>
+                              {hasDiscount && totalSavings > 0 && (
+                                <span className="block font-mono text-[9px] font-bold text-emerald-600">
+                                  -{formatMoney(totalSavings)}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Trash */}
+                            <button
+                              type="button"
+                              onClick={() => removeCartItem(item.productId)}
+                              className="p-1 text-slate-300 hover:text-red-500 transition cursor-pointer"
+                              title="Remove item"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
+
+                        {/* INLINE DISCOUNT CONFIG PANEL */}
+                        {isEditingDiscount && (
+                          <div className="mt-2.5 pt-2.5 border-t border-blue-200/60 bg-white/90 rounded-xl p-2.5 space-y-2 animate-fadeIn shadow-2xs">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-bold text-blue-950 flex items-center gap-1">
+                                <Tag className="w-3 h-3 text-blue-600" />
+                                <span>Discount on {item.name}</span>
+                              </span>
+
+                              {/* Toggle % vs Rs */}
+                              <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                                <button
+                                  type="button"
+                                  onClick={() => setDiscountInputMode('PERCENT')}
+                                  className={`px-2 py-0.5 rounded text-[10px] font-bold transition cursor-pointer ${
+                                    discountInputMode === 'PERCENT'
+                                      ? 'bg-white text-blue-700 shadow-2xs'
+                                      : 'text-slate-500 hover:text-slate-800'
+                                  }`}
+                                >
+                                  % Percent
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setDiscountInputMode('AMOUNT')}
+                                  className={`px-2 py-0.5 rounded text-[10px] font-bold transition cursor-pointer ${
+                                    discountInputMode === 'AMOUNT'
+                                      ? 'bg-white text-blue-700 shadow-2xs'
+                                      : 'text-slate-500 hover:text-slate-800'
+                                  }`}
+                                >
+                                  Rs. Off / Unit
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Preset quick discount buttons */}
+                            {discountInputMode === 'PERCENT' ? (
+                              <div className="flex flex-wrap gap-1">
+                                {[0, 2, 3, 5, 7.5, 10, 15, 20].map(pct => {
+                                  const isSelected = item.discountPercent === pct;
+                                  return (
+                                    <button
+                                      key={pct}
+                                      type="button"
+                                      onClick={() => {
+                                        setCartItemDiscountPercent(item.productId, pct);
+                                        setDiscountInputValue(pct > 0 ? pct.toString() : '');
+                                      }}
+                                      className={`px-2 py-1 rounded-md text-[10px] font-bold transition cursor-pointer ${
+                                        isSelected
+                                          ? 'bg-emerald-600 text-white shadow-2xs'
+                                          : pct === 0
+                                          ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                          : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'
+                                      }`}
+                                    >
+                                      {pct === 0 ? 'No Disc (0%)' : `${pct}%`}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <div className="flex flex-wrap gap-1">
+                                {[0, 5, 10, 15, 20, 25, 50].map(amt => {
+                                  const base = item.originalUnitPrice || item.unitPrice;
+                                  const isSelected = amt === 0 ? item.discountPercent === 0 : Math.abs((base - item.unitPrice) - amt) < 0.01;
+                                  return (
+                                    <button
+                                      key={amt}
+                                      type="button"
+                                      onClick={() => {
+                                        setCartItemDiscountAmountPerUnit(item.productId, amt);
+                                        setDiscountInputValue(amt > 0 ? amt.toString() : '');
+                                      }}
+                                      className={`px-2 py-1 rounded-md text-[10px] font-bold transition cursor-pointer ${
+                                        isSelected
+                                          ? 'bg-emerald-600 text-white shadow-2xs'
+                                          : amt === 0
+                                          ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                          : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'
+                                      }`}
+                                    >
+                                      {amt === 0 ? 'No Disc (Rs. 0)' : `-Rs. ${amt}`}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+
+                            {/* Custom value input row */}
+                            <div className="flex items-center gap-2 pt-1">
+                              <div className="relative flex-1">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="any"
+                                  value={discountInputValue}
+                                  placeholder={discountInputMode === 'PERCENT' ? 'Custom % (e.g. 5)' : 'Custom Rs. off (e.g. 10)'}
+                                  onChange={(e) => {
+                                    setDiscountInputValue(e.target.value);
+                                    const val = parseFloat(e.target.value) || 0;
+                                    if (discountInputMode === 'PERCENT') {
+                                      setCartItemDiscountPercent(item.productId, val);
+                                    } else {
+                                      setCartItemDiscountAmountPerUnit(item.productId, val);
+                                    }
+                                  }}
+                                  className="w-full bg-white border border-slate-300 rounded-lg pl-2.5 pr-8 py-1.5 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[11px] font-bold font-mono">
+                                  {discountInputMode === 'PERCENT' ? '%' : 'Rs.'}
+                                </span>
+                              </div>
+
+                              {hasDiscount && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setCartItemDiscountPercent(item.productId, 0);
+                                    setDiscountInputValue('');
+                                  }}
+                                  className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-lg border border-rose-200 transition cursor-pointer"
+                                >
+                                  Clear
+                                </button>
+                              )}
+
+                              <button
+                                type="button"
+                                onClick={() => setEditingDiscountProductId(null)}
+                                className="px-3 py-1.5 bg-slate-900 hover:bg-black text-white text-xs font-bold rounded-lg transition cursor-pointer"
+                              >
+                                Done
+                              </button>
+                            </div>
+
+                            {/* Live calculation banner */}
+                            <div className="bg-slate-50 border border-slate-200/80 rounded-lg p-2 text-[11px] space-y-0.5">
+                              <div className="flex justify-between text-slate-600">
+                                <span>Original Base Price:</span>
+                                <span className="font-mono">{formatMoney(originalPrice)}</span>
+                              </div>
+                              <div className="flex justify-between font-bold text-emerald-700">
+                                <span>Discounted Unit Price:</span>
+                                <span className="font-mono">{formatMoney(item.unitPrice)} ({item.discountPercent}% off)</span>
+                              </div>
+                              {item.quantity > 0 && hasDiscount && (
+                                <div className="flex justify-between font-bold text-blue-700 pt-0.5 border-t border-slate-200">
+                                  <span>Total Savings on {item.quantity} units:</span>
+                                  <span className="font-mono">{formatMoney(totalSavings)}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
 
-                  <div className="pt-1 flex items-center justify-between text-xs font-semibold text-slate-600 px-1">
-                    <span>Products Subtotal ({totalItemsCount} units):</span>
-                    <span className="font-mono font-bold text-slate-900">{formatMoney(cartSubtotal)}</span>
+                  {/* Cart Subtotal Breakdown */}
+                  <div className="pt-2 border-t border-slate-200/80 space-y-1 text-xs">
+                    {totalItemDiscounts > 0 && (
+                      <>
+                        <div className="flex items-center justify-between text-slate-500 font-medium px-1">
+                          <span>Gross Items Total:</span>
+                          <span className="font-mono">{formatMoney(cartGrossSubtotal)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-emerald-600 font-bold px-1">
+                          <span className="flex items-center gap-1">
+                            <Tag className="w-3.5 h-3.5" />
+                            <span>Total Item Discounts:</span>
+                          </span>
+                          <span className="font-mono">-{formatMoney(totalItemDiscounts)}</span>
+                        </div>
+                      </>
+                    )}
+                    <div className="flex items-center justify-between font-bold text-slate-800 px-1">
+                      <span>Products Subtotal ({totalItemsCount} units):</span>
+                      <span className="font-mono text-sm text-slate-900">{formatMoney(cartSubtotal)}</span>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1609,9 +1911,19 @@ export const RepBilling: React.FC<RepBillingProps> = ({
                     className="p-3 bg-white border border-slate-200 rounded-xl flex items-center justify-between gap-2 shadow-2xs"
                   >
                     <div className="min-w-0 flex-1">
-                      <h4 className="text-xs font-bold text-slate-900 truncate">{product.name}</h4>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h4 className="text-xs font-bold text-slate-900 truncate">{product.name}</h4>
+                        {inCart && (inCart.discountPercent || 0) > 0 && (
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1 py-0.2 rounded font-mono">
+                            -{inCart.discountPercent}% Disc
+                          </span>
+                        )}
+                      </div>
                       <p className="text-[11px] text-slate-500 font-mono">
-                        <span className="font-bold text-blue-600">{formatMoney(product.unitPrice)}</span>
+                        <span className="font-bold text-blue-600">{formatMoney(inCart?.unitPrice ?? product.unitPrice)}</span>
+                        {inCart && (inCart.discountPercent || 0) > 0 && (
+                          <span className="ml-1 text-[10px] line-through text-slate-400">{formatMoney(product.unitPrice)}</span>
+                        )}
                         <span className="ml-1 text-slate-500">• Stock: {regularStock}</span>
                         {freeStock > 0 && (
                           <span className="ml-1 text-emerald-700 font-bold bg-emerald-50 px-1 rounded">+{freeStock} Free</span>
@@ -1753,21 +2065,32 @@ export const RepBilling: React.FC<RepBillingProps> = ({
                   <span>Price</span>
                 </div>
 
-                {cart.map(item => (
-                  <div key={item.productId} className="flex items-center justify-between text-xs py-0.5">
-                    <span className="text-slate-800 font-medium truncate pr-2">
-                      {item.name} × {item.quantity}
-                      {item.freeQuantity > 0 && (
-                        <span className="text-[10px] text-emerald-600 font-bold ml-1">
-                          (+{item.freeQuantity} free)
+                {cart.map(item => {
+                  const hasDiscount = (item.discountPercent || 0) > 0;
+                  const originalPrice = item.originalUnitPrice || item.unitPrice;
+                  return (
+                    <div key={item.productId} className="flex items-center justify-between text-xs py-0.5">
+                      <div className="min-w-0 pr-2">
+                        <span className="text-slate-800 font-medium truncate block">
+                          {item.name} × {item.quantity}
+                          {item.freeQuantity > 0 && (
+                            <span className="text-[10px] text-emerald-600 font-bold ml-1">
+                              (+{item.freeQuantity} free)
+                            </span>
+                          )}
                         </span>
-                      )}
-                    </span>
-                    <span className="font-mono font-bold text-slate-900 shrink-0">
-                      {formatMoney(item.unitPrice * item.quantity)}
-                    </span>
-                  </div>
-                ))}
+                        {hasDiscount && (
+                          <span className="text-[10px] font-mono font-bold text-emerald-600 block">
+                            {formatMoney(item.unitPrice)} / {item.unit} <span className="line-through text-slate-400 font-normal">({formatMoney(originalPrice)})</span> • {item.discountPercent}% Off
+                          </span>
+                        )}
+                      </div>
+                      <span className="font-mono font-bold text-slate-900 shrink-0">
+                        {formatMoney(item.unitPrice * item.quantity)}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-center text-xs text-slate-500 font-medium">
@@ -1895,16 +2218,39 @@ export const RepBilling: React.FC<RepBillingProps> = ({
             )}
 
             {/* Calculation Breakdown */}
-            {totalReturnAmount > 0 && (
+            {(totalReturnAmount > 0 || totalItemDiscounts > 0 || (globalDiscountPercent || 0) > 0) && (
               <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-1.5 text-xs">
-                <div className="flex justify-between text-slate-600">
-                  <span>Gross Delivery Subtotal:</span>
-                  <span className="font-mono font-bold text-slate-800">{formatMoney(cartSubtotal)}</span>
+                {totalItemDiscounts > 0 && (
+                  <>
+                    <div className="flex justify-between text-slate-500">
+                      <span>Gross Items Value:</span>
+                      <span className="font-mono">{formatMoney(cartGrossSubtotal)}</span>
+                    </div>
+                    <div className="flex justify-between text-emerald-600 font-bold">
+                      <span className="flex items-center gap-1">
+                        <Tag className="w-3 h-3" />
+                        <span>Item Discounts Savings:</span>
+                      </span>
+                      <span className="font-mono">-{formatMoney(totalItemDiscounts)}</span>
+                    </div>
+                  </>
+                )}
+                <div className="flex justify-between text-slate-700 font-semibold">
+                  <span>Net Delivery Subtotal:</span>
+                  <span className="font-mono font-bold text-slate-900">{formatMoney(cartSubtotal)}</span>
                 </div>
-                <div className="flex justify-between text-rose-600 font-bold">
-                  <span>Customer Returns / Damage Credit:</span>
-                  <span className="font-mono">-{formatMoney(totalReturnAmount)}</span>
-                </div>
+                {(globalDiscountPercent || 0) > 0 && (
+                  <div className="flex justify-between text-emerald-600 font-bold">
+                    <span>Customer Discount ({globalDiscountPercent}%):</span>
+                    <span className="font-mono">- {formatMoney((cartSubtotal * (globalDiscountPercent || 0)) / 100)}</span>
+                  </div>
+                )}
+                {totalReturnAmount > 0 && (
+                  <div className="flex justify-between text-rose-600 font-bold pt-1 border-t border-slate-100">
+                    <span>Customer Returns / Damage Credit:</span>
+                    <span className="font-mono">-{formatMoney(totalReturnAmount)}</span>
+                  </div>
+                )}
               </div>
             )}
 
