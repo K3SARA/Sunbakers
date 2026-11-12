@@ -128,7 +128,9 @@ export function build80mmEscPosReceipt(order: Order, settings?: SystemSettings |
   const timeStr = new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   
   addLine(padTwoColumns(`Date: ${dateStr} ${timeStr}`, `Status: ${order.paymentStatus}`));
+  addBytes(COMMANDS.BOLD_ON);
   addLine(padTwoColumns(`Bill #: ${order.paperBillNumber || order.orderNumber}`, `Ref: ${order.orderNumber}`));
+  addBytes(COMMANDS.BOLD_OFF);
 
   if (order.lorry) {
     addLine(`Lorry: ${order.lorry.vehicleNumber} | Driver: ${order.lorry.driverName}`);
@@ -163,9 +165,11 @@ export function build80mmEscPosReceipt(order: Order, settings?: SystemSettings |
   // 6. Items
   let totalFreeQty = 0;
   order.items.forEach((item) => {
-    // Line 1: Item Name (truncated if exceeds width)
+    // Line 1: Item Name (bold)
     const nameStr = item.product.name.slice(0, RECEIPT_WIDTH);
+    addBytes(COMMANDS.BOLD_ON);
     addLine(nameStr);
+    addBytes(COMMANDS.BOLD_OFF);
 
     // Line 2: Qty x UnitPrice and Line Total
     const qtyPrice = `  ${item.quantity} ${item.product.unit || 'pcs'} x Rs.${item.unitPrice.toFixed(2)}`;
@@ -184,14 +188,18 @@ export function build80mmEscPosReceipt(order: Order, settings?: SystemSettings |
   addLine(dividerLine('-'));
 
   // 7. Totals & Payment Breakdown
+  addBytes(COMMANDS.BOLD_ON);
   addLine(padTwoColumns('Subtotal:', `Rs.${order.subtotal.toFixed(2)}`));
+  addBytes(COMMANDS.BOLD_OFF);
 
   if (totalFreeQty > 0) {
     addLine(padTwoColumns('Promotional Units:', `${totalFreeQty} Free pcs`));
   }
 
   if (order.discountAmount > 0) {
+    addBytes(COMMANDS.BOLD_ON);
     addLine(padTwoColumns('Discount:', `-Rs.${order.discountAmount.toFixed(2)}`));
+    addBytes(COMMANDS.BOLD_OFF);
   }
 
   addLine(dividerLine('='));

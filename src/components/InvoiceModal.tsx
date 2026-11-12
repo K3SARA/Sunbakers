@@ -58,12 +58,36 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
           size: 80mm auto !important;
           margin: 0mm !important;
         }
+        html, body {
+          width: 80mm !important;
+          max-width: 80mm !important;
+        }
+        #printable-invoice {
+          max-width: 80mm !important;
+          width: 80mm !important;
+        }
+        * {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
       `;
     } else {
       styleTag.innerHTML = `
         @page {
           size: A4 portrait !important;
           margin: 8mm !important;
+        }
+        html, body {
+          width: 100% !important;
+          max-width: 100% !important;
+        }
+        #printable-invoice {
+          max-width: 100% !important;
+          width: 100% !important;
+        }
+        * {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
         }
       `;
     }
@@ -213,7 +237,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
             /* ========================================================
                80MM THERMAL RECEIPT LAYOUT (OPTIMIZED FOR BLUETOOTH PRINTERS)
                ======================================================== */
-            <div className="receipt-80mm max-w-[340px] w-full mx-auto bg-white p-3.5 sm:p-4 shadow-sm border border-slate-200 rounded-xl text-black font-mono text-[13px] sm:text-[13.5px] leading-snug select-text print:max-w-full print:w-full print:border-none print:shadow-none print:rounded-none print:p-0 print:m-0 print:bg-white">
+            <div className="receipt-80mm max-w-[340px] w-full mx-auto bg-white p-3.5 sm:p-4 shadow-sm border border-slate-300 rounded-xl text-black font-mono text-[13.5px] sm:text-[14px] leading-snug select-text print:max-w-full print:w-full print:border-none print:shadow-none print:rounded-none print:p-0 print:m-0 print:bg-white font-bold">
               {/* Receipt Logo & Header */}
               <div className="text-center space-y-1 pb-2">
                 {/* Sunbakers & Confectionary Logo */}
@@ -221,7 +245,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                   <img
                     src={samanthaLogo}
                     alt="Sun Bakers & Confectionary"
-                    className="w-16 h-16 sm:w-20 sm:h-20 object-contain mx-auto rounded-full border border-slate-200/60 shadow-2xs print:border-none"
+                    className="w-16 h-16 sm:w-20 sm:h-20 object-contain mx-auto rounded-full border border-slate-300 shadow-2xs print:border-none"
                   />
                 </div>
 
@@ -229,50 +253,50 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                   {companySettings?.companyName || 'Sunbakers & confectionary'}
                 </h2>
 
-                <p className="text-[11.5px] sm:text-[12px] text-black font-semibold leading-tight">
+                <p className="text-xs sm:text-[13px] text-black font-bold leading-tight">
                   {companySettings?.address || '239,kurukutthala ,kadugannawa'}
                 </p>
-                <p className="text-[11.5px] sm:text-[12px] text-black font-bold">
+                <p className="text-xs sm:text-[13px] text-black font-black">
                   Tel: {companySettings?.phone || '+94 77 254 9414'}
                 </p>
                 {companySettings?.registrationNumber && (
-                  <p className="text-[10.5px] text-black font-medium">Reg/VAT: {companySettings.registrationNumber}</p>
+                  <p className="text-xs text-black font-bold">Reg/VAT: {companySettings.registrationNumber}</p>
                 )}
               </div>
 
               {/* Header Double Divider */}
               <div className="border-t-2 border-black my-1.5" />
-              <div className="text-center font-black text-xs sm:text-[13px] py-0.5 tracking-wider">
+              <div className="text-center font-black text-xs sm:text-[13.5px] py-0.5 tracking-wider text-black">
                 *** SALES BILL / DELIVERY SLIP ***
               </div>
-              <div className="border-t border-black border-dashed my-1.5" />
+              <div className="border-t-2 border-black border-dashed my-1.5" />
 
               {/* Bill Details */}
-              <div className="space-y-0.5 text-[11.5px] sm:text-[12px]">
+              <div className="space-y-0.5 text-xs sm:text-[13px] text-black font-bold">
                 <div className="flex justify-between">
                   <span>Date: {new Date(order.createdAt).toLocaleDateString()}</span>
                   <span>Time: {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                 </div>
-                <div className="flex justify-between font-bold">
+                <div className="flex justify-between font-black text-black">
                   <span>Bill #: {order.paperBillNumber || order.orderNumber}</span>
                   <span>Ref: {order.orderNumber}</span>
                 </div>
                 {order.lorry && (
                   <div>
-                    <span className="font-semibold">Lorry:</span> {order.lorry.vehicleNumber} ({order.lorry.driverName})
+                    <span className="font-black">Lorry:</span> {order.lorry.vehicleNumber} ({order.lorry.driverName})
                   </div>
                 )}
                 {(order.route?.name || order.lorry?.route?.name) && (
                   <div>
-                    <span className="font-semibold">Route:</span> {order.route?.name || order.lorry?.route?.name}
+                    <span className="font-black">Route:</span> {order.route?.name || order.lorry?.route?.name}
                   </div>
                 )}
               </div>
 
               {/* Customer Box */}
-              <div className="border-t border-black border-dashed my-1.5" />
-              <div className="text-[11.5px] sm:text-[12px] space-y-0.5">
-                <div className="font-bold">
+              <div className="border-t-2 border-black border-dashed my-1.5" />
+              <div className="text-xs sm:text-[13px] space-y-0.5 text-black font-bold">
+                <div className="font-black text-xs sm:text-[13.5px]">
                   Customer: {order.customer.name} [{order.customer.code}]
                 </div>
                 {order.customer.companyName && (
@@ -282,33 +306,33 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                   <div>Addr: {order.customer.deliveryAddress || order.customer.city}</div>
                 )}
                 {order.customer.phone && (
-                  <div>Tel: {order.customer.phone}</div>
+                  <div className="font-black">Tel: {order.customer.phone}</div>
                 )}
               </div>
 
               {/* Items Table (2-line 80mm format: Item name line 1, Qty x Price & Total line 2) */}
               <div className="border-t-2 border-black my-1.5" />
-              <div className="flex justify-between font-black text-xs sm:text-[12.5px] pb-1">
+              <div className="flex justify-between font-black text-xs sm:text-[13px] pb-1 text-black">
                 <span>ITEM DESCRIPTION</span>
                 <span>TOTAL</span>
               </div>
-              <div className="border-t border-black border-dashed mb-1.5" />
+              <div className="border-t-2 border-black border-dashed mb-1.5" />
 
-              <div className="space-y-2 text-[11.5px] sm:text-xs">
+              <div className="space-y-2 text-xs sm:text-[13px] text-black">
                 {order.items.map((item) => (
                   <div key={item.id} className="leading-tight">
-                    <div className="font-black text-xs sm:text-[13px] break-words">{item.product.name}</div>
-                    <div className="flex justify-between pl-1 font-medium">
+                    <div className="font-black text-xs sm:text-[13.5px] break-words text-black">{item.product.name}</div>
+                    <div className="flex justify-between pl-1 font-bold text-black">
                       <span>
                         {item.quantity} {item.product.unit || 'pcs'} x {formatMoney(item.unitPrice)}
                         {item.product && item.unitPrice < item.product.unitPrice && (
-                          <span className="text-[10.5px] font-bold"> (Disc: was {formatMoney(item.product.unitPrice)})</span>
+                          <span className="text-[11px] font-black"> (Disc: was {formatMoney(item.product.unitPrice)})</span>
                         )}
                       </span>
-                      <span className="font-bold">{formatMoney(item.lineTotal)}</span>
+                      <span className="font-black text-black">{formatMoney(item.lineTotal)}</span>
                     </div>
                     {item.freeQuantity > 0 && (
-                      <div className="pl-1 font-bold text-[11px] text-black">
+                      <div className="pl-1 font-black text-xs text-black">
                         &gt;&gt; FREE PROMO: +{item.freeQuantity} {item.product.unit || 'pcs'} (Rs. 0.00)
                       </div>
                     )}
@@ -319,24 +343,24 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
               {/* Returned & Damaged Items (80mm) */}
               {order.returns && order.returns.length > 0 && (
                 <>
-                  <div className="border-t border-black border-dashed my-1.5" />
-                  <div className="flex justify-between font-black text-xs sm:text-[12.5px] pb-1">
+                  <div className="border-t-2 border-black border-dashed my-1.5" />
+                  <div className="flex justify-between font-black text-xs sm:text-[13px] pb-1 text-black">
                     <span>RETURNED / DAMAGED ITEMS</span>
                     <span>DEDUCT</span>
                   </div>
-                  <div className="border-t border-black border-dashed mb-1.5" />
-                  <div className="space-y-1.5 text-[11.5px] sm:text-xs">
+                  <div className="border-t-2 border-black border-dashed mb-1.5" />
+                  <div className="space-y-1.5 text-xs sm:text-[13px] text-black">
                     {order.returns.map((ret) => (
                       <div key={ret.id} className="leading-tight">
-                        <div className="font-bold break-words">
+                        <div className="font-black break-words text-black">
                           [{ret.returnType === 'DAMAGE' ? 'DMG' : 'RET'}] {ret.product?.name || 'Product'}
                         </div>
-                        <div className="flex justify-between pl-1">
+                        <div className="flex justify-between pl-1 font-bold text-black">
                           <span>
                             {ret.quantity} {ret.product?.unit || 'pcs'} x {formatMoney(ret.unitPrice)}
                             {ret.reason ? ` (${ret.reason})` : ''}
                           </span>
-                          <span className="font-bold text-black">-{formatMoney(ret.total)}</span>
+                          <span className="font-black text-black">-{formatMoney(ret.total)}</span>
                         </div>
                       </div>
                     ))}
@@ -345,15 +369,15 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
               )}
 
               {/* Totals Section */}
-              <div className="border-t border-black border-dashed my-1.5" />
-              <div className="space-y-1 text-xs sm:text-[12.5px]">
+              <div className="border-t-2 border-black border-dashed my-1.5" />
+              <div className="space-y-1 text-xs sm:text-[13px] text-black font-bold">
                 <div className="flex justify-between">
                   <span>Subtotal:</span>
-                  <span className="font-bold">{formatMoney(order.subtotal)}</span>
+                  <span className="font-black">{formatMoney(order.subtotal)}</span>
                 </div>
 
                 {order.items.some((i) => (i.freeQuantity || 0) > 0) && (
-                  <div className="flex justify-between font-semibold">
+                  <div className="flex justify-between font-black">
                     <span>Promotional Units:</span>
                     <span>
                       {order.items.reduce((acc, i) => acc + (i.freeQuantity || 0), 0)} Free pcs
@@ -362,21 +386,21 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                 )}
 
                 {order.discountAmount > 0 && (
-                  <div className="flex justify-between">
+                  <div className="flex justify-between font-black">
                     <span>Discount:</span>
-                    <span className="font-bold">-{formatMoney(order.discountAmount)}</span>
+                    <span>-{formatMoney(order.discountAmount)}</span>
                   </div>
                 )}
 
                 {order.returnAmount !== undefined && order.returnAmount > 0 && (
-                  <div className="flex justify-between font-bold">
+                  <div className="flex justify-between font-black">
                     <span>Returns / Damages:</span>
                     <span>-{formatMoney(order.returnAmount)}</span>
                   </div>
                 )}
 
                 <div className="border-t-2 border-black my-1.5" />
-                <div className="flex justify-between text-sm sm:text-base font-black py-0.5">
+                <div className="flex justify-between text-base sm:text-lg font-black py-0.5 text-black">
                   <span>NET TOTAL:</span>
                   <span>{formatMoney(order.netTotal)}</span>
                 </div>
@@ -384,62 +408,62 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
 
                 <div className="flex justify-between">
                   <span>Payment Method:</span>
-                  <span className="font-bold">{order.paymentMethod || 'CASH'}</span>
+                  <span className="font-black">{order.paymentMethod || 'CASH'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Amount Paid:</span>
-                  <span className="font-bold">{formatMoney(order.cashReceived || 0)}</span>
+                  <span className="font-black">{formatMoney(order.cashReceived || 0)}</span>
                 </div>
 
                 {order.netTotal - (order.cashReceived || 0) > 0 && (
-                  <div className="flex justify-between font-bold">
+                  <div className="flex justify-between font-black">
                     <span>Credit Balance Due:</span>
-                    <span className="font-bold">{formatMoney(order.netTotal - (order.cashReceived || 0))}</span>
+                    <span>{formatMoney(order.netTotal - (order.cashReceived || 0))}</span>
                   </div>
                 )}
 
                 {(order.cashReceived || 0) > order.netTotal && (
-                  <div className="flex justify-between font-bold">
+                  <div className="flex justify-between font-black">
                     <span>Change Returned:</span>
-                    <span className="font-bold">{formatMoney((order.cashReceived || 0) - order.netTotal)}</span>
+                    <span>{formatMoney((order.cashReceived || 0) - order.netTotal)}</span>
                   </div>
                 )}
               </div>
 
               {order.notes && (
                 <>
-                  <div className="border-t border-black border-dashed my-1.5" />
-                  <div className="text-[11px] sm:text-xs">
-                    <span className="font-bold">Notes:</span> {order.notes}
+                  <div className="border-t-2 border-black border-dashed my-1.5" />
+                  <div className="text-xs sm:text-[13px] text-black">
+                    <span className="font-black">Notes:</span> {order.notes}
                   </div>
                 </>
               )}
 
               {/* Policy & Terms */}
-              <div className="border-t border-black border-dashed my-2" />
-              <div className="text-center text-[10.5px] sm:text-[11px] space-y-0.5 font-medium">
+              <div className="border-t-2 border-black border-dashed my-2" />
+              <div className="text-center text-xs sm:text-[12.5px] space-y-0.5 font-bold text-black">
                 {companySettings?.invoiceFooterNote ? (
                   <p>{companySettings.invoiceFooterNote}</p>
                 ) : (
                   <>
                     <p>Goods received in satisfactory condition.</p>
-                    <p className="font-bold">Thank you for your business!</p>
+                    <p className="font-black">Thank you for your business!</p>
                   </>
                 )}
               </div>
 
               {/* Tear-off Signatures */}
-              <div className="mt-4 pt-2 border-t border-black border-dashed text-[11px] sm:text-xs space-y-3 font-semibold">
+              <div className="mt-4 pt-2 border-t-2 border-black border-dashed text-xs sm:text-[13px] space-y-3 font-bold text-black">
                 <div className="flex justify-between items-end gap-2">
                   <div>
-                    <p className="font-bold mb-3">Delivered By:</p>
-                    <div className="border-b border-black w-24"></div>
-                    <p className="mt-0.5 text-[9px] font-bold">{order.lorry?.driverName || 'Driver Sign'}</p>
+                    <p className="font-black mb-3">Delivered By:</p>
+                    <div className="border-b-2 border-black w-28"></div>
+                    <p className="mt-0.5 text-[10px] font-black">{order.lorry?.driverName || 'Driver Sign'}</p>
                   </div>
                   <div className="text-right">
-                    <p className="font-bold mb-3">Received By:</p>
-                    <div className="border-b border-black w-24 ml-auto"></div>
-                    <p className="mt-0.5 text-[9px] font-bold">Shop Stamp / Sign</p>
+                    <p className="font-black mb-3">Received By:</p>
+                    <div className="border-b-2 border-black w-28 ml-auto"></div>
+                    <p className="mt-0.5 text-[10px] font-black">Shop Stamp / Sign</p>
                   </div>
                 </div>
               </div>
@@ -453,20 +477,20 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
             /* ========================================================
                A4 / FULL SLIP LAYOUT (OFFICE / DESKTOP DISPATCH)
                ======================================================== */
-            <div className="bg-white p-5 sm:p-8 rounded-2xl shadow-sm border border-slate-200 space-y-5 text-slate-900">
+            <div className="invoice-a4 bg-white p-5 sm:p-8 rounded-2xl shadow-sm border border-slate-400 space-y-5 text-black">
               {/* Header */}
-              <div className="flex flex-col sm:flex-row justify-between items-start gap-3 border-b border-slate-200 pb-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start gap-3 border-b-2 border-black pb-4">
                 <div>
-                  <h2 className="text-xl font-bold tracking-tight text-slate-900">
+                  <h2 className="text-2xl font-black tracking-tight text-black">
                     DISTRIBUTION SALES BILL
                   </h2>
-                  <div className="flex flex-wrap items-center gap-2 text-xs font-mono text-slate-500 mt-1">
+                  <div className="flex flex-wrap items-center gap-2 text-xs font-mono font-bold text-black mt-1">
                     <span>System Ref: {order.orderNumber}</span>
                     {order.paperBillNumber && (
-                      <span className="text-blue-600 font-bold">Paper Bill #: {order.paperBillNumber}</span>
+                      <span className="text-black font-black bg-slate-100 px-1.5 py-0.5 rounded border border-slate-300">Paper Bill #: {order.paperBillNumber}</span>
                     )}
                   </div>
-                  <p className="text-xs text-slate-500 mt-0.5">
+                  <p className="text-xs font-bold text-black mt-1">
                     Date: {new Date(order.createdAt).toLocaleDateString()} {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </p>
                 </div>
@@ -476,63 +500,63 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                     <img
                       src={samanthaLogo}
                       alt="Sun Bakers & Confectionary"
-                      className="w-12 h-12 object-contain rounded-full border border-slate-100 shadow-2xs shrink-0"
+                      className="w-14 h-14 object-contain rounded-full border border-slate-300 shadow-2xs shrink-0"
                     />
                     <div>
-                      <h3 className="font-bold text-sm text-slate-900">
+                      <h3 className="font-black text-sm text-black">
                         {companySettings?.companyName || 'Sunbakers & confectionary'}
                       </h3>
-                      <p className="text-xs text-slate-500">
+                      <p className="text-xs font-bold text-black">
                         {companySettings?.address || '239,kurukutthala ,kadugannawa'}
                       </p>
-                      <p className="text-xs text-slate-500 font-mono">
+                      <p className="text-xs font-black text-black font-mono">
                         Tel: {companySettings?.phone || '+94 77 254 9414'}
                       </p>
                     </div>
                   </div>
 
                   {order.lorry ? (
-                    <div className="text-xs text-slate-600 space-y-0.5">
-                      <p className="font-semibold text-slate-900">
+                    <div className="text-xs font-bold text-black space-y-0.5">
+                      <p className="font-black text-black">
                         Lorry: {order.lorry.vehicleNumber} ({order.lorry.driverName})
                       </p>
-                      <p className="text-blue-600 font-medium">Route: {order.route?.name || order.lorry.route?.name || 'Local Route'}</p>
+                      <p className="font-bold text-black">Route: {order.route?.name || order.lorry.route?.name || 'Local Route'}</p>
                     </div>
                   ) : (
-                    <p className="text-xs text-slate-500">Warehouse Central Counter</p>
+                    <p className="text-xs font-bold text-black">Warehouse Central Counter</p>
                   )}
                 </div>
               </div>
 
               {/* Client & Destination Details */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50/70 p-4 rounded-xl border border-slate-100 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-300 text-sm">
                 <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
-                    Retail Outlet
+                  <span className="text-[11px] font-black uppercase tracking-wider text-black block mb-1">
+                    Retail Outlet / Customer
                   </span>
-                  <p className="font-bold text-slate-900">{order.customer.name}</p>
+                  <p className="font-black text-base text-black">{order.customer.name}</p>
                   {order.customer.companyName && (
-                    <p className="text-xs text-slate-600">{order.customer.companyName}</p>
+                    <p className="text-xs font-bold text-black">{order.customer.companyName}</p>
                   )}
-                  <p className="text-xs text-slate-600 mt-0.5">{order.customer.deliveryAddress || order.customer.city}</p>
-                  <p className="text-xs text-slate-600 font-mono">{order.customer.phone}</p>
+                  <p className="text-xs font-bold text-black mt-0.5">{order.customer.deliveryAddress || order.customer.city}</p>
+                  <p className="text-xs font-black text-black font-mono">{order.customer.phone}</p>
                 </div>
 
                 <div className="text-left sm:text-right">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                  <span className="text-[11px] font-black uppercase tracking-wider text-black block mb-1">
                     Account & Payment
                   </span>
-                  <p className="text-xs text-slate-600">
-                    Client Code: <span className="font-mono font-semibold text-slate-900">{order.customer.code}</span>
+                  <p className="text-xs font-bold text-black">
+                    Client Code: <span className="font-mono font-black text-black">{order.customer.code}</span>
                   </p>
-                  <p className="text-xs text-slate-600">
-                    Payment Mode: <span className="font-semibold text-slate-900">{order.paymentMethod || 'CASH'}</span>
+                  <p className="text-xs font-bold text-black">
+                    Payment Mode: <span className="font-black text-black">{order.paymentMethod || 'CASH'}</span>
                   </p>
-                  <p className="text-xs text-slate-600">
-                    Status: <span className="font-semibold text-slate-900">{order.paymentStatus}</span>
+                  <p className="text-xs font-bold text-black">
+                    Status: <span className="font-black text-black">{order.paymentStatus}</span>
                   </p>
                   {order.notes && (
-                    <div className="mt-1.5 text-xs text-slate-600 bg-white p-2 rounded-lg text-left border border-slate-200">
+                    <div className="mt-1.5 text-xs text-black font-bold bg-white p-2 rounded-lg text-left border border-slate-300">
                       <strong>Notes:</strong> {order.notes}
                     </div>
                   )}
@@ -540,9 +564,9 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
               </div>
 
               {/* Items Table */}
-              <div className="border border-slate-200 rounded-xl overflow-x-auto">
+              <div className="border border-slate-300 rounded-xl overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
-                  <thead className="bg-slate-100 text-slate-500 text-[10px] font-semibold uppercase tracking-wider">
+                  <thead className="bg-slate-200 text-black text-[11px] font-black uppercase tracking-wider border-b-2 border-black">
                     <tr>
                       <th className="p-2.5 pl-3">Item & SKU</th>
                       <th className="p-2.5 text-center">Unit</th>
@@ -551,31 +575,31 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                       <th className="p-2.5 pr-3 text-right">Line Total</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-200">
                     {order.items.map((item) => (
                       <tr key={item.id}>
                         <td className="p-2.5 pl-3">
-                          <p className="font-medium text-slate-900">{item.product.name}</p>
-                          <span className="text-[10px] font-mono text-slate-400">{item.product.sku}</span>
+                          <p className="font-black text-slate-900 text-sm">{item.product.name}</p>
+                          <span className="text-[11px] font-mono font-bold text-black">{item.product.sku}</span>
                         </td>
-                        <td className="p-2.5 text-center text-slate-500">{item.product.unit}</td>
-                        <td className="p-2.5 text-center font-bold text-slate-900">
+                        <td className="p-2.5 text-center font-bold text-black">{item.product.unit}</td>
+                        <td className="p-2.5 text-center font-black text-black text-sm">
                           {item.quantity}
                           {item.freeQuantity > 0 && (
-                            <span className="block text-[10px] font-semibold text-emerald-600">
+                            <span className="block text-[11px] font-black text-black">
                               +{item.freeQuantity} Free
                             </span>
                           )}
                         </td>
-                        <td className="p-2.5 text-right font-mono text-slate-600">
+                        <td className="p-2.5 text-right font-mono font-bold text-black">
                           <div>{formatMoney(item.unitPrice)}</div>
                           {item.product && item.unitPrice < item.product.unitPrice && (
-                            <div className="text-[10px] text-emerald-600 font-bold">
+                            <div className="text-[11px] text-black font-black">
                               was <span className="line-through">{formatMoney(item.product.unitPrice)}</span>
                             </div>
                           )}
                         </td>
-                        <td className="p-2.5 pr-3 text-right font-bold text-slate-900 font-mono">
+                        <td className="p-2.5 pr-3 text-right font-black text-black font-mono text-sm">
                           {formatMoney(item.lineTotal)}
                         </td>
                       </tr>
@@ -586,15 +610,15 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
 
               {/* Returned & Damaged Items Table (A4) */}
               {order.returns && order.returns.length > 0 && (
-                <div className="border border-amber-200/80 rounded-xl overflow-x-auto bg-amber-50/20">
-                  <div className="px-3 py-2 bg-amber-50/80 border-b border-amber-200/80 text-[10px] font-bold text-amber-900 uppercase tracking-wider flex items-center justify-between">
+                <div className="border border-slate-300 rounded-xl overflow-x-auto bg-amber-50/30">
+                  <div className="px-3 py-2 bg-amber-100 border-b-2 border-black text-[11px] font-black text-black uppercase tracking-wider flex items-center justify-between">
                     <span>Customer Returned & Damaged Items (Credit Deductions)</span>
-                    <span className="font-mono text-rose-600 font-bold">
+                    <span className="font-mono text-black font-black">
                       Total Return Deductions: -{formatMoney(order.returnAmount || order.returns.reduce((a, b) => a + b.total, 0))}
                     </span>
                   </div>
                   <table className="w-full text-left border-collapse text-xs">
-                    <thead className="bg-amber-100/40 text-slate-500 text-[10px] font-semibold uppercase tracking-wider">
+                    <thead className="bg-slate-200 text-black text-[11px] font-black uppercase tracking-wider border-b border-black">
                       <tr>
                         <th className="p-2 pl-3">Condition</th>
                         <th className="p-2">Product Name</th>
@@ -603,26 +627,23 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                         <th className="p-2 pr-3 text-right">Line Credit</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-amber-100/60">
+                    <tbody className="divide-y divide-slate-200">
                       {order.returns.map((ret) => (
                         <tr key={ret.id}>
                           <td className="p-2 pl-3">
-                            <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold ${ret.returnType === 'DAMAGE'
-                                ? 'bg-rose-100 text-rose-800 border border-rose-200/80'
-                                : 'bg-emerald-100 text-emerald-800 border border-emerald-200/80'
-                              }`}>
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-slate-100 text-black border border-black">
                               {ret.returnType === 'DAMAGE' ? '💥 Damaged / Expired' : '✨ Good Resellable'}
                             </span>
                           </td>
                           <td className="p-2">
-                            <p className="font-medium text-slate-900">{ret.product?.name || 'Product'}</p>
+                            <p className="font-black text-black">{ret.product?.name || 'Product'}</p>
                             {ret.reason && (
-                              <span className="text-[10px] text-slate-500 italic block">Reason: {ret.reason}</span>
+                              <span className="text-[11px] text-black font-bold block">Reason: {ret.reason}</span>
                             )}
                           </td>
-                          <td className="p-2 text-center font-bold text-slate-900">{ret.quantity}</td>
-                          <td className="p-2 text-right font-mono text-slate-600">{formatMoney(ret.unitPrice)}</td>
-                          <td className="p-2 pr-3 text-right font-bold text-rose-600 font-mono">
+                          <td className="p-2 text-center font-black text-black text-sm">{ret.quantity}</td>
+                          <td className="p-2 text-right font-mono font-bold text-black">{formatMoney(ret.unitPrice)}</td>
+                          <td className="p-2 pr-3 text-right font-black text-black font-mono">
                             -{formatMoney(ret.total)}
                           </td>
                         </tr>
@@ -634,41 +655,41 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
 
               {/* Totals Breakdown */}
               <div className="flex justify-end pt-1">
-                <div className="w-full sm:w-64 space-y-1.5 text-xs">
-                  <div className="flex justify-between text-slate-600">
+                <div className="w-full sm:w-72 space-y-1.5 text-xs">
+                  <div className="flex justify-between text-black font-bold">
                     <span>Subtotal:</span>
-                    <span className="font-medium text-slate-900 font-mono">{formatMoney(order.subtotal)}</span>
+                    <span className="font-black font-mono">{formatMoney(order.subtotal)}</span>
                   </div>
                   {order.items.some((i) => (i.freeQuantity || 0) > 0) && (
-                    <div className="flex justify-between text-emerald-700 font-medium">
+                    <div className="flex justify-between text-black font-bold">
                       <span>Promotional Units:</span>
-                      <span className="font-mono">
+                      <span className="font-mono font-black">
                         {order.items.reduce((acc, i) => acc + (i.freeQuantity || 0), 0)} Free
                       </span>
                     </div>
                   )}
                   {order.discountAmount > 0 && (
-                    <div className="flex justify-between text-emerald-600 font-medium">
+                    <div className="flex justify-between text-black font-bold">
                       <span>Discount:</span>
-                      <span className="font-mono">-{formatMoney(order.discountAmount)}</span>
+                      <span className="font-mono font-black">-{formatMoney(order.discountAmount)}</span>
                     </div>
                   )}
                   {order.returnAmount !== undefined && order.returnAmount > 0 && (
-                    <div className="flex justify-between text-rose-600 font-medium">
+                    <div className="flex justify-between text-black font-bold">
                       <span>Returns / Damages:</span>
-                      <span className="font-mono">-{formatMoney(order.returnAmount)}</span>
+                      <span className="font-mono font-black">-{formatMoney(order.returnAmount)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between text-sm font-bold text-slate-900 border-t border-slate-200 pt-1.5">
+                  <div className="flex justify-between text-sm font-black text-black border-t-2 border-black pt-1.5">
                     <span>Net Total:</span>
-                    <span className="font-mono text-blue-600">{formatMoney(order.netTotal)}</span>
+                    <span className="font-mono text-base">{formatMoney(order.netTotal)}</span>
                   </div>
-                  <div className="flex justify-between text-slate-600">
+                  <div className="flex justify-between text-black font-bold">
                     <span>Cash Paid:</span>
-                    <span className="font-mono font-bold text-emerald-600">{formatMoney(order.cashReceived || 0)}</span>
+                    <span className="font-mono font-black">{formatMoney(order.cashReceived || 0)}</span>
                   </div>
                   {order.netTotal - (order.cashReceived || 0) > 0 && (
-                    <div className="flex justify-between text-rose-600 font-bold">
+                    <div className="flex justify-between text-black font-black">
                       <span>Credit Balance:</span>
                       <span className="font-mono">{formatMoney(order.netTotal - (order.cashReceived || 0))}</span>
                     </div>
@@ -678,22 +699,22 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
 
               {/* Policy / Terms Notice */}
               {companySettings?.invoiceFooterNote && (
-                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/80 text-[10px] text-slate-500 text-center italic">
+                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-300 text-xs text-black text-center font-bold">
                   {companySettings.invoiceFooterNote}
                 </div>
               )}
 
               {/* Signatures */}
-              <div className="pt-4 grid grid-cols-2 gap-6 border-t border-slate-200 text-xs text-slate-400">
+              <div className="pt-4 grid grid-cols-2 gap-6 border-t-2 border-black text-xs text-black">
                 <div>
-                  <p className="font-semibold text-slate-600 mb-4">Delivered By:</p>
-                  <div className="border-b border-dashed border-slate-300 w-40"></div>
-                  <p className="mt-1 text-[10px]">{order.lorry ? `${order.lorry.driverName} (${order.lorry.vehicleNumber})` : 'Warehouse Dispatch'}</p>
+                  <p className="font-black text-black mb-4">Delivered By:</p>
+                  <div className="border-b-2 border-black w-44"></div>
+                  <p className="mt-1 text-[11px] font-black">{order.lorry ? `${order.lorry.driverName} (${order.lorry.vehicleNumber})` : 'Warehouse Dispatch'}</p>
                 </div>
                 <div className="text-right">
-                  <p className="font-semibold text-slate-600 mb-4">Received By:</p>
-                  <div className="border-b border-dashed border-slate-300 w-40 ml-auto"></div>
-                  <p className="mt-1 text-[10px]">Authorized Shop Stamp & Sign</p>
+                  <p className="font-black text-black mb-4">Received By:</p>
+                  <div className="border-b-2 border-black w-44 ml-auto"></div>
+                  <p className="mt-1 text-[11px] font-black">Authorized Shop Stamp & Sign</p>
                 </div>
               </div>
             </div>

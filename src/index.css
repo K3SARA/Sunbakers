@@ -66,7 +66,7 @@
 /* Print Styles */
 @media print {
   @page {
-    /* Standard 80mm continuous thermal roll: zero page margins to avoid blank page feeds */
+    /* Standard 80mm continuous thermal roll default */
     size: 80mm auto;
     margin: 0 !important;
   }
@@ -78,13 +78,13 @@
     color: #000000 !important;
     margin: 0 !important;
     padding: 0 !important;
-    width: 80mm !important;
-    max-width: 80mm !important;
     height: auto !important;
     min-height: 0 !important;
     overflow: visible !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+    text-rendering: geometricPrecision !important;
+    -webkit-font-smoothing: antialiased !important;
   }
 
   /* Completely hide all app chrome, sidebars, headers, bottom bars, and other non-print elements */
@@ -95,6 +95,7 @@
   nav,
   button,
   .print\:hidden {
+    display: none !important;
     visibility: hidden !important;
   }
 
@@ -139,8 +140,6 @@
     position: absolute !important;
     left: 0 !important;
     top: 0 !important;
-    width: 100% !important;
-    max-width: 80mm !important;
     margin: 0 !important;
     padding: 0 !important;
     background: #ffffff !important;
@@ -158,16 +157,16 @@
     break-after: avoid !important;
   }
 
-  /* 80mm Thermal Receipt Container */
+  /* 80mm Thermal Receipt Container - Solid Deep Dark Print */
   .receipt-80mm {
     width: 100% !important;
     max-width: 76mm !important;
     margin: 0 auto !important;
     padding: 0 1mm 2mm 1mm !important;
-    font-family: 'Courier New', Courier, monospace, -apple-system, sans-serif !important;
+    font-family: 'Courier New', Courier, monospace, 'Lucida Console', -apple-system, sans-serif !important;
     font-size: 13px !important;
     line-height: 1.35 !important;
-    font-weight: 600 !important;
+    font-weight: 700 !important;
     color: #000000 !important;
     background: #ffffff !important;
     background-color: #ffffff !important;
@@ -180,32 +179,111 @@
     break-after: avoid !important;
   }
 
+  /* FORCE DEEP PITCH BLACK & HEAVY STROKE ON ALL THERMAL RECEIPT TEXT & BORDERS */
+  .receipt-80mm,
   .receipt-80mm * {
     color: #000000 !important;
+    font-weight: 700 !important;
+    border-color: #000000 !important;
     background: transparent !important;
     background-color: transparent !important;
-    border-color: #000000 !important;
     box-shadow: none !important;
     border-radius: 0 !important;
+    text-shadow: none !important;
+    -webkit-font-smoothing: antialiased !important;
   }
 
-  /* Force solid black lines on thermal paper */
+  .receipt-80mm .font-black,
+  .receipt-80mm .font-bold,
+  .receipt-80mm strong,
+  .receipt-80mm b,
+  .receipt-80mm h2 {
+    font-weight: 900 !important;
+  }
+
+  /* Prevent tiny or faint font sizes on thermal printers */
+  .receipt-80mm p,
+  .receipt-80mm span,
+  .receipt-80mm div {
+    font-size: 12.5px !important;
+  }
+
+  .receipt-80mm h2 {
+    font-size: 17px !important;
+    font-weight: 900 !important;
+  }
+
+  .receipt-80mm .receipt-title {
+    font-size: 13.5px !important;
+    font-weight: 900 !important;
+  }
+
+  .receipt-80mm .receipt-item-title {
+    font-size: 13.5px !important;
+    font-weight: 900 !important;
+  }
+
+  .receipt-80mm .receipt-net-total {
+    font-size: 16px !important;
+    font-weight: 900 !important;
+  }
+
+  /* Solid Pitch Black Dividers */
   .receipt-divider {
-    border-top: 1px dashed #000000 !important;
-    margin: 3px 0 !important;
+    border-top: 1.5px dashed #000000 !important;
+    margin: 4px 0 !important;
   }
 
   .receipt-divider-double {
-    border-top: 2px solid #000000 !important;
-    margin: 3px 0 !important;
+    border-top: 2.5px solid #000000 !important;
+    margin: 4px 0 !important;
   }
 
-  /* Thermal Receipt Logo Optimization */
-  .receipt-80mm img {
-    filter: grayscale(100%) contrast(150%) !important;
-    -webkit-filter: grayscale(100%) contrast(150%) !important;
-    max-width: 58px !important;
-    max-height: 58px !important;
+  /* A4 Invoice Print High Contrast Rules */
+  .invoice-a4,
+  .invoice-a4 * {
+    color: #000000 !important;
+    border-color: #000000 !important;
+    -webkit-font-smoothing: antialiased !important;
+  }
+
+  .invoice-a4 thead,
+  .invoice-a4 thead th {
+    color: #000000 !important;
+    font-weight: 900 !important;
+    font-size: 11px !important;
+    background-color: #e2e8f0 !important;
+    border-bottom: 2px solid #000000 !important;
+  }
+
+  .invoice-a4 span[class*="text-slate"],
+  .invoice-a4 p[class*="text-slate"],
+  .invoice-a4 div[class*="text-slate"],
+  .invoice-a4 td[class*="text-slate"] {
+    color: #000000 !important;
+    font-weight: 700 !important;
+  }
+
+  .invoice-a4 .font-medium,
+  .invoice-a4 .font-normal {
+    font-weight: 700 !important;
+  }
+
+  .invoice-a4 .font-bold,
+  .invoice-a4 strong,
+  .invoice-a4 b,
+  .invoice-a4 h2,
+  .invoice-a4 h3 {
+    font-weight: 900 !important;
+  }
+
+  /* High contrast logo */
+  .receipt-80mm img,
+  .invoice-a4 img {
+    filter: grayscale(100%) contrast(200%) brightness(90%) !important;
+    -webkit-filter: grayscale(100%) contrast(200%) brightness(90%) !important;
+    max-width: 60px !important;
+    max-height: 60px !important;
     display: block !important;
     margin: 0 auto 3px auto !important;
     background: transparent !important;
