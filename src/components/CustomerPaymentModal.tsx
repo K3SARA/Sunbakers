@@ -136,10 +136,10 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
-      <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[92vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-xs animate-fadeIn">
+      <div className="bg-slate-200/70 w-full max-w-lg rounded-3xl shadow-2xl border border-slate-300 overflow-hidden flex flex-col max-h-[92vh]">
         {/* Header */}
-        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+        <div className="px-5 py-4 border-b border-slate-200 bg-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100">
               <Wallet className="w-5 h-5" />
@@ -147,7 +147,7 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-bold text-slate-900">Record Credit Payment</h2>
-                <span className="font-mono text-xs font-bold px-2 py-0.5 bg-slate-200/80 text-slate-700 rounded-lg">
+                <span className="font-mono text-xs font-bold px-2 py-0.5 bg-slate-200 text-slate-700 rounded-lg">
                   {customer.code}
                 </span>
               </div>
@@ -158,14 +158,14 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition"
+            className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-4 sm:space-y-5 overflow-y-auto flex-1 bg-slate-50/60">
+        {/* Form Body with dark contrasting background */}
+        <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-4 sm:space-y-5 overflow-y-auto flex-1 bg-slate-200/70">
           {error && (
             <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-2.5 text-rose-700 text-xs font-medium">
               <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
@@ -174,7 +174,7 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
           )}
 
           {/* Section 1: Current Debt & Balance Preview Card */}
-          <div className="p-4 bg-white border border-slate-200/90 rounded-2xl space-y-3 shadow-2xs">
+          <div className="p-4 bg-white border border-slate-200/90 rounded-2xl space-y-3 shadow-sm">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                 Current Outstanding Balance
@@ -214,7 +214,7 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
 
           {/* Section 2: Bill-to-Bill Knock-off Breakdown (Ultra minimal) */}
           {unpaidBills.length > 0 && (
-            <div className="p-4 bg-white border border-slate-200/90 rounded-2xl space-y-2.5 shadow-2xs">
+            <div className="p-4 bg-white border border-slate-200/90 rounded-2xl space-y-2.5 shadow-sm">
               <div className="flex items-center justify-between text-xs font-bold text-slate-700">
                 <span className="flex items-center gap-1.5">
                   <Receipt className="w-3.5 h-3.5 text-blue-600" />
@@ -260,7 +260,7 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
           )}
 
           {/* Section 3: Payment Amount Input */}
-          <div className="p-4 bg-white border border-slate-200/90 rounded-2xl space-y-3 shadow-2xs">
+          <div className="p-4 bg-white border border-slate-200/90 rounded-2xl space-y-3 shadow-sm">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                 <Wallet className="w-4 h-4 text-emerald-600" />
@@ -318,7 +318,7 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
           </div>
 
           {/* Section 4: Payment Method Selector & Details */}
-          <div className="p-4 bg-white border border-slate-200/90 rounded-2xl space-y-3 shadow-2xs">
+          <div className="p-4 bg-white border border-slate-200/90 rounded-2xl space-y-3 shadow-sm">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                 <CreditCard className="w-4 h-4 text-blue-600" />
@@ -433,7 +433,7 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
           </div>
 
           {/* Section 5: Collection Channel & Personnel */}
-          <div className="p-4 bg-white border border-slate-200/90 rounded-2xl space-y-3 shadow-2xs">
+          <div className="p-4 bg-white border border-slate-200/90 rounded-2xl space-y-3 shadow-sm">
             <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
               <Truck className="w-4 h-4 text-indigo-600" />
               <span>Collection Channel & Collector</span>
@@ -474,7 +474,7 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
           </div>
 
           {/* Section 6: Remarks / Settlement Notes */}
-          <div className="p-4 bg-white border border-slate-200/90 rounded-2xl space-y-2 shadow-2xs">
+          <div className="p-4 bg-white border border-slate-200/90 rounded-2xl space-y-2 shadow-sm">
             <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
               <Receipt className="w-4 h-4 text-slate-500" />
               <span>Remarks / Settlement Notes (Optional)</span>
@@ -490,12 +490,12 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
         </form>
 
         {/* Action Footer */}
-        <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2.5">
+        <div className="p-4 bg-white border-t border-slate-200 flex items-center justify-end gap-2.5 shrink-0">
           <button
             type="button"
             onClick={onClose}
             disabled={loading}
-            className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-200 transition"
+            className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
           >
             Cancel
           </button>
@@ -503,7 +503,7 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
             type="button"
             onClick={handleSubmit}
             disabled={loading || numAmount <= 0}
-            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-2 disabled:opacity-50"
+            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-2 disabled:opacity-50 cursor-pointer"
           >
             <Receipt className="w-4 h-4" />
             <span>{loading ? 'Recording Payment...' : 'Record Payment & Settle'}</span>
