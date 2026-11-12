@@ -1459,29 +1459,30 @@ export const RepBilling: React.FC<RepBillingProps> = ({
             </div>
 
             {/* SECTION 1: FRESH PRODUCTS IN CART */}
-            <div className="bg-white border border-slate-200/90 rounded-2xl p-3.5 shadow-2xs space-y-3">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+            <div className="bg-slate-200/80 border border-slate-300 rounded-2xl p-3.5 sm:p-4 shadow-xs space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-300/80 pb-2.5">
                 <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-xs">
+                  <div className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-xs shadow-2xs">
                     <ShoppingBag className="w-3.5 h-3.5" />
                   </div>
                   <div>
                     <h3 className="text-xs font-bold text-slate-900">Fresh Delivery Products</h3>
-                    <p className="text-[10px] text-slate-400 font-medium">Billed to customer</p>
+                    <p className="text-[10px] text-slate-500 font-medium">Billed to customer</p>
                   </div>
                 </div>
 
                 <button
                   type="button"
                   onClick={() => setCurrentStep(3)}
-                  className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold rounded-lg transition cursor-pointer"
+                  className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold rounded-lg transition shadow-2xs cursor-pointer flex items-center gap-1"
                 >
-                  + Add Products
+                  <Plus className="w-3 h-3 stroke-[2.5]" />
+                  <span>Add Products</span>
                 </button>
               </div>
 
               {cart.length === 0 ? (
-                <div className="p-4 text-center bg-slate-50/70 border border-dashed border-slate-200 rounded-xl space-y-2">
+                <div className="p-4 text-center bg-white/90 border border-dashed border-slate-300 rounded-xl space-y-2 shadow-2xs">
                   <p className="text-xs font-medium text-slate-500">No fresh products added to cart</p>
                   <button
                     type="button"
@@ -1504,12 +1505,12 @@ export const RepBilling: React.FC<RepBillingProps> = ({
                     return (
                       <div
                         key={item.productId}
-                        className={`p-2.5 bg-slate-50/70 border rounded-xl transition ${
+                        className={`p-3 rounded-xl border transition shadow-xs ${
                           isEditingDiscount
-                            ? 'border-blue-400 bg-blue-50/30 ring-2 ring-blue-500/10'
+                            ? 'border-blue-400 bg-blue-50/70 ring-2 ring-blue-500/20'
                             : hasDiscount
-                            ? 'border-emerald-200 bg-emerald-50/20'
-                            : 'border-slate-200/80'
+                            ? 'border-emerald-300 bg-emerald-50/50'
+                            : 'border-slate-200/90 bg-white hover:border-slate-300'
                         }`}
                       >
                         <div className="flex items-center justify-between gap-2">
@@ -1787,7 +1788,7 @@ export const RepBilling: React.FC<RepBillingProps> = ({
                   })}
 
                   {/* Cart Subtotal Breakdown */}
-                  <div className="pt-2 border-t border-slate-200/80 space-y-1 text-xs">
+                  <div className="p-3 bg-white border border-slate-200/90 rounded-xl shadow-xs space-y-1.5 text-xs">
                     {totalItemDiscounts > 0 && (
                       <>
                         <div className="flex items-center justify-between text-slate-500 font-medium px-1">
@@ -1803,7 +1804,7 @@ export const RepBilling: React.FC<RepBillingProps> = ({
                         </div>
                       </>
                     )}
-                    <div className="flex items-center justify-between font-bold text-slate-800 px-1">
+                    <div className="flex items-center justify-between font-bold text-slate-800 px-1 pt-0.5">
                       <span>Products Subtotal ({totalItemsCount} units):</span>
                       <span className="font-mono text-sm text-slate-900">{formatMoney(cartSubtotal)}</span>
                     </div>
@@ -2289,41 +2290,43 @@ export const RepBilling: React.FC<RepBillingProps> = ({
 
             {/* Fresh Items Summary Table */}
             {cart.length > 0 ? (
-              <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-2">
-                <div className="text-[10px] font-bold text-slate-400 uppercase pb-1 border-b border-slate-100 flex justify-between">
+              <div className="p-3 bg-slate-200/80 border border-slate-300 rounded-xl space-y-2">
+                <div className="text-[10px] font-bold text-slate-600 uppercase pb-1 border-b border-slate-300/80 flex justify-between">
                   <span>Fresh Delivery Items ({cart.length})</span>
                   <span>Price</span>
                 </div>
 
-                {cart.map(item => {
-                  const hasDiscount = (item.discountPercent || 0) > 0;
-                  const originalPrice = item.originalUnitPrice || item.unitPrice;
-                  return (
-                    <div key={item.productId} className="flex items-center justify-between text-xs py-0.5">
-                      <div className="min-w-0 pr-2">
-                        <span className="text-slate-800 font-medium truncate block">
-                          {item.name} × {item.quantity}
-                          {item.freeQuantity > 0 && (
-                            <span className="text-[10px] text-emerald-600 font-bold ml-1">
-                              (+{item.freeQuantity} free)
+                <div className="space-y-1.5">
+                  {cart.map(item => {
+                    const hasDiscount = (item.discountPercent || 0) > 0;
+                    const originalPrice = item.originalUnitPrice || item.unitPrice;
+                    return (
+                      <div key={item.productId} className="flex items-center justify-between text-xs p-2 bg-white rounded-lg border border-slate-200/90 shadow-2xs">
+                        <div className="min-w-0 pr-2">
+                          <span className="text-slate-800 font-bold truncate block">
+                            {item.name} × {item.quantity}
+                            {item.freeQuantity > 0 && (
+                              <span className="text-[10px] text-emerald-600 font-bold ml-1">
+                                (+{item.freeQuantity} free)
+                              </span>
+                            )}
+                          </span>
+                          {hasDiscount && (
+                            <span className="text-[10px] font-mono font-bold text-emerald-600 block">
+                              {formatMoney(item.unitPrice)} / {item.unit} <span className="line-through text-slate-400 font-normal">({formatMoney(originalPrice)})</span> • {item.discountPercent}% Off
                             </span>
                           )}
+                        </div>
+                        <span className="font-mono font-bold text-slate-900 shrink-0">
+                          {formatMoney(item.unitPrice * item.quantity)}
                         </span>
-                        {hasDiscount && (
-                          <span className="text-[10px] font-mono font-bold text-emerald-600 block">
-                            {formatMoney(item.unitPrice)} / {item.unit} <span className="line-through text-slate-400 font-normal">({formatMoney(originalPrice)})</span> • {item.discountPercent}% Off
-                          </span>
-                        )}
                       </div>
-                      <span className="font-mono font-bold text-slate-900 shrink-0">
-                        {formatMoney(item.unitPrice * item.quantity)}
-                      </span>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             ) : (
-              <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-center text-xs text-slate-500 font-medium">
+              <div className="p-2.5 bg-slate-200/70 border border-slate-300 rounded-xl text-center text-xs text-slate-600 font-medium">
                 No delivery items (Customer Return / Stale Bread Bill)
               </div>
             )}

@@ -283,14 +283,14 @@ export const OrderEntry: React.FC<OrderEntryProps> = ({ onBack, onOrderCompleted
         </div>
 
         {/* Right Side: Order Ticket Manifest */}
-        <div className="w-5/12 bg-white flex flex-col justify-between p-8 border-l border-slate-200/80">
+        <div className="w-5/12 bg-slate-100/80 flex flex-col justify-between p-8 border-l border-slate-200/80">
           <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4 shrink-0">
+            <div className="flex items-center justify-between border-b border-slate-200/80 pb-4 mb-4 shrink-0">
               <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                 <Receipt className="w-5 h-5 text-blue-600" />
                 Distribution Manifest
               </h3>
-              <span className="text-xs text-slate-400 font-medium">
+              <span className="text-xs text-slate-500 font-medium">
                 {cart.length} {cart.length === 1 ? 'Line Item' : 'Line Items'}
               </span>
             </div>
@@ -298,11 +298,11 @@ export const OrderEntry: React.FC<OrderEntryProps> = ({ onBack, onOrderCompleted
             {/* Cart Items List */}
             {cart.length === 0 ? (
               <div className="flex-1 flex flex-col items-center justify-center text-center p-8 text-slate-400">
-                <div className="w-14 h-14 rounded-full bg-slate-50 flex items-center justify-center mb-3">
-                  <Receipt className="w-6 h-6 text-slate-300" />
+                <div className="w-14 h-14 rounded-full bg-slate-200/70 flex items-center justify-center mb-3">
+                  <Receipt className="w-6 h-6 text-slate-400" />
                 </div>
                 <p className="font-semibold text-slate-700">Order is currently empty</p>
-                <p className="text-xs text-slate-400 max-w-xs mt-1">
+                <p className="text-xs text-slate-500 max-w-xs mt-1">
                   Click on any available product on the left catalog to add cases or units to this delivery.
                 </p>
               </div>
@@ -311,7 +311,7 @@ export const OrderEntry: React.FC<OrderEntryProps> = ({ onBack, onOrderCompleted
                 {cart.map(item => (
                   <div
                     key={item.product.id}
-                    className="p-3.5 bg-slate-50/80 rounded-2xl border border-slate-100 flex items-center justify-between gap-3"
+                    className="p-3.5 bg-white rounded-2xl border border-slate-200 shadow-2xs flex items-center justify-between gap-3"
                   >
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold text-slate-900 truncate">
