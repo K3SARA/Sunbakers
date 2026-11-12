@@ -103,6 +103,7 @@ export const RepBilling: React.FC<RepBillingProps> = ({
   const [returnQty, setReturnQty] = useState<number>(1);
   const [returnUnitPrice, setReturnUnitPrice] = useState<string>('');
   const [returnReason, setReturnReason] = useState<string>('Stale / Expired');
+  const [isReturnsExpanded, setIsReturnsExpanded] = useState<boolean>(false);
 
   // Step 3: Brand
   const [selectedBrand, setSelectedBrand] = useState<string>('');
@@ -687,6 +688,7 @@ export const RepBilling: React.FC<RepBillingProps> = ({
       ];
     });
 
+    setIsReturnsExpanded(true);
     setShowAddReturnModal(false);
   };
 
@@ -914,6 +916,7 @@ export const RepBilling: React.FC<RepBillingProps> = ({
     setCheckoutSuccessOrder(null);
     setEditingDiscountProductId(null);
     setDiscountInputValue('');
+    setIsReturnsExpanded(false);
     setCurrentStep(1);
     setCustomerSearch('');
     setItemSearch('');
@@ -1625,141 +1628,184 @@ export const RepBilling: React.FC<RepBillingProps> = ({
               )}
             </div>
 
-            {/* SECTION 2: CUSTOMER RETURNS & DAMAGED GOODS */}
-            <div className="bg-white border border-amber-200/90 rounded-2xl p-3.5 shadow-2xs space-y-3">
-              <div className="flex items-center justify-between border-b border-amber-100 pb-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-xs">
+            {/* SECTION 2: CUSTOMER RETURNS & DAMAGED GOODS (MINIMIZABLE / COLLAPSIBLE) */}
+            <div className={`bg-white border rounded-2xl shadow-2xs transition-all duration-200 overflow-hidden ${
+              returnItems.length > 0
+                ? 'border-amber-300/90'
+                : 'border-amber-200/70 hover:border-amber-300'
+            }`}>
+              {/* Header Bar - Clickable to toggle collapse/expand */}
+              <div
+                onClick={() => setIsReturnsExpanded(prev => !prev)}
+                className={`p-3 flex items-center justify-between cursor-pointer select-none transition ${
+                  isReturnsExpanded ? 'border-b border-amber-100 bg-amber-50/20' : 'hover:bg-amber-50/30'
+                }`}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className={`w-6 h-6 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
+                    returnItems.length > 0 ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'
+                  }`}>
                     <RotateCcw className="w-3.5 h-3.5" />
                   </div>
-                  <div>
-                    <h3 className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                  <div className="min-w-0">
+                    <h3 className="text-xs font-bold text-amber-950 flex items-center gap-1.5 flex-wrap">
                       <span>Customer Returns & Damages</span>
-                      {returnItems.length > 0 && (
+                      {returnItems.length > 0 ? (
                         <span className="bg-rose-100 text-rose-700 px-1.5 py-0.2 rounded-md text-[10px] font-mono font-bold">
-                          {returnItems.length}
+                          {returnItems.length} items (-{formatMoney(totalReturnAmount)})
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-amber-600/80 font-medium">
+                          (Optional)
                         </span>
                       )}
                     </h3>
-                    <p className="text-[10px] text-amber-700/80 font-medium">Stale bread, expired items & credits deducted</p>
+                    <p className="text-[10px] text-amber-700/80 font-medium truncate">
+                      {returnItems.length > 0
+                        ? `${totalReturnUnits} units returned • Credits will be deducted`
+                        : 'Stale bread, expired items & credits deducted'}
+                    </p>
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={handleOpenAddReturnModal}
-                  className="px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 text-[11px] font-bold rounded-lg transition cursor-pointer flex items-center gap-1"
-                >
-                  <Plus className="w-3 h-3 stroke-[3]" />
-                  <span>Add Return</span>
-                </button>
-              </div>
-
-              {returnItems.length === 0 ? (
-                <div className="p-3.5 text-center bg-amber-50/40 border border-dashed border-amber-200 rounded-xl space-y-2">
-                  <p className="text-xs text-amber-900/80 font-medium">
-                    No customer returns or stale items recorded yet.
-                  </p>
+                <div className="flex items-center gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
                   <button
                     type="button"
-                    onClick={handleOpenAddReturnModal}
-                    className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-lg shadow-2xs inline-flex items-center gap-1 transition cursor-pointer"
+                    onClick={() => {
+                      setIsReturnsExpanded(true);
+                      handleOpenAddReturnModal();
+                    }}
+                    className="px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 text-[11px] font-bold rounded-lg transition cursor-pointer flex items-center gap-1 shadow-2xs"
                   >
-                    <RotateCcw className="w-3 h-3 text-slate-950" />
-                    <span>Record Customer Return / Stale Bread</span>
+                    <Plus className="w-3 h-3 stroke-[3]" />
+                    <span>Add Return</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsReturnsExpanded(prev => !prev)}
+                    className="w-7 h-7 rounded-lg hover:bg-amber-100/70 text-amber-800 flex items-center justify-center transition cursor-pointer"
+                    title={isReturnsExpanded ? 'Minimize / Collapse' : 'Expand Returns'}
+                  >
+                    {isReturnsExpanded ? (
+                      <ChevronUp className="w-4 h-4 text-amber-800" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4 text-amber-800" />
+                    )}
                   </button>
                 </div>
-              ) : (
-                <div className="space-y-2">
-                  {returnItems.map(ret => {
-                    const lineCredit = ret.unitPrice * ret.quantity;
-                    const isDamage = ret.returnType === 'DAMAGE';
-                    return (
-                      <div
-                        key={ret.id}
-                        className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 ${
-                          isDamage ? 'bg-rose-50/50 border-rose-200/80' : 'bg-emerald-50/50 border-emerald-200/80'
-                        }`}
+              </div>
+
+              {/* Collapsible Content Body */}
+              {isReturnsExpanded && (
+                <div className="p-3.5 space-y-3 animate-fadeIn">
+                  {returnItems.length === 0 ? (
+                    <div className="p-3.5 text-center bg-amber-50/40 border border-dashed border-amber-200 rounded-xl space-y-2">
+                      <p className="text-xs text-amber-900/80 font-medium">
+                        No customer returns or stale items recorded yet.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleOpenAddReturnModal}
+                        className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-lg shadow-2xs inline-flex items-center gap-1 transition cursor-pointer"
                       >
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5 mb-0.5">
-                            <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider ${
-                              isDamage ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'
-                            }`}>
-                              {isDamage ? '💥 Damage / Expired' : '✨ Good Resale'}
-                            </span>
-                            {ret.reason && (
-                              <span className="text-[10px] text-slate-500 italic truncate">
-                                • {ret.reason}
-                              </span>
-                            )}
-                          </div>
-                          <h4 className="text-xs font-bold text-slate-900 truncate">{ret.name}</h4>
-                          <p className="text-[11px] text-slate-500 font-mono">
-                            Credit rate: {formatMoney(ret.unitPrice)} / {ret.unit}
-                          </p>
-                        </div>
-
-                        <div className="flex items-center gap-2 shrink-0">
-                          {/* Stepper */}
-                          <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5">
-                            <button
-                              type="button"
-                              onClick={() => updateReturnQty(ret.id, -1)}
-                              className="w-7 h-7 bg-slate-50 rounded flex items-center justify-center font-bold text-slate-700 text-xs hover:bg-slate-100 active:scale-95 transition"
-                              title="Decrease return quantity"
-                            >
-                              -
-                            </button>
-                            <input
-                              type="number"
-                              min="1"
-                              step="1"
-                              value={ret.quantity === 0 ? '' : ret.quantity}
-                              onChange={(e) => {
-                                const val = e.target.value === '' ? 0 : parseInt(e.target.value, 10);
-                                setReturnItemQty(ret.id, isNaN(val) ? 0 : Math.max(0, val));
-                              }}
-                              onBlur={() => {
-                                if (!ret.quantity || ret.quantity <= 0) {
-                                  setReturnItemQty(ret.id, 1);
-                                }
-                              }}
-                              onFocus={(e) => e.target.select()}
-                              className="w-11 h-7 bg-transparent text-center font-mono font-bold text-xs text-rose-600 focus:outline-none focus:ring-1 focus:ring-rose-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => updateReturnQty(ret.id, 1)}
-                              className="w-7 h-7 bg-slate-50 rounded flex items-center justify-center font-bold text-slate-700 text-xs hover:bg-slate-100 active:scale-95 transition"
-                              title="Increase return quantity"
-                            >
-                              +
-                            </button>
-                          </div>
-
-                          {/* Line Total */}
-                          <span className="w-16 text-right font-mono font-bold text-xs text-rose-600">
-                            -{formatMoney(lineCredit)}
-                          </span>
-
-                          {/* Trash */}
-                          <button
-                            type="button"
-                            onClick={() => removeReturnItem(ret.id)}
-                            className="p-1 text-slate-300 hover:text-red-500 transition cursor-pointer"
+                        <RotateCcw className="w-3 h-3 text-slate-950" />
+                        <span>Record Customer Return / Stale Bread</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {returnItems.map(ret => {
+                        const lineCredit = ret.unitPrice * ret.quantity;
+                        const isDamage = ret.returnType === 'DAMAGE';
+                        return (
+                          <div
+                            key={ret.id}
+                            className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 ${
+                              isDamage ? 'bg-rose-50/50 border-rose-200/80' : 'bg-emerald-50/50 border-emerald-200/80'
+                            }`}
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 mb-0.5">
+                                <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider ${
+                                  isDamage ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'
+                                }`}>
+                                  {isDamage ? '💥 Damage / Expired' : '✨ Good Resale'}
+                                </span>
+                                {ret.reason && (
+                                  <span className="text-[10px] text-slate-500 italic truncate">
+                                    • {ret.reason}
+                                  </span>
+                                )}
+                              </div>
+                              <h4 className="text-xs font-bold text-slate-900 truncate">{ret.name}</h4>
+                              <p className="text-[11px] text-slate-500 font-mono">
+                                Credit rate: {formatMoney(ret.unitPrice)} / {ret.unit}
+                              </p>
+                            </div>
 
-                  <div className="pt-1 flex items-center justify-between text-xs font-semibold text-rose-700 px-1">
-                    <span>Total Return Deductions ({totalReturnUnits} units):</span>
-                    <span className="font-mono font-bold text-rose-700">-{formatMoney(totalReturnAmount)}</span>
-                  </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              {/* Stepper */}
+                              <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => updateReturnQty(ret.id, -1)}
+                                  className="w-7 h-7 bg-slate-50 rounded flex items-center justify-center font-bold text-slate-700 text-xs hover:bg-slate-100 active:scale-95 transition"
+                                  title="Decrease return quantity"
+                                >
+                                  -
+                                </button>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  step="1"
+                                  value={ret.quantity === 0 ? '' : ret.quantity}
+                                  onChange={(e) => {
+                                    const val = e.target.value === '' ? 0 : parseInt(e.target.value, 10);
+                                    setReturnItemQty(ret.id, isNaN(val) ? 0 : Math.max(0, val));
+                                  }}
+                                  onBlur={() => {
+                                    if (!ret.quantity || ret.quantity <= 0) {
+                                      setReturnItemQty(ret.id, 1);
+                                    }
+                                  }}
+                                  onFocus={(e) => e.target.select()}
+                                  className="w-11 h-7 bg-transparent text-center font-mono font-bold text-xs text-rose-600 focus:outline-none focus:ring-1 focus:ring-rose-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => updateReturnQty(ret.id, 1)}
+                                  className="w-7 h-7 bg-slate-50 rounded flex items-center justify-center font-bold text-slate-700 text-xs hover:bg-slate-100 active:scale-95 transition"
+                                  title="Increase return quantity"
+                                >
+                                  +
+                                </button>
+                              </div>
+
+                              {/* Line Total */}
+                              <span className="w-16 text-right font-mono font-bold text-xs text-rose-600">
+                                -{formatMoney(lineCredit)}
+                              </span>
+
+                              {/* Trash */}
+                              <button
+                                type="button"
+                                onClick={() => removeReturnItem(ret.id)}
+                                className="p-1 text-slate-300 hover:text-red-500 transition cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      <div className="pt-1 flex items-center justify-between text-xs font-semibold text-rose-700 px-1">
+                        <span>Total Return Deductions ({totalReturnUnits} units):</span>
+                        <span className="font-mono font-bold text-rose-700">-{formatMoney(totalReturnAmount)}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
