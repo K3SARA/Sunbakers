@@ -87,8 +87,20 @@
     -webkit-font-smoothing: antialiased !important;
   }
 
-  /* Completely hide all app chrome, sidebars, headers, bottom bars, and other non-print elements */
+  /* Ensure root container remains active and visible in print */
   #root,
+  main {
+    display: block !important;
+    visibility: visible !important;
+    position: static !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* Completely hide all app chrome, sidebars, headers, bottom bars, and other non-print elements */
   header,
   footer,
   aside,

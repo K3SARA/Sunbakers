@@ -19,6 +19,7 @@ import samanthaLogo from '../assets/samantha-logo.png';
 import { useCurrency } from '../context/CurrencyContext';
 import { SettingsService } from '../services/api';
 import { printLorryLoadingToBluetooth } from '../utils/bluetoothPrinter';
+import { printReceiptElement } from '../utils/printHelper';
 
 interface LorryLoadingPrintModalProps {
   loading: LorryLoading | null;
@@ -64,41 +65,11 @@ export const LorryLoadingPrintModal: React.FC<LorryLoadingPrintModalProps> = ({
   const timeFormatted = loadDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   const handleSystemPrint = () => {
-    const styleId = 'print-page-size-style';
-    let styleTag = document.getElementById(styleId);
-    if (!styleTag) {
-      styleTag = document.createElement('style');
-      styleTag.id = styleId;
-      document.head.appendChild(styleTag);
-    }
-    if (format === '80mm') {
-      styleTag.innerHTML = `
-        @page {
-          size: 80mm auto !important;
-          margin: 0mm !important;
-        }
-        #printable-loading-sheet {
-          max-width: 80mm !important;
-          width: 80mm !important;
-        }
-      `;
-    } else {
-      styleTag.innerHTML = `
-        @page {
-          size: A4 portrait !important;
-          margin: 8mm !important;
-        }
-        html, body {
-          width: 100% !important;
-          max-width: 100% !important;
-        }
-        #printable-loading-sheet {
-          max-width: 100% !important;
-          width: 100% !important;
-        }
-      `;
-    }
-    window.print();
+    printReceiptElement(
+      'printable-loading-sheet',
+      format,
+      `LoadingSheet-${loading.lorry?.vehicleNumber || 'Van'}`
+    );
   };
 
   const handleBluetoothPrint = async () => {

@@ -15,6 +15,7 @@ import { SettingsService } from '../services/api';
 import {
   printToBluetoothThermalPrinter
 } from '../utils/bluetoothPrinter';
+import { printReceiptElement } from '../utils/printHelper';
 
 interface InvoiceModalProps {
   order: Order | null;
@@ -45,53 +46,11 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
   if (!order) return null;
 
   const handleSystemPrint = () => {
-    const styleId = 'print-page-size-style';
-    let styleTag = document.getElementById(styleId);
-    if (!styleTag) {
-      styleTag = document.createElement('style');
-      styleTag.id = styleId;
-      document.head.appendChild(styleTag);
-    }
-    if (format === '80mm') {
-      styleTag.innerHTML = `
-        @page {
-          size: 80mm auto !important;
-          margin: 0mm !important;
-        }
-        html, body {
-          width: 80mm !important;
-          max-width: 80mm !important;
-        }
-        #printable-invoice {
-          max-width: 80mm !important;
-          width: 80mm !important;
-        }
-        * {
-          -webkit-print-color-adjust: exact !important;
-          print-color-adjust: exact !important;
-        }
-      `;
-    } else {
-      styleTag.innerHTML = `
-        @page {
-          size: A4 portrait !important;
-          margin: 8mm !important;
-        }
-        html, body {
-          width: 100% !important;
-          max-width: 100% !important;
-        }
-        #printable-invoice {
-          max-width: 100% !important;
-          width: 100% !important;
-        }
-        * {
-          -webkit-print-color-adjust: exact !important;
-          print-color-adjust: exact !important;
-        }
-      `;
-    }
-    window.print();
+    printReceiptElement(
+      'printable-invoice',
+      format,
+      `Bill-${order.paperBillNumber || order.orderNumber}`
+    );
   };
 
   const handleBluetoothPrint = async () => {
