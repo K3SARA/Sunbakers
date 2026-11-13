@@ -27,7 +27,9 @@ import {
   Fuel,
   Percent,
   Tag,
-  Wallet
+  Wallet,
+  Compass,
+  AlertTriangle
 } from 'lucide-react';
 import { Customer, Product, Lorry, Order, User, RepTargetProgress, Expense, CustomerPayment } from '../types';
 import { CustomerService, LorryService, ProductService, OrderService, AuthService, ExpenseService } from '../services/api';
@@ -524,9 +526,15 @@ export const RepBilling: React.FC<RepBillingProps> = ({
     }
   }, [selectedCustomerId]);
 
-  // Filtered customers (supports All vs Has Outstanding filter)
+  // Customers strictly assigned to this lorry's route
+  const routeCustomers = useMemo(() => {
+    if (!selectedLorry?.routeId) return [];
+    return customers.filter(c => c.routeId === selectedLorry.routeId);
+  }, [customers, selectedLorry]);
+
+  // Filtered customers (supports All vs Has Outstanding filter, strictly for this lorry's route)
   const filteredCustomers = useMemo(() => {
-    let list = customers;
+    let list = routeCustomers;
     if (customerFilterTab === 'OUTSTANDING') {
       list = list.filter(c => (c.outstandingBalance || 0) > 0);
     }
@@ -539,11 +547,11 @@ export const RepBilling: React.FC<RepBillingProps> = ({
       (c.companyName && c.companyName.toLowerCase().includes(query)) ||
       (c.deliveryAddress && c.deliveryAddress.toLowerCase().includes(query))
     );
-  }, [customers, customerFilterTab, customerSearch]);
+  }, [routeCustomers, customerFilterTab, customerSearch]);
 
   const customersWithDebtCount = useMemo(() => {
-    return customers.filter(c => (c.outstandingBalance || 0) > 0).length;
-  }, [customers]);
+    return routeCustomers.filter(c => (c.outstandingBalance || 0) > 0).length;
+  }, [routeCustomers]);
 
   // Aggregate metrics for today's debt collections
   const totalRepCollectionsToday = useMemo(() => {
@@ -917,6 +925,11 @@ export const RepBilling: React.FC<RepBillingProps> = ({
 
   // Checkout submission
   const handleFinalCheckout = async () => {
+    if (!selectedLorry?.routeId) {
+      setErrorMessage(`Lorry ${selectedLorry?.vehicleNumber || 'Selected'} has no assigned route. Please ask an administrator to assign a route in Settings > Fleet before billing.`);
+      setCurrentStep(1);
+      return;
+    }
     if (!selectedCustomerId) {
       setErrorMessage('Please select a customer first.');
       setCurrentStep(1);
@@ -1162,100 +1175,138 @@ export const RepBilling: React.FC<RepBillingProps> = ({
               </div>
             ) : null}
 
-            {/* Search Input & Quick (+) Add Customer Button */}
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
-                <Search className="w-4 h-4 absolute left-3.5 top-3 text-slate-400" />
-                <input
-                  type="text"
-                  value={customerSearch}
-                  onChange={e => setCustomerSearch(e.target.value)}
-                  placeholder="Search customer name or phone..."
-                  className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-8 py-2 text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs"
-                />
-                {customerSearch && (
-                  <button
-                    type="button"
-                    onClick={() => setCustomerSearch('')}
-                    className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 text-xs font-bold w-4 h-4 flex items-center justify-center cursor-pointer"
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setShowAddCustomerModal(true)}
-                className="px-3 py-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-2xs transition shrink-0 cursor-pointer"
-                title="Add New Customer to Database"
-              >
-                <Plus className="w-4 h-4 stroke-[3]" />
-                <span className="hidden sm:inline">Add Customer</span>
-              </button>
-            </div>
-
-            {/* Quick Filter Tabs: All vs Has Outstanding */}
-            <div className="flex items-center gap-1.5 p-1 bg-slate-200/60 rounded-xl text-xs">
-              <button
-                type="button"
-                onClick={() => setCustomerFilterTab('ALL')}
-                className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                  customerFilterTab === 'ALL'
-                    ? 'bg-white text-slate-900 shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <span>All Shops</span>
-                <span className="px-1.5 py-0.2 rounded-full bg-slate-200 text-slate-700 text-[10px] font-mono">
-                  {customers.length}
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setCustomerFilterTab('OUTSTANDING')}
-                className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                  customerFilterTab === 'OUTSTANDING'
-                    ? 'bg-rose-600 text-white shadow-2xs'
-                    : 'text-rose-700 hover:bg-rose-100/70'
-                }`}
-              >
-                <Wallet className="w-3.5 h-3.5" />
-                <span>Has Outstanding</span>
-                {customersWithDebtCount > 0 && (
-                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
-                    customerFilterTab === 'OUTSTANDING'
-                      ? 'bg-white/20 text-white'
-                      : 'bg-rose-100 text-rose-700 border border-rose-200'
-                  }`}>
-                    {customersWithDebtCount}
-                  </span>
-                )}
-              </button>
-            </div>
-
-            {/* Empty State when no customer matches */}
-            {filteredCustomers.length === 0 && (
-              <div className="p-6 text-center bg-white rounded-2xl border border-dashed border-slate-200 space-y-2.5 my-2 shadow-2xs">
-                <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mx-auto">
-                  <Users className="w-5 h-5" />
+            {/* Route Guard: If Lorry has no route assigned, block billing */}
+            {!selectedLorry?.routeId ? (
+              <div className="p-6 text-center bg-amber-50 border-2 border-amber-300 rounded-2xl space-y-3 shadow-xs my-2 animate-fadeIn">
+                <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center mx-auto">
+                  <AlertTriangle className="w-6 h-6 stroke-[2.5]" />
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-slate-800">No customer found</p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    {customerSearch ? `No customer matches "${customerSearch}"` : 'Your customer list is empty'}
+                  <h3 className="text-sm font-bold text-amber-950">Lorry Has No Assigned Route</h3>
+                  <p className="text-xs text-amber-800 mt-1 max-w-md mx-auto">
+                    Lorry <span className="font-mono font-bold text-slate-900">{selectedLorry?.vehicleNumber || 'Selected Vehicle'}</span> has no route assigned yet. Customer billing is strictly isolated by route.
+                  </p>
+                  <p className="text-[11px] text-amber-700 mt-2 font-semibold">
+                    Please contact an administrator to assign a route in <strong>Settings &gt; Fleet Management</strong> before billing customers.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowAddCustomerModal(true)}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1.5 shadow-xs transition cursor-pointer"
-                >
-                  <Plus className="w-4 h-4 stroke-[3]" />
-                  <span>Register New Customer</span>
-                </button>
               </div>
-            )}
+            ) : (
+              <>
+                {/* Route Header Badge */}
+                <div className="flex items-center justify-between px-3 py-2 bg-blue-50 border border-blue-200/80 rounded-xl text-xs">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <Compass className="w-4 h-4 text-blue-600 shrink-0" />
+                    <span className="font-bold text-blue-950 truncate">
+                      Route: {selectedLorry.route?.name || selectedLorry.route?.code || 'Assigned Route'}
+                    </span>
+                    {selectedLorry.route?.code && (
+                      <span className="px-1.5 py-0.2 bg-blue-200/70 text-blue-800 text-[10px] font-mono font-bold rounded">
+                        {selectedLorry.route.code}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[11px] font-bold text-blue-700 shrink-0 font-mono">
+                    {routeCustomers.length} Shops
+                  </span>
+                </div>
+
+                {/* Search Input & Quick (+) Add Customer Button */}
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <Search className="w-4 h-4 absolute left-3.5 top-3 text-slate-400" />
+                    <input
+                      type="text"
+                      value={customerSearch}
+                      onChange={e => setCustomerSearch(e.target.value)}
+                      placeholder={`Search customer on ${selectedLorry.route?.name || 'route'}...`}
+                      className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-8 py-2 text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs"
+                    />
+                    {customerSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setCustomerSearch('')}
+                        className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 text-xs font-bold w-4 h-4 flex items-center justify-center cursor-pointer"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowAddCustomerModal(true)}
+                    className="px-3 py-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-2xs transition shrink-0 cursor-pointer"
+                    title={`Add New Customer to ${selectedLorry.route?.name || 'this route'}`}
+                  >
+                    <Plus className="w-4 h-4 stroke-[3]" />
+                    <span className="hidden sm:inline">Add Customer</span>
+                  </button>
+                </div>
+
+                {/* Quick Filter Tabs: All vs Has Outstanding */}
+                <div className="flex items-center gap-1.5 p-1 bg-slate-200/60 rounded-xl text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setCustomerFilterTab('ALL')}
+                    className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                      customerFilterTab === 'ALL'
+                        ? 'bg-white text-slate-900 shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <span>All Shops</span>
+                    <span className="px-1.5 py-0.2 rounded-full bg-slate-200 text-slate-700 text-[10px] font-mono">
+                      {routeCustomers.length}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCustomerFilterTab('OUTSTANDING')}
+                    className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                      customerFilterTab === 'OUTSTANDING'
+                        ? 'bg-rose-600 text-white shadow-2xs'
+                        : 'text-rose-700 hover:bg-rose-100/70'
+                    }`}
+                  >
+                    <Wallet className="w-3.5 h-3.5" />
+                    <span>Has Outstanding</span>
+                    {customersWithDebtCount > 0 && (
+                      <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
+                        customerFilterTab === 'OUTSTANDING'
+                          ? 'bg-white/20 text-white'
+                          : 'bg-rose-100 text-rose-700 border border-rose-200'
+                      }`}>
+                        {customersWithDebtCount}
+                      </span>
+                    )}
+                  </button>
+                </div>
+
+                {/* Empty State when no customer matches */}
+                {filteredCustomers.length === 0 && (
+                  <div className="p-6 text-center bg-white rounded-2xl border border-dashed border-slate-200 space-y-2.5 my-2 shadow-2xs">
+                    <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mx-auto">
+                      <Users className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-800">No customer found on this route</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        {customerSearch
+                          ? `No customer matches "${customerSearch}" on ${selectedLorry.route?.name || 'this route'}`
+                          : `No customers registered for ${selectedLorry.route?.name || 'this route'}.`}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddCustomerModal(true)}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4 stroke-[3]" />
+                      <span>Register Customer to this Route</span>
+                    </button>
+                  </div>
+                )}
 
             {/* Compact Customer List */}
             <div className="space-y-2 max-h-[58vh] overflow-y-auto pr-0.5">
@@ -1429,8 +1480,10 @@ export const RepBilling: React.FC<RepBillingProps> = ({
                 </button>
               </div>
             )}
-          </div>
+          </>
         )}
+      </div>
+    )}
 
         {/* ======================================================== */}
         {/* STEP 2: VIEW CART & CUSTOMER RETURNS */}

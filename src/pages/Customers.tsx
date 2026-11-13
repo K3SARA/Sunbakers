@@ -13,7 +13,8 @@ import {
   Receipt,
   Printer,
   Trash2,
-  CheckCircle2
+  CheckCircle2,
+  AlertTriangle
 } from 'lucide-react';
 import { CustomerService, RouteService } from '../services/api';
 import { Customer, Order, Route, CustomerPayment } from '../types';
@@ -49,15 +50,18 @@ export const Customers: React.FC<{ onViewInvoice?: (order: Order) => void }> = (
   const [customerPayments, setCustomerPayments] = useState<CustomerPayment[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [successNotification, setSuccessNotification] = useState<string | null>(null);
+  const [unassignedCount, setUnassignedCount] = useState<number>(0);
 
   const loadData = async () => {
     try {
-      const [custList, routeList] = await Promise.all([
+      const [custList, routeList, unassignedList] = await Promise.all([
         CustomerService.getAll(search, selectedRouteId !== 'ALL' ? selectedRouteId : undefined),
-        RouteService.getAll()
+        RouteService.getAll(),
+        CustomerService.getAll(undefined, 'UNASSIGNED').catch(() => [])
       ]);
       setCustomers(custList);
       setRoutes(routeList);
+      setUnassignedCount(Array.isArray(unassignedList) ? unassignedList.length : 0);
     } catch (err) {
       console.error('Failed to load customers', err);
     } finally {
@@ -191,6 +195,35 @@ export const Customers: React.FC<{ onViewInvoice?: (order: Order) => void }> = (
         </div>
       )}
 
+      {/* Legacy / Unassigned Route Warning Banner */}
+      {unassignedCount > 0 && (
+        <div className="p-3.5 sm:p-4 bg-amber-50 border-2 border-amber-300 rounded-2xl sm:rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-amber-950 text-xs sm:text-sm animate-fadeIn shadow-2xs">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-amber-200/80 text-amber-800 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-4.5 h-4.5 text-amber-700 stroke-[2.5]" />
+            </div>
+            <div>
+              <span className="font-bold text-amber-950 block sm:inline">
+                {unassignedCount} Retail Account{unassignedCount > 1 ? 's' : ''} Missing an Assigned Route!
+              </span>{' '}
+              <span className="text-amber-800 text-xs font-normal">
+                Lorries only display customers matching their route. Please assign a route to each account.
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={() => setSelectedRouteId('UNASSIGNED')}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition shrink-0 cursor-pointer shadow-2xs ${
+              selectedRouteId === 'UNASSIGNED'
+                ? 'bg-amber-700 text-white'
+                : 'bg-amber-600 hover:bg-amber-700 text-white'
+            }`}
+          >
+            Review Unassigned ({unassignedCount})
+          </button>
+        </div>
+      )}
+
       {/* Search & Route Filter Bar */}
       <div className="bg-white p-3.5 sm:p-4 rounded-2xl sm:rounded-3xl border border-slate-200/80 shadow-2xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4">
         <div className="relative w-full sm:w-96">
@@ -215,6 +248,19 @@ export const Customers: React.FC<{ onViewInvoice?: (order: Order) => void }> = (
           >
             All Routes ({customers.length})
           </button>
+          {unassignedCount > 0 && (
+            <button
+              onClick={() => setSelectedRouteId('UNASSIGNED')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap flex items-center gap-1.5 ${
+                selectedRouteId === 'UNASSIGNED'
+                  ? 'bg-amber-600 text-white shadow-sm'
+                  : 'bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300'
+              }`}
+            >
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-700" />
+              <span>Needs Route ({unassignedCount})</span>
+            </button>
+          )}
           {routes.map(r => (
             <button
               key={r.id}
@@ -267,10 +313,15 @@ export const Customers: React.FC<{ onViewInvoice?: (order: Order) => void }> = (
                   </p>
                 )}
 
-                {c.route && (
+                {c.route ? (
                   <div className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 bg-blue-50 text-blue-700 rounded-lg">
                     <Compass className="w-3 h-3" />
                     <span>{c.route.name}</span>
+                  </div>
+                ) : (
+                  <div className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded-lg">
+                    <AlertTriangle className="w-3 h-3 text-amber-700" />
+                    <span>⚠️ No Route Assigned</span>
                   </div>
                 )}
 

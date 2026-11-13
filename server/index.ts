@@ -3130,7 +3130,9 @@ app.get('/api/customers', async (req: Request, res: Response) => {
       ];
     }
 
-    if (routeId && typeof routeId === 'string' && routeId !== 'ALL') {
+    if (routeId === 'UNASSIGNED') {
+      where.routeId = null;
+    } else if (routeId && typeof routeId === 'string' && routeId !== 'ALL') {
       where.routeId = routeId;
     }
 
@@ -3157,6 +3159,16 @@ app.post('/api/customers', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Name, Phone, and Delivery Address are required.' });
     }
 
+    const trimmedRouteId = typeof routeId === 'string' ? routeId.trim() : '';
+    if (!trimmedRouteId) {
+      return res.status(400).json({ error: 'Assigned Route is required. Every customer must belong to an active route.' });
+    }
+
+    const routeExists = await prisma.route.findUnique({ where: { id: trimmedRouteId } });
+    if (!routeExists) {
+      return res.status(400).json({ error: 'The selected route does not exist. Please select a valid route.' });
+    }
+
     const count = await prisma.customer.count();
     const code = `CUST-${(count + 1).toString().padStart(3, '0')}`;
 
@@ -3168,7 +3180,7 @@ app.post('/api/customers', async (req: Request, res: Response) => {
         phone: phone.trim(),
         deliveryAddress: deliveryAddress.trim(),
         city: city?.trim() || 'Local',
-        routeId: routeId || null,
+        routeId: trimmedRouteId,
         pricingTier: pricingTier || 'STANDARD',
         discountPercentage: parseFloat(discountPercentage || 0),
         creditLimit: parseFloat(creditLimit || 50000)
@@ -3188,6 +3200,19 @@ app.put('/api/customers/:id', async (req: Request, res: Response) => {
     const { id } = req.params;
     const { name, companyName, phone, deliveryAddress, city, routeId, pricingTier, discountPercentage, creditLimit, outstandingBalance } = req.body;
 
+    let targetRouteId: string | undefined = undefined;
+    if (routeId !== undefined) {
+      const trimmedRouteId = typeof routeId === 'string' ? routeId.trim() : '';
+      if (!trimmedRouteId) {
+        return res.status(400).json({ error: 'Assigned Route is required. Every customer must belong to an active route.' });
+      }
+      const routeExists = await prisma.route.findUnique({ where: { id: trimmedRouteId } });
+      if (!routeExists) {
+        return res.status(400).json({ error: 'The selected route does not exist. Please select a valid route.' });
+      }
+      targetRouteId = trimmedRouteId;
+    }
+
     const updated = await prisma.customer.update({
       where: { id },
       data: {
@@ -3196,7 +3221,7 @@ app.put('/api/customers/:id', async (req: Request, res: Response) => {
         phone: phone?.trim(),
         deliveryAddress: deliveryAddress?.trim(),
         city: city?.trim(),
-        routeId: routeId !== undefined ? routeId : undefined,
+        routeId: targetRouteId,
         pricingTier,
         discountPercentage: discountPercentage !== undefined ? parseFloat(discountPercentage) : undefined,
         creditLimit: creditLimit !== undefined ? parseFloat(creditLimit) : undefined,

@@ -79,6 +79,11 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
       return;
     }
 
+    if (!formData.routeId || !formData.routeId.trim()) {
+      setError('Please select an Assigned Route. Every customer must belong to an active route.');
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -91,7 +96,7 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
           phone: formData.phone,
           deliveryAddress: formData.deliveryAddress,
           city: formData.city,
-          routeId: formData.routeId || null,
+          routeId: formData.routeId.trim(),
           pricingTier: formData.pricingTier as any,
           discountPercentage: parseFloat(formData.discountPercentage || '0'),
           creditLimit: parseFloat(formData.creditLimit || '50000')
@@ -103,7 +108,7 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
           phone: formData.phone,
           deliveryAddress: formData.deliveryAddress,
           city: formData.city,
-          routeId: formData.routeId || null,
+          routeId: formData.routeId.trim(),
           pricingTier: formData.pricingTier as any,
           discountPercentage: parseFloat(formData.discountPercentage || '0'),
           creditLimit: parseFloat(formData.creditLimit || '50000')
@@ -210,21 +215,31 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
               />
             </div>
             <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-1">
-                Assigned Route (Lorry)
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-700 block mb-1">
+                Assigned Route * <span className="text-rose-500 font-bold">(Required)</span>
               </label>
               <select
+                required
                 value={formData.routeId}
                 onChange={e => setFormData({ ...formData, routeId: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0071E3]"
+                className={`w-full border rounded-xl px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#0071E3] ${
+                  !formData.routeId
+                    ? 'bg-rose-50/50 border-rose-300 text-slate-700'
+                    : 'bg-slate-50 border-slate-200 text-slate-900'
+                }`}
               >
-                <option value="">-- No Route Assigned --</option>
+                <option value="" disabled>-- Select Route (Required) * --</option>
                 {routes.map(r => (
                   <option key={r.id} value={r.id}>
-                    {r.name}
+                    {r.name} ({r.code})
                   </option>
                 ))}
               </select>
+              {routes.length === 0 && (
+                <p className="text-[11px] text-amber-600 mt-1 font-medium">
+                  ⚠️ No routes exist yet. Please create a route in Settings &gt; Fleet.
+                </p>
+              )}
             </div>
           </div>
 

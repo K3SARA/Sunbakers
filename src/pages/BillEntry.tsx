@@ -13,7 +13,8 @@ import {
   Building2,
   RotateCcw,
   Percent,
-  Tag
+  Tag,
+  AlertTriangle
 } from 'lucide-react';
 import { Lorry, Customer, Order, Product } from '../types';
 import { LorryService, CustomerService, OrderService, ProductService } from '../services/api';
@@ -430,9 +431,15 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    if (billMode === 'LORRY' && !selectedLorryId) {
-      setErrorMessage('Please select an active lorry.');
-      return;
+    if (billMode === 'LORRY') {
+      if (!selectedLorryId) {
+        setErrorMessage('Please select an active lorry.');
+        return;
+      }
+      if (!selectedLorry?.routeId) {
+        setErrorMessage(`Lorry ${selectedLorry?.vehicleNumber || 'Selected'} has no assigned route. Please assign a route in Settings > Fleet before billing.`);
+        return;
+      }
     }
     if (!selectedCustomerId) {
       setErrorMessage('Please select a customer for this bill.');
@@ -662,10 +669,21 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="text-sm font-bold text-slate-900">{selectedLorry?.vehicleNumber}</span>
                 <span className="text-xs text-slate-500">• {selectedLorry?.driverName}</span>
-                <span className="text-xs text-blue-600 font-semibold truncate">({selectedLorry?.route?.name || 'No Route'})</span>
+                <span className={`text-xs font-semibold truncate ${!selectedLorry?.routeId ? 'text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md font-bold' : 'text-blue-600'}`}>
+                  ({selectedLorry?.route?.name || '⚠️ No Route Assigned'})
+                </span>
               </div>
             </div>
           </div>
+
+          {billMode === 'LORRY' && selectedLorry && !selectedLorry.routeId && (
+            <div className="w-full mt-2 p-2.5 bg-amber-50 border border-amber-300 rounded-xl flex items-center gap-2 text-amber-900 text-xs">
+              <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" />
+              <span>
+                <strong>Warning:</strong> Lorry {selectedLorry.vehicleNumber} has no assigned route. Assign a route in Settings &gt; Fleet Management before creating lorry bills.
+              </span>
+            </div>
+          )}
 
           <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 sm:pb-0">
             {lorries.map((lorry) => {
@@ -789,20 +807,15 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                   ) : (
                     <>
                       <option value="">-- Choose Retail Customer --</option>
-                      {routeCustomers.length > 0 && (
+                      {!selectedLorry?.routeId ? (
+                        <option value="" disabled>⚠️ Selected lorry has no assigned route</option>
+                      ) : routeCustomers.length === 0 ? (
+                        <option value="" disabled>No customers registered on {selectedLorry?.route?.name || 'this route'}</option>
+                      ) : (
                         <optgroup label={`Route Customers (${selectedLorry?.route?.name || 'Route'})`}>
                           {routeCustomers.map((c) => (
                             <option key={c.id} value={c.id}>
                               {c.code} - {c.name} {c.discountPercentage > 0 ? `(${c.discountPercentage}% Disc)` : ''}
-                            </option>
-                          ))}
-                        </optgroup>
-                      )}
-                      {otherCustomers.length > 0 && (
-                        <optgroup label="Other Customers">
-                          {otherCustomers.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.code} - {c.name}
                             </option>
                           ))}
                         </optgroup>
