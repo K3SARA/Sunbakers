@@ -38,6 +38,7 @@ import { CustomerModal } from '../components/CustomerModal';
 import { RepBillsSummaryModal } from '../components/RepBillsSummaryModal';
 import { CustomerPaymentModal } from '../components/CustomerPaymentModal';
 import { CustomerReceiptModal } from '../components/CustomerReceiptModal';
+import { RepDirectReturnModal } from '../components/RepDirectReturnModal';
 
 interface CartItem {
   productId: string;
@@ -176,6 +177,10 @@ export const RepBilling: React.FC<RepBillingProps> = ({
   const [collectingCustomer, setCollectingCustomer] = useState<Customer | null>(null);
   const [recordedPayment, setRecordedPayment] = useState<CustomerPayment | null>(null);
   const [showReceiptModal, setShowReceiptModal] = useState<boolean>(false);
+
+  // Direct Return Collections State (Collect stale/market returns without billing)
+  const [showDirectReturnModal, setShowDirectReturnModal] = useState<boolean>(false);
+  const [directReturnCustomer, setDirectReturnCustomer] = useState<Customer | null>(null);
 
   // Rep Daily Collections History
   const [repCollections, setRepCollections] = useState<CustomerPayment[]>([]);
@@ -435,6 +440,30 @@ export const RepBilling: React.FC<RepBillingProps> = ({
     // 4. Set recorded payment and open 80mm printable receipt
     setRecordedPayment(payment);
     setShowReceiptModal(true);
+  };
+
+  // Callback when a direct customer return is successfully recorded
+  const handleDirectReturnRecorded = (order: Order, creditAmount: number, customerId: string) => {
+    // 1. Immediately update customer balance in local customers list
+    setCustomers((prev) =>
+      prev.map((c) => {
+        if (c.id === customerId) {
+          const newBal = Math.max(0, (c.outstandingBalance || 0) - creditAmount);
+          return { ...c, outstandingBalance: newBal };
+        }
+        return c;
+      })
+    );
+
+    // 2. Refresh unpaid bills if this was the selected customer
+    if (selectedCustomerId === customerId) {
+      CustomerService.getUnpaidBills(customerId)
+        .then(setCustomerUnpaidBills)
+        .catch(() => {});
+    }
+
+    // 3. Immediately open 80mm printable Return Collection Slip
+    setCheckoutSuccessOrder(order);
   };
 
   useEffect(() => {
@@ -1211,6 +1240,65 @@ export const RepBilling: React.FC<RepBillingProps> = ({
                   </span>
                 </div>
 
+                {/* Ultra-Clean Quick Direct Actions Hub for Reps */}
+                <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                  {/* Direct Outstand Collect Card */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCollectingCustomer(selectedCustomer || null);
+                      setShowCollectModal(true);
+                    }}
+                    className="p-3 bg-gradient-to-br from-emerald-50 to-teal-50/70 border border-emerald-200/90 hover:border-emerald-300 rounded-2xl text-left shadow-2xs hover:shadow-xs active:scale-98 transition flex items-center justify-between gap-2.5 cursor-pointer group"
+                    title="Directly collect debt / outstanding money from customers without billing"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition">
+                        <Wallet className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="font-bold text-xs text-emerald-950 block truncate">
+                          Direct Outstand
+                        </span>
+                        <span className="text-[10px] text-emerald-700 font-medium block truncate">
+                          Collect debt / due
+                        </span>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-lg shrink-0 font-mono">
+                      Collect
+                    </span>
+                  </button>
+
+                  {/* Direct Return Collect Card */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDirectReturnCustomer(selectedCustomer || null);
+                      setShowDirectReturnModal(true);
+                    }}
+                    className="p-3 bg-gradient-to-br from-amber-50 to-orange-50/70 border border-amber-200/90 hover:border-amber-300 rounded-2xl text-left shadow-2xs hover:shadow-xs active:scale-98 transition flex items-center justify-between gap-2.5 cursor-pointer group"
+                    title="Directly collect stale bread & market returns without billing"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition">
+                        <RotateCcw className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="font-bold text-xs text-amber-950 block truncate">
+                          Direct Returns
+                        </span>
+                        <span className="text-[10px] text-amber-700 font-medium block truncate">
+                          Stale bread / market
+                        </span>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-bold text-amber-800 bg-amber-100/90 px-2 py-0.5 rounded-lg shrink-0 font-mono">
+                      Return
+                    </span>
+                  </button>
+                </div>
+
                 {/* Search Input & Quick (+) Add Customer Button */}
                 <div className="flex items-center gap-2">
                   <div className="relative flex-1">
@@ -1341,7 +1429,7 @@ export const RepBilling: React.FC<RepBillingProps> = ({
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-1.5 shrink-0">
                       {hasDue ? (
                         <div className="flex items-center gap-1.5">
                           <span className="text-[11px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-lg font-mono">
@@ -1354,7 +1442,7 @@ export const RepBilling: React.FC<RepBillingProps> = ({
                               setCollectingCustomer(customer);
                               setShowCollectModal(true);
                             }}
-                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-2xs transition shrink-0 cursor-pointer"
+                            className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-2xs transition shrink-0 cursor-pointer"
                             title="Collect Outstanding Payment without billing"
                           >
                             <Wallet className="w-3 h-3" />
@@ -1366,6 +1454,21 @@ export const RepBilling: React.FC<RepBillingProps> = ({
                           Clear
                         </span>
                       )}
+
+                      {/* Direct Return Button */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDirectReturnCustomer(customer);
+                          setShowDirectReturnModal(true);
+                        }}
+                        className="px-2 py-1 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-2xs transition shrink-0 cursor-pointer"
+                        title="Collect Stale / Returns from this customer"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        <span>Return</span>
+                      </button>
 
                       <div
                         className={`w-5 h-5 rounded-full flex items-center justify-center text-xs transition ${
@@ -1383,31 +1486,50 @@ export const RepBilling: React.FC<RepBillingProps> = ({
             {/* Selected Customer Inline Drawer (Only if selected) */}
             {selectedCustomer && (
               <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-2.5 shadow-xs animate-in fade-in">
-                {/* Collect Outstanding Action Box (Direct without Billing) */}
-                <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between gap-2 shadow-2xs">
-                  <div className="min-w-0">
-                    <span className="text-[10px] uppercase font-bold text-emerald-800 tracking-wider block">
-                      {selectedCustomer.outstandingBalance > 0 ? 'Outstanding Credit Due' : 'Account Balance'}
-                    </span>
-                    <span className={`font-mono text-sm font-black ${
-                      selectedCustomer.outstandingBalance > 0 ? 'text-rose-600' : 'text-emerald-700'
-                    }`}>
-                      {formatMoney(selectedCustomer.outstandingBalance || 0)}
+                {/* Direct Action Hub for Selected Customer */}
+                <div className="p-3 bg-slate-50 border border-slate-200/90 rounded-2xl space-y-2.5 shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block">
+                        {selectedCustomer.outstandingBalance > 0 ? 'Outstanding Credit Due' : 'Account Balance'}
+                      </span>
+                      <span className={`font-mono text-base font-black ${
+                        selectedCustomer.outstandingBalance > 0 ? 'text-rose-600' : 'text-emerald-700'
+                      }`}>
+                        {formatMoney(selectedCustomer.outstandingBalance || 0)}
+                      </span>
+                    </div>
+
+                    <span className="text-[10px] font-bold text-slate-400 font-mono">
+                      Direct Route Actions
                     </span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCollectingCustomer(selectedCustomer);
-                      setShowCollectModal(true);
-                    }}
-                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-xs transition shrink-0 cursor-pointer"
-                  >
-                    <Wallet className="w-4 h-4" />
-                    <span>
-                      {selectedCustomer.outstandingBalance > 0 ? 'Collect Outstanding (No Bill)' : 'Collect Advance / Due'}
-                    </span>
-                  </button>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCollectingCustomer(selectedCustomer);
+                        setShowCollectModal(true);
+                      }}
+                      className="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer"
+                    >
+                      <Wallet className="w-3.5 h-3.5" />
+                      <span>Collect Debt</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDirectReturnCustomer(selectedCustomer);
+                        setShowDirectReturnModal(true);
+                      }}
+                      className="py-2.5 px-3 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Collect Return</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Method Switcher */}
@@ -4083,6 +4205,7 @@ export const RepBilling: React.FC<RepBillingProps> = ({
       <CustomerPaymentModal
         isOpen={showCollectModal}
         customer={collectingCustomer}
+        availableCustomers={routeCustomers}
         onClose={() => {
           setShowCollectModal(false);
           setCollectingCustomer(null);
@@ -4096,6 +4219,21 @@ export const RepBilling: React.FC<RepBillingProps> = ({
             ? `${selectedLorry.driverName} (${selectedLorry.vehicleNumber})`
             : undefined
         }
+      />
+
+      {/* DIRECT RETURN COLLECT MODAL (Stale Bread & Market Returns without Billing) */}
+      <RepDirectReturnModal
+        isOpen={showDirectReturnModal}
+        onClose={() => {
+          setShowDirectReturnModal(false);
+          setDirectReturnCustomer(null);
+        }}
+        customer={directReturnCustomer}
+        availableCustomers={routeCustomers}
+        products={products}
+        lorryId={selectedLorryId || user?.lorryId || ''}
+        lorry={selectedLorry}
+        onReturnRecorded={handleDirectReturnRecorded}
       />
 
       {/* OFFICIAL 80MM PAYMENT RECEIPT MODAL */}

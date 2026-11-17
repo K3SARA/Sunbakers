@@ -226,7 +226,9 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
               {/* Header Double Divider */}
               <div className="border-t-2 border-black my-1.5" />
               <div className="text-center font-black text-xs sm:text-[13.5px] py-0.5 tracking-wider text-black">
-                *** SALES BILL / DELIVERY SLIP ***
+                {order.items.length === 0 && order.returns && order.returns.length > 0
+                  ? '*** RETURN COLLECTION / CREDIT NOTE ***'
+                  : '*** SALES BILL / DELIVERY SLIP ***'}
               </div>
               <div className="border-t-2 border-black border-dashed my-1.5" />
 
@@ -270,34 +272,38 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
               </div>
 
               {/* Items Table (2-line 80mm format: Item name line 1, Qty x Price & Total line 2) */}
-              <div className="border-t-2 border-black my-1.5" />
-              <div className="flex justify-between font-black text-xs sm:text-[13px] pb-1 text-black">
-                <span>ITEM DESCRIPTION</span>
-                <span>TOTAL</span>
-              </div>
-              <div className="border-t-2 border-black border-dashed mb-1.5" />
-
-              <div className="space-y-2 text-xs sm:text-[13px] text-black">
-                {order.items.map((item) => (
-                  <div key={item.id} className="leading-tight">
-                    <div className="font-black text-xs sm:text-[13.5px] break-words text-black">{item.product.name}</div>
-                    <div className="flex justify-between pl-1 font-bold text-black">
-                      <span>
-                        {item.quantity} {item.product.unit || 'pcs'} x {formatMoney(item.unitPrice)}
-                        {item.product && item.unitPrice < item.product.unitPrice && (
-                          <span className="text-[11px] font-black"> (Disc: was {formatMoney(item.product.unitPrice)})</span>
-                        )}
-                      </span>
-                      <span className="font-black text-black">{formatMoney(item.lineTotal)}</span>
-                    </div>
-                    {item.freeQuantity > 0 && (
-                      <div className="pl-1 font-black text-xs text-black">
-                        &gt;&gt; FREE PROMO: +{item.freeQuantity} {item.product.unit || 'pcs'} (Rs. 0.00)
-                      </div>
-                    )}
+              {order.items.length > 0 && (
+                <>
+                  <div className="border-t-2 border-black my-1.5" />
+                  <div className="flex justify-between font-black text-xs sm:text-[13px] pb-1 text-black">
+                    <span>ITEM DESCRIPTION</span>
+                    <span>TOTAL</span>
                   </div>
-                ))}
-              </div>
+                  <div className="border-t-2 border-black border-dashed mb-1.5" />
+
+                  <div className="space-y-2 text-xs sm:text-[13px] text-black">
+                    {order.items.map((item) => (
+                      <div key={item.id} className="leading-tight">
+                        <div className="font-black text-xs sm:text-[13.5px] break-words text-black">{item.product.name}</div>
+                        <div className="flex justify-between pl-1 font-bold text-black">
+                          <span>
+                            {item.quantity} {item.product.unit || 'pcs'} x {formatMoney(item.unitPrice)}
+                            {item.product && item.unitPrice < item.product.unitPrice && (
+                              <span className="text-[11px] font-black"> (Disc: was {formatMoney(item.product.unitPrice)})</span>
+                            )}
+                          </span>
+                          <span className="font-black text-black">{formatMoney(item.lineTotal)}</span>
+                        </div>
+                        {item.freeQuantity > 0 && (
+                          <div className="pl-1 font-black text-xs text-black">
+                            &gt;&gt; FREE PROMO: +{item.freeQuantity} {item.product.unit || 'pcs'} (Rs. 0.00)
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
 
               {/* Returned & Damaged Items (80mm) */}
               {order.returns && order.returns.length > 0 && (

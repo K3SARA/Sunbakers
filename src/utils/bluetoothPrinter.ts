@@ -116,9 +116,11 @@ export function build80mmEscPosReceipt(order: Order, settings?: SystemSettings |
     addLine(`Reg/VAT: ${settings.registrationNumber}`);
   }
 
+  const isDirectReturn = order.items.length === 0 && Array.isArray(order.returns) && order.returns.length > 0;
+
   addLine(dividerLine('='));
   addBytes(COMMANDS.BOLD_ON);
-  addLine('*** SALES BILL / DELIVERY RECEIPT ***');
+  addLine(isDirectReturn ? '*** RETURN COLLECTION / CREDIT SLIP ***' : '*** SALES BILL / DELIVERY RECEIPT ***');
   addBytes(COMMANDS.BOLD_OFF);
   addLine(dividerLine('='));
 
@@ -155,37 +157,64 @@ export function build80mmEscPosReceipt(order: Order, settings?: SystemSettings |
   }
   addLine(dividerLine('-'));
 
-  // 5. Line Items Header
-  addBytes(COMMANDS.BOLD_ON);
-  addLine(padTwoColumns('ITEM DESCRIPTION', 'TOTAL'));
-  addLine(padTwoColumns(' QTY x PRICE', ''));
-  addBytes(COMMANDS.BOLD_OFF);
-  addLine(dividerLine('-'));
-
-  // 6. Items
   let totalFreeQty = 0;
-  order.items.forEach((item) => {
-    // Line 1: Item Name (bold)
-    const nameStr = item.product.name.slice(0, RECEIPT_WIDTH);
+  if (order.items.length > 0) {
+    // 5. Line Items Header
     addBytes(COMMANDS.BOLD_ON);
-    addLine(nameStr);
+    addLine(padTwoColumns('ITEM DESCRIPTION', 'TOTAL'));
+    addLine(padTwoColumns(' QTY x PRICE', ''));
     addBytes(COMMANDS.BOLD_OFF);
+    addLine(dividerLine('-'));
 
-    // Line 2: Qty x UnitPrice and Line Total
-    const qtyPrice = `  ${item.quantity} ${item.product.unit || 'pcs'} x Rs.${item.unitPrice.toFixed(2)}`;
-    const lineTot = `Rs.${item.lineTotal.toFixed(2)}`;
-    addLine(padTwoColumns(qtyPrice, lineTot));
-
-    // Promotional Free Issue line
-    if (item.freeQuantity && item.freeQuantity > 0) {
-      totalFreeQty += item.freeQuantity;
+    // 6. Items
+    order.items.forEach((item) => {
+      // Line 1: Item Name (bold)
+      const nameStr = item.product.name.slice(0, RECEIPT_WIDTH);
       addBytes(COMMANDS.BOLD_ON);
-      addLine(`  >> FREE PROMO: +${item.freeQuantity} ${item.product.unit || 'pcs'} (Rs.0.00)`);
+      addLine(nameStr);
       addBytes(COMMANDS.BOLD_OFF);
-    }
-  });
 
-  addLine(dividerLine('-'));
+      // Line 2: Qty x UnitPrice and Line Total
+      const qtyPrice = `  ${item.quantity} ${item.product.unit || 'pcs'} x Rs.${item.unitPrice.toFixed(2)}`;
+      const lineTot = `Rs.${item.lineTotal.toFixed(2)}`;
+      addLine(padTwoColumns(qtyPrice, lineTot));
+
+      // Promotional Free Issue line
+      if (item.freeQuantity && item.freeQuantity > 0) {
+        totalFreeQty += item.freeQuantity;
+        addBytes(COMMANDS.BOLD_ON);
+        addLine(`  >> FREE PROMO: +${item.freeQuantity} ${item.product.unit || 'pcs'} (Rs.0.00)`);
+        addBytes(COMMANDS.BOLD_OFF);
+      }
+    });
+
+    addLine(dividerLine('-'));
+  }
+
+  // 6.1 Return / Stale Items
+  if (Array.isArray(order.returns) && order.returns.length > 0) {
+    addBytes(COMMANDS.BOLD_ON);
+    addLine(padTwoColumns('RETURNED / STALE ITEMS', 'DEDUCT'));
+    addBytes(COMMANDS.BOLD_OFF);
+    addLine(dividerLine('-'));
+
+    order.returns.forEach(ret => {
+      const pName = ret.product?.name || 'Product';
+      const typeLabel = ret.returnType === 'DAMAGE' ? '[DMG]' : '[RET]';
+      addBytes(COMMANDS.BOLD_ON);
+      addLine(`${typeLabel} ${pName}`.slice(0, RECEIPT_WIDTH));
+      addBytes(COMMANDS.BOLD_OFF);
+
+      const qtyPrice = `  ${ret.quantity} ${ret.product?.unit || 'pcs'} x Rs.${ret.unitPrice.toFixed(2)}`;
+      const lineTot = `-Rs.${ret.total.toFixed(2)}`;
+      addLine(padTwoColumns(qtyPrice, lineTot));
+      if (ret.reason) {
+        addLine(`  (${ret.reason})`.slice(0, RECEIPT_WIDTH));
+      }
+    });
+
+    addLine(dividerLine('-'));
+  }
 
   // 7. Totals & Payment Breakdown
   addBytes(COMMANDS.BOLD_ON);

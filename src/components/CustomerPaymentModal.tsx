@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   X,
   Wallet,
@@ -7,7 +7,9 @@ import {
   CreditCard,
   FileText,
   ArrowRight,
-  Truck
+  Truck,
+  Search,
+  Store
 } from 'lucide-react';
 import { Customer, CustomerPayment, Lorry, Order } from '../types';
 import { CustomerService, LorryService } from '../services/api';
@@ -20,6 +22,7 @@ interface CustomerPaymentModalProps {
   onPaymentRecorded: (payment: CustomerPayment) => void;
   defaultLorryId?: string;
   defaultCollectorName?: string;
+  availableCustomers?: Customer[];
 }
 
 export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
@@ -28,10 +31,16 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
   onClose,
   onPaymentRecorded,
   defaultLorryId,
-  defaultCollectorName
+  defaultCollectorName,
+  availableCustomers = []
 }) => {
   const { formatMoney, currencyConfig } = useCurrency();
   const [lorries, setLorries] = useState<Lorry[]>([]);
+
+  // Active customer state
+  const [activeCustomer, setActiveCustomer] = useState<Customer | null>(customer);
+  const [customerSearch, setCustomerSearch] = useState<string>('');
+  const [isChangingCustomer, setIsChangingCustomer] = useState<boolean>(!customer);
 
   const [amount, setAmount] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CHEQUE' | 'BANK_TRANSFER'>('CASH');
@@ -48,21 +57,14 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isOpen && customer) {
+    if (isOpen) {
       LorryService.getAll()
         .then(setLorries)
         .catch(() => {});
 
-      CustomerService.getUnpaidBills(customer.id)
-        .then(setUnpaidBills)
-        .catch(() => setUnpaidBills([]));
-
-      if (customer.outstandingBalance > 0) {
-        setAmount(customer.outstandingBalance.toString());
-      } else {
-        setAmount('');
-      }
-
+      setActiveCustomer(customer);
+      setIsChangingCustomer(!customer);
+      setCustomerSearch('');
       setPaymentMethod('CASH');
       setChequeNumber('');
       setBankName('');
@@ -72,12 +74,55 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
       setSelectedLorryId(defaultLorryId || '');
       setNotes('');
       setError(null);
+
+      if (customer) {
+        CustomerService.getUnpaidBills(customer.id)
+          .then(setUnpaidBills)
+          .catch(() => setUnpaidBills([]));
+
+        if (customer.outstandingBalance > 0) {
+          setAmount(customer.outstandingBalance.toString());
+        } else {
+          setAmount('');
+        }
+      } else {
+        setUnpaidBills([]);
+        setAmount('');
+      }
     }
   }, [isOpen, customer, defaultLorryId, defaultCollectorName]);
 
-  if (!isOpen || !customer) return null;
+  // When active customer changes (e.g. rep selects customer from list)
+  const handleSelectCustomer = (cust: Customer) => {
+    setActiveCustomer(cust);
+    setIsChangingCustomer(false);
+    setError(null);
 
-  const outstanding = customer.outstandingBalance || 0;
+    CustomerService.getUnpaidBills(cust.id)
+      .then(setUnpaidBills)
+      .catch(() => setUnpaidBills([]));
+
+    if (cust.outstandingBalance > 0) {
+      setAmount(cust.outstandingBalance.toString());
+    } else {
+      setAmount('');
+    }
+  };
+
+  const filteredCustomers = useMemo(() => {
+    if (!customerSearch.trim()) return availableCustomers;
+    const q = customerSearch.toLowerCase();
+    return availableCustomers.filter(c =>
+      c.name.toLowerCase().includes(q) ||
+      (c.code && c.code.toLowerCase().includes(q)) ||
+      (c.companyName && c.companyName.toLowerCase().includes(q)) ||
+      (c.phone && c.phone.includes(q))
+    );
+  }, [availableCustomers, customerSearch]);
+
+  if (!isOpen) return null;
+
+  const outstanding = activeCustomer?.outstandingBalance || 0;
   const numAmount = parseFloat(amount) || 0;
   const remainingBalance = outstanding - numAmount;
 
@@ -100,6 +145,11 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!activeCustomer) {
+      setError('Please select a customer to collect payment.');
+      return;
+    }
+
     if (numAmount <= 0) {
       setError('Please enter a valid positive payment amount.');
       return;
@@ -114,7 +164,7 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
       setLoading(true);
       setError(null);
 
-      const res = await CustomerService.recordPayment(customer.id, {
+      const res = await CustomerService.recordPayment(activeCustomer.id, {
         amount: numAmount,
         paymentMethod,
         chequeNumber: chequeNumber.trim() || undefined,
@@ -147,12 +197,16 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-bold text-slate-900">Record Credit Payment</h2>
-                <span className="font-mono text-xs font-bold px-2 py-0.5 bg-slate-200 text-slate-700 rounded-lg">
-                  {customer.code}
-                </span>
+                {activeCustomer?.code && (
+                  <span className="font-mono text-xs font-bold px-2 py-0.5 bg-slate-200 text-slate-700 rounded-lg">
+                    {activeCustomer.code}
+                  </span>
+                )}
               </div>
               <p className="text-xs text-slate-500 font-medium truncate max-w-[260px] sm:max-w-xs">
-                {customer.name} {customer.companyName ? `• ${customer.companyName}` : ''}
+                {activeCustomer
+                  ? `${activeCustomer.name} ${activeCustomer.companyName ? `• ${activeCustomer.companyName}` : ''}`
+                  : 'Direct debt collection without billing'}
               </p>
             </div>
           </div>
@@ -170,6 +224,102 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
             <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-2.5 text-rose-700 text-xs font-medium">
               <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
               <span>{error}</span>
+            </div>
+          )}
+
+          {/* Section 0: Customer Selection (When launched directly or changing) */}
+          {availableCustomers.length > 0 && (
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <Store className="w-3.5 h-3.5 text-emerald-600" />
+                  Customer / Shop
+                </span>
+                {activeCustomer && !isChangingCustomer && (
+                  <button
+                    type="button"
+                    onClick={() => setIsChangingCustomer(true)}
+                    className="text-xs font-bold text-blue-600 hover:text-blue-700 cursor-pointer"
+                  >
+                    Change Shop
+                  </button>
+                )}
+              </div>
+
+              {activeCustomer && !isChangingCustomer ? (
+                <div className="p-3 bg-emerald-50/60 border border-emerald-200/80 rounded-xl flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-sm text-slate-900 truncate">
+                        {activeCustomer.name}
+                      </span>
+                      {activeCustomer.code && (
+                        <span className="font-mono text-[10px] font-bold px-1.5 py-0.2 bg-white text-slate-700 rounded border border-emerald-200">
+                          {activeCustomer.code}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500 truncate mt-0.5">
+                      {activeCustomer.companyName || activeCustomer.deliveryAddress || 'No address specified'}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className="text-[10px] font-bold text-slate-500 block uppercase tracking-wider">
+                      Outstanding Due
+                    </span>
+                    <span className={`font-mono text-xs font-black ${
+                      (activeCustomer.outstandingBalance || 0) > 0 ? 'text-rose-600' : 'text-emerald-700'
+                    }`}>
+                      {formatMoney(activeCustomer.outstandingBalance || 0)}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="relative">
+                    <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                    <input
+                      type="text"
+                      value={customerSearch}
+                      onChange={e => setCustomerSearch(e.target.value)}
+                      placeholder="Search customer with outstanding debt..."
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      autoFocus
+                    />
+                  </div>
+
+                  <div className="max-h-44 overflow-y-auto space-y-1.5 border border-slate-100 rounded-xl p-1 bg-slate-50/50">
+                    {filteredCustomers.length === 0 ? (
+                      <p className="text-xs text-slate-400 text-center py-3">No customers found</p>
+                    ) : (
+                      filteredCustomers.map(c => {
+                        const due = c.outstandingBalance || 0;
+                        return (
+                          <div
+                            key={c.id}
+                            onClick={() => handleSelectCustomer(c)}
+                            className="p-2 bg-white hover:bg-emerald-50 border border-slate-100 hover:border-emerald-200 rounded-xl flex items-center justify-between gap-2 cursor-pointer transition text-xs"
+                          >
+                            <div className="min-w-0">
+                              <span className="font-bold text-slate-800 block truncate">
+                                {c.name}
+                              </span>
+                              <span className="text-[10px] text-slate-500 truncate block">
+                                {c.code ? `[${c.code}] ` : ''}{c.companyName || c.deliveryAddress || 'No shop name'}
+                              </span>
+                            </div>
+                            <span className={`font-mono text-[11px] font-bold shrink-0 ${
+                              due > 0 ? 'text-rose-600' : 'text-slate-400'
+                            }`}>
+                              {due > 0 ? `Due: ${formatMoney(due)}` : 'Clear'}
+                            </span>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
