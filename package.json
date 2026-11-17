@@ -17,6 +17,8 @@
     "dist": "npm run build:all && electron-builder --win",
     "dist:fast": "electron-builder --win",
     "dist:installer": "node scripts/build-installer.js",
+    "cap:sync": "npx cap sync android",
+    "build:apk": "npm run build:vite && npx cap sync android && node -e \"require('fs').writeFileSync('android/local.properties', 'sdk.dir=C:/Users/Naveen/AppData/Local/Android/Sdk')\" && cd android && gradlew.bat assembleDebug",
     "start": "node scripts/prepare-prisma.js && npx prisma db push --accept-data-loss && tsx server/index.ts",
     "start:electron": "cross-env NODE_ENV=production electron .",
     "prisma:generate": "prisma generate",
@@ -27,6 +29,9 @@
     "use:sqlite": "node -e \"require('fs').writeFileSync('prisma/schema.prisma', require('fs').readFileSync('prisma/schema.prisma', 'utf8').replace(/provider = \\\"postgresql\\\"/, 'provider = \\\"sqlite\\\"'))\" && prisma generate"
   },
   "dependencies": {
+    "@capacitor/android": "^6.2.3",
+    "@capacitor/cli": "^6.2.3",
+    "@capacitor/core": "^6.2.3",
     "@prisma/client": "^5.22.0",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",

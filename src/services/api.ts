@@ -30,12 +30,32 @@ import {
   VehicleReturnsReport
 } from '../types';
 
-// Dynamic API URL: uses relative '/api' on Railway / production web,
-// or fallback to localhost:4812 in standalone Vite dev / Electron
+// Dynamic API URL:
+// 1. Custom configured server URL in localStorage
+// 2. In Capacitor Android APK, default to live production Railway API
+// 3. In Vite dev (port 5173) or Electron (file:), fallback to localhost:4812/api
+// 4. On Railway web, use relative '/api'
+export const DEFAULT_CLOUD_API_URL = 'https://sunbakers-production.up.railway.app/api';
+
 const isDevVite = typeof window !== 'undefined' && window.location.port === '5173';
 const isFileProtocol = typeof window !== 'undefined' && window.location.protocol === 'file:';
+const isCapacitor = typeof window !== 'undefined' && (
+  (window as any).Capacitor?.isNativePlatform?.() ||
+  (window.location.hostname === 'localhost' && window.location.port === '') ||
+  window.location.protocol === 'capacitor:'
+);
 const devHost = typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : '127.0.0.1';
-const API_BASE_URL = import.meta.env.VITE_API_URL || (isDevVite || isFileProtocol ? `http://${devHost}:4812/api` : '/api');
+
+const customServerUrl = typeof window !== 'undefined' ? localStorage.getItem('distributor_custom_api_url') : null;
+
+export const API_BASE_URL =
+  customServerUrl ||
+  import.meta.env.VITE_API_URL ||
+  (isCapacitor
+    ? DEFAULT_CLOUD_API_URL
+    : isDevVite || isFileProtocol
+    ? `http://${devHost}:4812/api`
+    : '/api');
 
 const api = axios.create({
   baseURL: API_BASE_URL,

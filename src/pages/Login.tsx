@@ -24,6 +24,9 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showQuickFill, setShowQuickFill] = useState(false);
+  const [showServerConfig, setShowServerConfig] = useState(false);
+  const [serverUrlInput, setServerUrlInput] = useState(() => localStorage.getItem('distributor_custom_api_url') || '');
+  const [serverSavedNotice, setServerSavedNotice] = useState(false);
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -169,12 +172,69 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             </button>
           </div>
 
-          {/* Subtext */}
-          <div className="text-center pt-1">
+          {/* Subtext & Server Config Toggle */}
+          <div className="text-center pt-1 flex items-center justify-center gap-2">
             <span className="text-[11px] text-slate-400 hover:text-slate-600 transition cursor-default">
               Offline Distributor Management
             </span>
+            <span className="text-slate-300">•</span>
+            <button
+              type="button"
+              onClick={() => setShowServerConfig(prev => !prev)}
+              className="text-[11px] text-blue-500 hover:text-blue-700 font-medium transition cursor-pointer"
+            >
+              {showServerConfig ? 'Close Server' : 'Server Config'}
+            </button>
           </div>
+
+          {/* Server URL Config Drawer */}
+          {showServerConfig && (
+            <div className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2 text-left animate-fadeIn">
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                Backend Server URL
+              </label>
+              <input
+                type="text"
+                value={serverUrlInput}
+                onChange={e => setServerUrlInput(e.target.value)}
+                placeholder="https://sunbakers-production.up.railway.app/api"
+                className="w-full bg-white border border-slate-200 rounded px-2.5 py-1.5 text-xs font-mono text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              <p className="text-[10px] text-slate-400 leading-tight">
+                Default: <span className="font-mono text-slate-600">https://sunbakers-production.up.railway.app/api</span>
+              </p>
+              <div className="flex items-center justify-between pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    localStorage.removeItem('distributor_custom_api_url');
+                    setServerUrlInput('');
+                    setServerSavedNotice(true);
+                    setTimeout(() => window.location.reload(), 600);
+                  }}
+                  className="text-[10px] text-slate-500 hover:text-rose-600 font-semibold cursor-pointer"
+                >
+                  Reset Default
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const trimmed = serverUrlInput.trim();
+                    if (trimmed) {
+                      localStorage.setItem('distributor_custom_api_url', trimmed);
+                    } else {
+                      localStorage.removeItem('distributor_custom_api_url');
+                    }
+                    setServerSavedNotice(true);
+                    setTimeout(() => window.location.reload(), 600);
+                  }}
+                  className="px-2.5 py-1 bg-blue-600 text-white rounded text-[11px] font-bold shadow-2xs hover:bg-blue-700 cursor-pointer"
+                >
+                  {serverSavedNotice ? 'Saved!' : 'Save & Reload'}
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Quick Demo Credentials Drawer */}
           {showQuickFill && (
