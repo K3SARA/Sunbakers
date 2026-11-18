@@ -27,7 +27,8 @@ import {
   SalaryAdvance,
   Payroll,
   HrPayrollSummary,
-  VehicleReturnsReport
+  VehicleReturnsReport,
+  FreeIssuesReport
 } from '../types';
 
 // Dynamic API URL:
@@ -245,7 +246,9 @@ export const ReportService = {
   getProfitAndLoss: (from?: string, to?: string) =>
     api.get<ProfitAndLossReport>('/reports/profit-and-loss', { params: { from, to } }).then(r => r.data),
   getVehicleReturns: (from?: string, to?: string, lorryId?: string) =>
-    api.get<VehicleReturnsReport>('/reports/vehicle-returns', { params: { from, to, lorryId } }).then(r => r.data)
+    api.get<VehicleReturnsReport>('/reports/vehicle-returns', { params: { from, to, lorryId } }).then(r => r.data),
+  getFreeIssuesReport: (from?: string, to?: string, lorryId?: string, routeId?: string) =>
+    api.get<FreeIssuesReport>('/reports/free-issues', { params: { from, to, lorryId, routeId } }).then(r => r.data)
 };
 
 export const SettingsService = {

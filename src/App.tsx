@@ -16,6 +16,7 @@ import { LorrySettlement } from './pages/LorrySettlement';
 import { Customers } from './pages/Customers';
 import { Reports } from './pages/Reports';
 import { ProfitAndLoss } from './pages/ProfitAndLoss';
+import { FreeIssues } from './pages/FreeIssues';
 import { Suppliers } from './pages/Suppliers';
 import { Expenses } from './pages/Expenses';
 import { Settings } from './pages/Settings';
@@ -183,6 +184,10 @@ export const AppContent: React.FC = () => {
 
           <div className={currentTab === 'pnl' ? '' : 'hidden'}>
             <ProfitAndLoss />
+          </div>
+
+          <div className={currentTab === 'free-issues' ? '' : 'hidden'}>
+            <FreeIssues />
           </div>
 
           <div className={currentTab === 'settings' ? '' : 'hidden'}>

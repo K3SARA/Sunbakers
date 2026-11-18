@@ -270,6 +270,57 @@ export interface Order {
   returns?: OrderReturn[];
 }
 
+export interface FreeIssueBillDetail {
+  orderId: string;
+  orderNumber: string;
+  paperBillNumber?: string | null;
+  date: string;
+  customerName: string;
+  customerCode?: string | null;
+  lorryNumber?: string;
+  paidQty: number;
+  freeQty: number;
+  freeValue: number;
+}
+
+export interface FreeIssueItem {
+  productId: string;
+  productName: string;
+  sku: string;
+  category: string;
+  unit: string;
+  unitPrice: number;
+  costPrice: number;
+  freeRatioBuy: number;
+  freeRatioGet: number;
+  paidQuantity: number;
+  freeQuantity: number;
+  totalQuantity: number;
+  freeRatioPercent: number;
+  freeRetailValue: number;
+  freeCostValue: number;
+  paidRevenue: number;
+  billsCount: number;
+  bills: FreeIssueBillDetail[];
+}
+
+export interface FreeIssuesReport {
+  from: string;
+  to: string;
+  summary: {
+    totalOrdersCount: number;
+    ordersWithFreeCount: number;
+    totalFreeUnits: number;
+    totalPaidUnits: number;
+    totalUnits: number;
+    overallFreePercent: number;
+    totalFreeRetailValue: number;
+    totalFreeCostValue: number;
+    distinctPromotionalItemsCount: number;
+  };
+  items: FreeIssueItem[];
+}
+
 export interface StockMovement {
   id: string;
   productId: string;

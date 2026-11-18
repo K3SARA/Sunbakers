@@ -17,6 +17,7 @@ import {
   Factory,
   CreditCard,
   Briefcase,
+  Gift,
   LogOut,
   X
 } from 'lucide-react';
@@ -80,6 +81,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: 'cheques', label: 'Cheque Management', icon: CreditCard, badge: 'PDC', badgeTone: 'inward' },
         { id: 'expenses', label: 'Expenses & Opex', icon: TrendingDown, badge: 'Outflow', badgeTone: 'expense' },
         { id: 'pnl', label: 'Profit & Loss', icon: TrendingUp, badge: 'P&L', badgeTone: 'pnl' },
+        { id: 'free-issues', label: 'Billed Free Issues', icon: Gift, badge: 'Promo', badgeTone: 'pnl' },
         { id: 'reports', label: 'Reports & Audit', icon: BarChart3 },
         { id: 'settings', label: 'Fleet & Settings', icon: SettingsIcon }
       ]

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Receipt,
   Truck,
@@ -14,7 +14,10 @@ import {
   RotateCcw,
   Percent,
   Tag,
-  AlertTriangle
+  AlertTriangle,
+  Gift,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 import { Lorry, Customer, Order, Product } from '../types';
 import { LorryService, CustomerService, OrderService, ProductService } from '../services/api';
@@ -52,6 +55,101 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [warehouseProducts, setWarehouseProducts] = useState<Product[]>([]);
   const [todayOrders, setTodayOrders] = useState<Order[]>([]);
+  const [recentViewMode, setRecentViewMode] = useState<'BILLS' | 'FREE_ISSUES'>('BILLS');
+  const [expandedFreeProductIds, setExpandedFreeProductIds] = useState<Set<string>>(new Set());
+
+  // Aggregate item-wise free issues from today's recorded orders
+  const todayFreeIssuesItemWise = useMemo(() => {
+    const map = new Map<string, {
+      productId: string;
+      productName: string;
+      sku: string;
+      category: string;
+      unitPrice: number;
+      paidQty: number;
+      freeQty: number;
+      totalQty: number;
+      freeRatioPercent: number;
+      freeValue: number;
+      billsCount: number;
+      bills: Array<{
+        orderNumber: string;
+        paperBillNumber?: string | null;
+        customerName: string;
+        channel: string;
+        paidQty: number;
+        freeQty: number;
+        freeValue: number;
+      }>;
+    }>();
+
+    todayOrders.forEach((order) => {
+      (order.items || []).forEach((item) => {
+        const prod = item.product;
+        if (!prod) return;
+        const paidQty = item.quantity || 0;
+        const freeQty = item.freeQuantity || 0;
+        const unitPrice = item.unitPrice || prod.unitPrice || 0;
+
+        let entry = map.get(prod.id);
+        if (!entry) {
+          entry = {
+            productId: prod.id,
+            productName: prod.name,
+            sku: prod.sku,
+            category: prod.category || 'General',
+            unitPrice,
+            paidQty: 0,
+            freeQty: 0,
+            totalQty: 0,
+            freeRatioPercent: 0,
+            freeValue: 0,
+            billsCount: 0,
+            bills: []
+          };
+          map.set(prod.id, entry);
+        }
+
+        entry.paidQty += paidQty;
+        entry.freeQty += freeQty;
+        entry.totalQty += (paidQty + freeQty);
+        entry.freeValue += (freeQty * unitPrice);
+
+        if (freeQty > 0) {
+          entry.billsCount += 1;
+          entry.bills.push({
+            orderNumber: order.orderNumber,
+            paperBillNumber: order.paperBillNumber,
+            customerName: order.customer?.name || 'Walk-in Customer',
+            channel: order.lorry?.vehicleNumber || 'Warehouse Counter',
+            paidQty,
+            freeQty,
+            freeValue: freeQty * unitPrice
+          });
+        }
+      });
+    });
+
+    return Array.from(map.values())
+      .filter((i) => i.freeQty > 0)
+      .map((i) => {
+        i.freeRatioPercent = i.totalQty > 0 ? Math.round((i.freeQty / i.totalQty) * 1000) / 10 : 0;
+        return i;
+      })
+      .sort((a, b) => b.freeQty - a.freeQty);
+  }, [todayOrders]);
+
+  const toggleFreeItemExpand = (productId: string) => {
+    setExpandedFreeProductIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(productId)) {
+        next.delete(productId);
+      } else {
+        next.add(productId);
+      }
+      return next;
+    });
+  };
 
   // Bill Form state
   const [paperBillNumber, setPaperBillNumber] = useState<string>('');
@@ -1622,93 +1720,277 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
         </div>
       </div>
 
-      {/* Today's Recorded Bills Table */}
+      {/* Today's Recorded Bills & Free Issues Section */}
       <div className="bg-white rounded-3xl border border-slate-200/80 shadow-2xs p-6 space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-3">
           <div>
             <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-              Recent Bills Recorded
+              {recentViewMode === 'BILLS' ? 'Recent Bills Recorded' : 'Billed Free Issues (Item-Wise)'}
             </h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              Bills brought by drivers and direct counter sales saved in the system today.
+              {recentViewMode === 'BILLS'
+                ? 'Bills brought by drivers and direct counter sales saved in the system today.'
+                : "Item-wise breakdown of promotional free issues given on today's bills."}
             </p>
+          </div>
+
+          <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-2xl w-fit">
+            <button
+              type="button"
+              onClick={() => setRecentViewMode('BILLS')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                recentViewMode === 'BILLS'
+                  ? 'bg-white text-slate-900 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Recent Bills ({todayOrders.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setRecentViewMode('FREE_ISSUES')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                recentViewMode === 'FREE_ISSUES'
+                  ? 'bg-white text-purple-700 shadow-2xs'
+                  : 'text-slate-600 hover:text-purple-700'
+              }`}
+            >
+              <Gift className="w-3.5 h-3.5 text-purple-600" />
+              Billed Free Issues ({todayFreeIssuesItemWise.length})
+            </button>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-slate-100 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                <th className="py-3 px-3.5">System Bill #</th>
-                <th className="py-3 px-3.5">Paper / Receipt #</th>
-                <th className="py-3 px-3.5">Channel / Source</th>
-                <th className="py-3 px-3.5">Customer</th>
-                <th className="py-3 px-3.5">Payment</th>
-                <th className="py-3 px-3.5 text-right">Net Total</th>
-                <th className="py-3 px-3.5 text-right">Cash Received</th>
-                <th className="py-3 px-3.5 text-center">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {todayOrders.map((order) => (
-                <tr key={order.id} className="hover:bg-slate-50/70 transition-colors">
-                  <td className="py-3.5 px-3.5 font-mono font-bold text-slate-900">
-                    {order.orderNumber}
-                  </td>
-                  <td className="py-3.5 px-3.5 font-mono font-semibold text-blue-600">
-                    {order.paperBillNumber || '—'}
-                  </td>
-                  <td className="py-3.5 px-3.5 text-slate-700">
-                    {order.lorry ? (
-                      <span className="inline-flex items-center gap-1.5 font-medium text-slate-800">
-                        <Truck className="w-3.5 h-3.5 text-blue-500" />
-                        {order.lorry.vehicleNumber} ({order.lorry.driverName.split(' ')[0]})
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
-                        <Building2 className="w-3.5 h-3.5 text-emerald-600" />
-                        Warehouse Counter
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-3.5 px-3.5 font-semibold text-slate-900">
-                    {order.customer?.name || 'Walk-in Customer'}
-                  </td>
-                  <td className="py-3.5 px-3.5">
-                    <span
-                      className={`px-2.5 py-1 rounded-lg text-xs font-bold uppercase ${
-                        order.paymentStatus === 'PAID'
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
-                          : order.paymentStatus === 'PARTIAL'
-                            ? 'bg-amber-50 text-amber-700 border border-amber-200/60'
-                            : 'bg-rose-50 text-rose-700 border border-rose-200/60'
-                      }`}
-                    >
-                      {order.paymentMethod} • {order.paymentStatus}
-                    </span>
-                  </td>
-                  <td className="py-3.5 px-3.5 text-right font-mono font-bold text-slate-900">
-                    {formatMoney(order.netTotal)}
-                  </td>
-                  <td className="py-3.5 px-3.5 text-right font-mono font-semibold text-emerald-600">
-                    {formatMoney(order.cashReceived)}
-                  </td>
-                  <td className="py-3 px-3 text-center">
-                    {onViewInvoice && (
-                      <button
-                        onClick={() => onViewInvoice(order)}
-                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                        title="View Delivery Receipt"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                    )}
-                  </td>
+        {recentViewMode === 'BILLS' ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-100 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  <th className="py-3 px-3.5">System Bill #</th>
+                  <th className="py-3 px-3.5">Paper / Receipt #</th>
+                  <th className="py-3 px-3.5">Channel / Source</th>
+                  <th className="py-3 px-3.5">Customer</th>
+                  <th className="py-3 px-3.5">Payment</th>
+                  <th className="py-3 px-3.5 text-right">Net Total</th>
+                  <th className="py-3 px-3.5 text-right">Cash Received</th>
+                  <th className="py-3 px-3.5 text-center">Action</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {todayOrders.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="p-8 text-center text-slate-400 text-xs">
+                      No bills recorded today yet.
+                    </td>
+                  </tr>
+                ) : (
+                  todayOrders.map((order) => (
+                    <tr key={order.id} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="py-3.5 px-3.5 font-mono font-bold text-slate-900">
+                        {order.orderNumber}
+                      </td>
+                      <td className="py-3.5 px-3.5 font-mono font-semibold text-blue-600">
+                        {order.paperBillNumber || '—'}
+                      </td>
+                      <td className="py-3.5 px-3.5 text-slate-700">
+                        {order.lorry ? (
+                          <span className="inline-flex items-center gap-1.5 font-medium text-slate-800">
+                            <Truck className="w-3.5 h-3.5 text-blue-500" />
+                            {order.lorry.vehicleNumber} ({order.lorry.driverName.split(' ')[0]})
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                            <Building2 className="w-3.5 h-3.5 text-emerald-600" />
+                            Warehouse Counter
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-3.5 font-semibold text-slate-900">
+                        {order.customer?.name || 'Walk-in Customer'}
+                      </td>
+                      <td className="py-3.5 px-3.5">
+                        <span
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold uppercase ${
+                            order.paymentStatus === 'PAID'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
+                              : order.paymentStatus === 'PARTIAL'
+                                ? 'bg-amber-50 text-amber-700 border border-amber-200/60'
+                                : 'bg-rose-50 text-rose-700 border border-rose-200/60'
+                          }`}
+                        >
+                          {order.paymentMethod} • {order.paymentStatus}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-3.5 text-right font-mono font-bold text-slate-900">
+                        {formatMoney(order.netTotal)}
+                      </td>
+                      <td className="py-3.5 px-3.5 text-right font-mono font-semibold text-emerald-600">
+                        {formatMoney(order.cashReceived)}
+                      </td>
+                      <td className="py-3 px-3 text-center">
+                        {onViewInvoice && (
+                          <button
+                            onClick={() => onViewInvoice(order)}
+                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="View Delivery Receipt"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          /* Ultra Clean & Minimal Item-Wise Free Issues Table */
+          <div className="space-y-3">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs sm:text-sm border-collapse min-w-[720px]">
+                <thead>
+                  <tr className="border-b border-slate-200/80 bg-slate-50/70 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                    <th className="py-3 px-3 w-8 text-center"></th>
+                    <th className="py-3 px-3">Item & SKU</th>
+                    <th className="py-3 px-3">Category</th>
+                    <th className="py-3 px-3 text-right">Unit Price</th>
+                    <th className="py-3 px-3 text-right">Paid Qty</th>
+                    <th className="py-3 px-3 text-right">Free Issues</th>
+                    <th className="py-3 px-3 text-right">Total Units</th>
+                    <th className="py-3 px-3 text-right">Free %</th>
+                    <th className="py-3 px-3 text-right">Free Value</th>
+                    <th className="py-3 px-3 text-center">Invoices</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {todayFreeIssuesItemWise.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="p-8 text-center">
+                        <div className="w-10 h-10 rounded-2xl bg-purple-50 text-purple-500 flex items-center justify-center mx-auto mb-2">
+                          <Gift className="w-5 h-5" />
+                        </div>
+                        <p className="text-xs font-semibold text-slate-700">No promotional free issues given on today's bills</p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          When free issue units are entered during billing, they will be tracked and aggregated here item-wise.
+                        </p>
+                      </td>
+                    </tr>
+                  ) : (
+                    todayFreeIssuesItemWise.map((item) => {
+                      const isExpanded = expandedFreeProductIds.has(item.productId);
+                      return (
+                        <React.Fragment key={item.productId}>
+                          <tr
+                            onClick={() => toggleFreeItemExpand(item.productId)}
+                            className={`cursor-pointer transition-colors ${
+                              isExpanded ? 'bg-purple-50/30' : 'hover:bg-slate-50/70'
+                            }`}
+                          >
+                            <td className="py-3 px-3 text-center text-slate-400">
+                              {isExpanded ? (
+                                <ChevronDown className="w-4 h-4 text-purple-600 mx-auto" />
+                              ) : (
+                                <ChevronRight className="w-4 h-4 mx-auto" />
+                              )}
+                            </td>
+                            <td className="py-3 px-3">
+                              <span className="font-bold text-slate-900 block">{item.productName}</span>
+                              <span className="text-[10px] font-mono text-slate-400">SKU: {item.sku}</span>
+                            </td>
+                            <td className="py-3 px-3 text-slate-600 text-xs">
+                              {item.category}
+                            </td>
+                            <td className="py-3 px-3 text-right font-mono text-xs text-slate-600">
+                              {formatMoney(item.unitPrice)}
+                            </td>
+                            <td className="py-3 px-3 text-right font-mono text-slate-700">
+                              {item.paidQty.toLocaleString()}
+                            </td>
+                            <td className="py-3 px-3 text-right">
+                              <span className="font-mono font-bold px-2 py-0.5 rounded-lg text-xs bg-purple-100 text-purple-800 border border-purple-200 inline-block">
+                                +{item.freeQty.toLocaleString()}
+                              </span>
+                            </td>
+                            <td className="py-3 px-3 text-right font-mono font-bold text-slate-900">
+                              {item.totalQty.toLocaleString()}
+                            </td>
+                            <td className="py-3 px-3 text-right font-mono text-xs font-semibold text-purple-700">
+                              {item.freeRatioPercent}%
+                            </td>
+                            <td className="py-3 px-3 text-right font-mono font-bold text-slate-900">
+                              {formatMoney(item.freeValue)}
+                            </td>
+                            <td className="py-3 px-3 text-center">
+                              <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                                {item.billsCount} {item.billsCount === 1 ? 'bill' : 'bills'}
+                              </span>
+                            </td>
+                          </tr>
+
+                          {/* Expandable Slips Sub-table */}
+                          {isExpanded && (
+                            <tr className="bg-slate-50/70">
+                              <td colSpan={10} className="px-4 py-3">
+                                <div className="bg-white rounded-xl border border-purple-200 p-3 shadow-2xs space-y-2">
+                                  <span className="text-[11px] font-bold text-purple-800 uppercase tracking-wider block">
+                                    Customer Slips Issued With Free Promo Units ({item.bills.length})
+                                  </span>
+                                  <div className="overflow-x-auto">
+                                    <table className="w-full text-left text-xs">
+                                      <thead>
+                                        <tr className="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">
+                                          <th className="py-1.5 px-2">System Bill #</th>
+                                          <th className="py-1.5 px-2">Paper Slip #</th>
+                                          <th className="py-1.5 px-2">Customer</th>
+                                          <th className="py-1.5 px-2">Lorry / Channel</th>
+                                          <th className="py-1.5 px-2 text-right">Paid Qty</th>
+                                          <th className="py-1.5 px-2 text-right">Free Given</th>
+                                          <th className="py-1.5 px-2 text-right">Free Value</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-slate-100">
+                                        {item.bills.map((b, bIdx) => (
+                                          <tr key={bIdx} className="hover:bg-purple-50/20">
+                                            <td className="py-1.5 px-2 font-mono font-bold text-slate-900">
+                                              {b.orderNumber}
+                                            </td>
+                                            <td className="py-1.5 px-2 font-mono text-blue-600 font-semibold">
+                                              {b.paperBillNumber || '—'}
+                                            </td>
+                                            <td className="py-1.5 px-2 font-semibold text-slate-800">
+                                              {b.customerName}
+                                            </td>
+                                            <td className="py-1.5 px-2 text-slate-600">
+                                              {b.channel}
+                                            </td>
+                                            <td className="py-1.5 px-2 text-right font-mono text-slate-600">
+                                              {b.paidQty}
+                                            </td>
+                                            <td className="py-1.5 px-2 text-right font-mono font-bold text-purple-700">
+                                              +{b.freeQty}
+                                            </td>
+                                            <td className="py-1.5 px-2 text-right font-mono font-semibold text-slate-900">
+                                              {formatMoney(b.freeValue)}
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* DUPLICATE ITEM CONFIRMATION POPUP */}

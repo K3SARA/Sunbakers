@@ -12,17 +12,19 @@ import {
   TrendingUp,
   Receipt,
   Search,
-  AlertTriangle
+  AlertTriangle,
+  Gift
 } from 'lucide-react';
 import { ReportService } from '../services/api';
 import { StockMovement, Customer, LorryPerformanceReport, RepPerformanceReport, VehicleReturnsReport } from '../types';
 import { useCurrency } from '../context/CurrencyContext';
 import { DateRangeFilter, DatePreset } from '../components/DateRangeFilter';
 import { ProfitAndLoss } from './ProfitAndLoss';
+import { FreeIssues } from './FreeIssues';
 
 export const Reports: React.FC = () => {
   const { formatMoney } = useCurrency();
-  const [activeTab, setActiveTab] = useState<'PNL' | 'LORRIES' | 'RETURNS' | 'ROUTES' | 'SALES' | 'STOCK' | 'BALANCES' | 'REPS'>('LORRIES');
+  const [activeTab, setActiveTab] = useState<'PNL' | 'LORRIES' | 'RETURNS' | 'ROUTES' | 'SALES' | 'FREE_ISSUES' | 'STOCK' | 'BALANCES' | 'REPS'>('LORRIES');
   const [, setLoading] = useState(false);
 
   // Date filter state
@@ -244,6 +246,13 @@ export const Reports: React.FC = () => {
             <DollarSign className="w-3.5 h-3.5 text-amber-600" /> Driver Bills
           </button>
           <button
+            onClick={() => setActiveTab('FREE_ISSUES')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition whitespace-nowrap ${activeTab === 'FREE_ISSUES' ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+              }`}
+          >
+            <Gift className="w-3.5 h-3.5 text-purple-600" /> Billed Free Issues
+          </button>
+          <button
             onClick={() => setActiveTab('STOCK')}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition whitespace-nowrap ${activeTab === 'STOCK' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
               }`}
@@ -259,8 +268,8 @@ export const Reports: React.FC = () => {
           </button>
         </div>
 
-        {/* Date Filter (Not applicable to static balances) */}
-        {activeTab !== 'BALANCES' && (
+        {/* Date Filter (Not applicable to static balances or standalone Free Issues view which has its own toolbar) */}
+        {activeTab !== 'BALANCES' && activeTab !== 'FREE_ISSUES' && (
           <DateRangeFilter
             initialPreset="today"
             onRangeChange={handleDateRangeChange}
@@ -271,6 +280,8 @@ export const Reports: React.FC = () => {
       {/* REPORT CONTENT AREA */}
       {activeTab === 'PNL' ? (
         <ProfitAndLoss />
+      ) : activeTab === 'FREE_ISSUES' ? (
+        <FreeIssues embedded={true} />
       ) : (
         <div className="bg-white border border-slate-200/70 rounded-2xl sm:rounded-3xl shadow-2xs p-4 sm:p-8 space-y-4 sm:space-y-6">
         {/* Printable Report Header */}

@@ -5296,6 +5296,168 @@ app.get('/api/reports/sales-summary', async (req: Request, res: Response) => {
   }
 });
 
+// Billed free issues (item-wise) report
+app.get('/api/reports/free-issues', async (req: Request, res: Response) => {
+  try {
+    const { from, to, lorryId, routeId } = req.query;
+    const startDate = from ? new Date(from as string) : new Date(new Date().setHours(0, 0, 0, 0));
+    const endDate = to ? new Date(to as string) : new Date(new Date().setHours(23, 59, 59, 999));
+
+    const where: any = {
+      createdAt: {
+        gte: startDate,
+        lte: endDate
+      },
+      status: { not: 'CANCELLED' }
+    };
+
+    if (lorryId && typeof lorryId === 'string' && lorryId !== 'ALL') {
+      if (lorryId === 'COUNTER') {
+        where.lorryId = null;
+      } else {
+        where.lorryId = lorryId;
+      }
+    }
+    if (routeId && typeof routeId === 'string' && routeId !== 'ALL') {
+      where.routeId = routeId;
+    }
+
+    const orders = await prisma.order.findMany({
+      where,
+      include: {
+        customer: true,
+        lorry: true,
+        route: true,
+        items: {
+          include: {
+            product: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    const productMap = new Map<string, any>();
+    let grandTotalFreeUnits = 0;
+    let grandTotalPaidUnits = 0;
+    let grandTotalFreeRetailValue = 0;
+    let grandTotalFreeCostValue = 0;
+    const ordersWithFreeSet = new Set<string>();
+
+    for (const order of orders) {
+      let orderHasFree = false;
+
+      for (const item of order.items) {
+        const prod = item.product;
+        const paidQty = item.quantity || 0;
+        const freeQty = item.freeQuantity || 0;
+
+        grandTotalPaidUnits += paidQty;
+        grandTotalFreeUnits += freeQty;
+        const freeVal = freeQty * (item.unitPrice || prod.unitPrice || 0);
+        const freeCost = freeQty * (prod.costPrice || 0);
+        grandTotalFreeRetailValue += freeVal;
+        grandTotalFreeCostValue += freeCost;
+
+        if (freeQty > 0) {
+          orderHasFree = true;
+        }
+
+        let stat = productMap.get(prod.id);
+        if (!stat) {
+          stat = {
+            productId: prod.id,
+            productName: prod.name,
+            sku: prod.sku,
+            category: prod.category || 'General',
+            unit: prod.unit || 'pcs',
+            unitPrice: item.unitPrice || prod.unitPrice || 0,
+            costPrice: prod.costPrice || 0,
+            freeRatioBuy: prod.freeRatioBuy || 0,
+            freeRatioGet: prod.freeRatioGet || 0,
+            paidQuantity: 0,
+            freeQuantity: 0,
+            totalQuantity: 0,
+            freeRatioPercent: 0,
+            freeRetailValue: 0,
+            freeCostValue: 0,
+            paidRevenue: 0,
+            billsCount: 0,
+            bills: []
+          };
+          productMap.set(prod.id, stat);
+        }
+
+        stat.paidQuantity += paidQty;
+        stat.freeQuantity += freeQty;
+        stat.totalQuantity += (paidQty + freeQty);
+        stat.paidRevenue += (item.lineTotal || (paidQty * stat.unitPrice));
+        stat.freeRetailValue += freeVal;
+        stat.freeCostValue += freeCost;
+
+        if (freeQty > 0) {
+          stat.billsCount += 1;
+          stat.bills.push({
+            orderId: order.id,
+            orderNumber: order.orderNumber,
+            paperBillNumber: order.paperBillNumber || null,
+            date: order.createdAt.toISOString(),
+            customerName: order.customer?.name || 'Walk-in Customer',
+            customerCode: order.customer?.code || '',
+            lorryNumber: order.lorry?.vehicleNumber || 'Warehouse Counter',
+            paidQty,
+            freeQty,
+            freeValue: freeVal
+          });
+        }
+      }
+
+      if (orderHasFree) {
+        ordersWithFreeSet.add(order.id);
+      }
+    }
+
+    const items = Array.from(productMap.values()).map(item => {
+      item.freeRatioPercent = item.totalQuantity > 0 
+        ? Math.round((item.freeQuantity / item.totalQuantity) * 1000) / 10 
+        : 0;
+      return item;
+    });
+
+    // Primary sort: products with freeQuantity > 0 first (descending), then paid quantity descending
+    items.sort((a, b) => {
+      if (b.freeQuantity !== a.freeQuantity) {
+        return b.freeQuantity - a.freeQuantity;
+      }
+      return b.paidQuantity - a.paidQuantity;
+    });
+
+    const totalUnits = grandTotalPaidUnits + grandTotalFreeUnits;
+    const overallFreePercent = totalUnits > 0 
+      ? Math.round((grandTotalFreeUnits / totalUnits) * 1000) / 10 
+      : 0;
+
+    res.json({
+      from: startDate.toISOString(),
+      to: endDate.toISOString(),
+      summary: {
+        totalOrdersCount: orders.length,
+        ordersWithFreeCount: ordersWithFreeSet.size,
+        totalFreeUnits: grandTotalFreeUnits,
+        totalPaidUnits: grandTotalPaidUnits,
+        totalUnits,
+        overallFreePercent,
+        totalFreeRetailValue: grandTotalFreeRetailValue,
+        totalFreeCostValue: grandTotalFreeCostValue,
+        distinctPromotionalItemsCount: items.filter(i => i.freeQuantity > 0).length
+      },
+      items
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Stock movement history with date filtering
 app.get('/api/reports/stock-movements', async (req: Request, res: Response) => {
   try {
