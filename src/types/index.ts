@@ -280,7 +280,11 @@ export interface FreeIssueBillDetail {
   lorryNumber?: string;
   paidQty: number;
   freeQty: number;
+  standardFreeQty: number;
+  extraFreeQty: number;
+  hasExtraFree: boolean;
   freeValue: number;
+  extraFreeValue: number;
 }
 
 export interface FreeIssueItem {
@@ -295,12 +299,17 @@ export interface FreeIssueItem {
   freeRatioGet: number;
   paidQuantity: number;
   freeQuantity: number;
+  standardFreeQuantity: number;
+  extraFreeQuantity: number;
   totalQuantity: number;
   freeRatioPercent: number;
   freeRetailValue: number;
+  extraFreeRetailValue: number;
   freeCostValue: number;
+  extraFreeCostValue: number;
   paidRevenue: number;
   billsCount: number;
+  extraBillsCount?: number;
   bills: FreeIssueBillDetail[];
 }
 
@@ -310,12 +319,17 @@ export interface FreeIssuesReport {
   summary: {
     totalOrdersCount: number;
     ordersWithFreeCount: number;
+    ordersWithExtraFreeCount?: number;
     totalFreeUnits: number;
+    totalStandardFreeUnits?: number;
+    totalExtraFreeUnits?: number;
     totalPaidUnits: number;
     totalUnits: number;
     overallFreePercent: number;
     totalFreeRetailValue: number;
+    totalExtraFreeRetailValue?: number;
     totalFreeCostValue: number;
+    totalExtraFreeCostValue?: number;
     distinctPromotionalItemsCount: number;
   };
   items: FreeIssueItem[];

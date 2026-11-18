@@ -66,12 +66,18 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
       sku: string;
       category: string;
       unitPrice: number;
+      freeRatioBuy: number;
+      freeRatioGet: number;
       paidQty: number;
       freeQty: number;
+      standardFreeQty: number;
+      extraFreeQty: number;
       totalQty: number;
       freeRatioPercent: number;
       freeValue: number;
+      extraFreeValue: number;
       billsCount: number;
+      extraBillsCount: number;
       bills: Array<{
         orderNumber: string;
         paperBillNumber?: string | null;
@@ -79,7 +85,10 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
         channel: string;
         paidQty: number;
         freeQty: number;
+        standardFreeQty: number;
+        extraFreeQty: number;
         freeValue: number;
+        extraFreeValue: number;
       }>;
     }>();
 
@@ -90,6 +99,16 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
         const paidQty = item.quantity || 0;
         const freeQty = item.freeQuantity || 0;
         const unitPrice = item.unitPrice || prod.unitPrice || 0;
+        const buyRatio = prod.freeRatioBuy || 0;
+        const getRatio = prod.freeRatioGet || 0;
+
+        const stdEligible = (buyRatio > 0 && getRatio > 0)
+          ? Math.floor(paidQty / buyRatio) * getRatio
+          : 0;
+        const stdGiven = Math.min(freeQty, stdEligible);
+        const extraGiven = Math.max(0, freeQty - stdEligible);
+        const freeVal = freeQty * unitPrice;
+        const extraVal = extraGiven * unitPrice;
 
         let entry = map.get(prod.id);
         if (!entry) {
@@ -99,12 +118,18 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
             sku: prod.sku,
             category: prod.category || 'General',
             unitPrice,
+            freeRatioBuy: buyRatio,
+            freeRatioGet: getRatio,
             paidQty: 0,
             freeQty: 0,
+            standardFreeQty: 0,
+            extraFreeQty: 0,
             totalQty: 0,
             freeRatioPercent: 0,
             freeValue: 0,
+            extraFreeValue: 0,
             billsCount: 0,
+            extraBillsCount: 0,
             bills: []
           };
           map.set(prod.id, entry);
@@ -112,11 +137,17 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
 
         entry.paidQty += paidQty;
         entry.freeQty += freeQty;
+        entry.standardFreeQty += stdGiven;
+        entry.extraFreeQty += extraGiven;
         entry.totalQty += (paidQty + freeQty);
-        entry.freeValue += (freeQty * unitPrice);
+        entry.freeValue += freeVal;
+        entry.extraFreeValue += extraVal;
 
         if (freeQty > 0) {
           entry.billsCount += 1;
+          if (extraGiven > 0) {
+            entry.extraBillsCount += 1;
+          }
           entry.bills.push({
             orderNumber: order.orderNumber,
             paperBillNumber: order.paperBillNumber,
@@ -124,7 +155,10 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
             channel: order.lorry?.vehicleNumber || 'Warehouse Counter',
             paidQty,
             freeQty,
-            freeValue: freeQty * unitPrice
+            standardFreeQty: stdGiven,
+            extraFreeQty: extraGiven,
+            freeValue: freeVal,
+            extraFreeValue: extraVal
           });
         }
       });
@@ -136,7 +170,7 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
         i.freeRatioPercent = i.totalQty > 0 ? Math.round((i.freeQty / i.totalQty) * 1000) / 10 : 0;
         return i;
       })
-      .sort((a, b) => b.freeQty - a.freeQty);
+      .sort((a, b) => b.extraFreeQty - a.extraFreeQty || b.freeQty - a.freeQty);
   }, [todayOrders]);
 
   const toggleFreeItemExpand = (productId: string) => {
@@ -1853,13 +1887,13 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                   <tr className="border-b border-slate-200/80 bg-slate-50/70 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                     <th className="py-3 px-3 w-8 text-center"></th>
                     <th className="py-3 px-3">Item & SKU</th>
-                    <th className="py-3 px-3">Category</th>
-                    <th className="py-3 px-3 text-right">Unit Price</th>
+                    <th className="py-3 px-3">Policy Ratio</th>
                     <th className="py-3 px-3 text-right">Paid Qty</th>
-                    <th className="py-3 px-3 text-right">Free Issues</th>
-                    <th className="py-3 px-3 text-right">Total Units</th>
-                    <th className="py-3 px-3 text-right">Free %</th>
-                    <th className="py-3 px-3 text-right">Free Value</th>
+                    <th className="py-3 px-3 text-right">Standard Free</th>
+                    <th className="py-3 px-3 text-right">Extra Free</th>
+                    <th className="py-3 px-3 text-right">Total Free</th>
+                    <th className="py-3 px-3 text-right">Extra Value</th>
+                    <th className="py-3 px-3 text-right">Total Free Value</th>
                     <th className="py-3 px-3 text-center">Invoices</th>
                   </tr>
                 </thead>
@@ -1879,12 +1913,17 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                   ) : (
                     todayFreeIssuesItemWise.map((item) => {
                       const isExpanded = expandedFreeProductIds.has(item.productId);
+                      const hasExtra = item.extraFreeQty > 0;
                       return (
                         <React.Fragment key={item.productId}>
                           <tr
                             onClick={() => toggleFreeItemExpand(item.productId)}
                             className={`cursor-pointer transition-colors ${
-                              isExpanded ? 'bg-purple-50/30' : 'hover:bg-slate-50/70'
+                              hasExtra
+                                ? 'bg-amber-50/30 hover:bg-amber-50/50'
+                                : isExpanded
+                                ? 'bg-purple-50/30'
+                                : 'hover:bg-slate-50/70'
                             }`}
                           >
                             <td className="py-3 px-3 text-center text-slate-400">
@@ -1898,31 +1937,45 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                               <span className="font-bold text-slate-900 block">{item.productName}</span>
                               <span className="text-[10px] font-mono text-slate-400">SKU: {item.sku}</span>
                             </td>
-                            <td className="py-3 px-3 text-slate-600 text-xs">
-                              {item.category}
-                            </td>
-                            <td className="py-3 px-3 text-right font-mono text-xs text-slate-600">
-                              {formatMoney(item.unitPrice)}
+                            <td className="py-3 px-3 text-xs text-slate-600">
+                              {item.freeRatioBuy > 0 && item.freeRatioGet > 0
+                                ? `Buy ${item.freeRatioBuy} + ${item.freeRatioGet} Free`
+                                : '—'}
                             </td>
                             <td className="py-3 px-3 text-right font-mono text-slate-700">
                               {item.paidQty.toLocaleString()}
+                            </td>
+                            <td className="py-3 px-3 text-right font-mono text-slate-600">
+                              {item.standardFreeQty.toLocaleString()}
+                            </td>
+                            <td className="py-3 px-3 text-right">
+                              {hasExtra ? (
+                                <span className="font-mono font-bold px-2 py-0.5 rounded-md text-xs bg-amber-100 text-amber-900 border border-amber-300 inline-block">
+                                  +{item.extraFreeQty.toLocaleString()} Extra
+                                </span>
+                              ) : (
+                                <span className="font-mono text-slate-400 text-xs">0</span>
+                              )}
                             </td>
                             <td className="py-3 px-3 text-right">
                               <span className="font-mono font-bold px-2 py-0.5 rounded-lg text-xs bg-purple-100 text-purple-800 border border-purple-200 inline-block">
                                 +{item.freeQty.toLocaleString()}
                               </span>
                             </td>
-                            <td className="py-3 px-3 text-right font-mono font-bold text-slate-900">
-                              {item.totalQty.toLocaleString()}
-                            </td>
-                            <td className="py-3 px-3 text-right font-mono text-xs font-semibold text-purple-700">
-                              {item.freeRatioPercent}%
+                            <td className="py-3 px-3 text-right font-mono font-bold text-amber-900 text-xs">
+                              {item.extraFreeValue > 0 ? formatMoney(item.extraFreeValue) : '—'}
                             </td>
                             <td className="py-3 px-3 text-right font-mono font-bold text-slate-900">
                               {formatMoney(item.freeValue)}
                             </td>
                             <td className="py-3 px-3 text-center">
-                              <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${
+                                  hasExtra
+                                    ? 'bg-amber-50 text-amber-800 border-amber-200'
+                                    : 'bg-slate-100 text-slate-700 border-slate-200'
+                                }`}
+                              >
                                 {item.billsCount} {item.billsCount === 1 ? 'bill' : 'bills'}
                               </span>
                             </td>
@@ -1934,7 +1987,7 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                               <td colSpan={10} className="px-4 py-3">
                                 <div className="bg-white rounded-xl border border-purple-200 p-3 shadow-2xs space-y-2">
                                   <span className="text-[11px] font-bold text-purple-800 uppercase tracking-wider block">
-                                    Customer Slips Issued With Free Promo Units ({item.bills.length})
+                                    Customer Slips: Standard Free vs Extra Given ({item.bills.length})
                                   </span>
                                   <div className="overflow-x-auto">
                                     <table className="w-full text-left text-xs">
@@ -1945,13 +1998,15 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                                           <th className="py-1.5 px-2">Customer</th>
                                           <th className="py-1.5 px-2">Lorry / Channel</th>
                                           <th className="py-1.5 px-2 text-right">Paid Qty</th>
-                                          <th className="py-1.5 px-2 text-right">Free Given</th>
-                                          <th className="py-1.5 px-2 text-right">Free Value</th>
+                                          <th className="py-1.5 px-2 text-right">Standard Free</th>
+                                          <th className="py-1.5 px-2 text-right text-amber-800">Extra Free</th>
+                                          <th className="py-1.5 px-2 text-right font-bold text-purple-800">Total Free</th>
+                                          <th className="py-1.5 px-2 text-right">Extra Value</th>
                                         </tr>
                                       </thead>
                                       <tbody className="divide-y divide-slate-100">
                                         {item.bills.map((b, bIdx) => (
-                                          <tr key={bIdx} className="hover:bg-purple-50/20">
+                                          <tr key={bIdx} className={`hover:bg-purple-50/20 ${b.extraFreeQty > 0 ? 'bg-amber-50/30' : ''}`}>
                                             <td className="py-1.5 px-2 font-mono font-bold text-slate-900">
                                               {b.orderNumber}
                                             </td>
@@ -1967,11 +2022,17 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                                             <td className="py-1.5 px-2 text-right font-mono text-slate-600">
                                               {b.paidQty}
                                             </td>
+                                            <td className="py-1.5 px-2 text-right font-mono text-slate-600">
+                                              {b.standardFreeQty}
+                                            </td>
+                                            <td className="py-1.5 px-2 text-right font-mono font-bold text-amber-800">
+                                              {b.extraFreeQty > 0 ? `+${b.extraFreeQty}` : '0'}
+                                            </td>
                                             <td className="py-1.5 px-2 text-right font-mono font-bold text-purple-700">
                                               +{b.freeQty}
                                             </td>
-                                            <td className="py-1.5 px-2 text-right font-mono font-semibold text-slate-900">
-                                              {formatMoney(b.freeValue)}
+                                            <td className="py-1.5 px-2 text-right font-mono font-semibold text-amber-900">
+                                              {b.extraFreeValue > 0 ? formatMoney(b.extraFreeValue) : '—'}
                                             </td>
                                           </tr>
                                         ))}

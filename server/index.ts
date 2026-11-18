@@ -4727,8 +4727,8 @@ app.get('/api/reports/lorry-performance', async (req: Request, res: Response) =>
     // Compute sales, cash, credit for each loading sheet
     const enrichedLoadings = loadings.map(load => {
       const loadDateStr = new Date(load.date).toISOString().slice(0, 10);
-      const matchingOrders = orders.filter(o => 
-        o.lorryId === load.lorryId && 
+      const matchingOrders = orders.filter(o =>
+        o.lorryId === load.lorryId &&
         new Date(o.createdAt).toISOString().slice(0, 10) === loadDateStr
       );
 
@@ -5206,9 +5206,9 @@ app.get('/api/reports/route-sales', async (req: Request, res: Response) => {
       const customerIds = new Set(r.customers.map(c => c.id));
 
       // Match orders for this route: directly by routeId, or by assigned lorry or assigned customer
-      const routeOrders = allOrders.filter(o => 
-        o.routeId === r.id || 
-        (o.lorryId && lorryIds.has(o.lorryId)) || 
+      const routeOrders = allOrders.filter(o =>
+        o.routeId === r.id ||
+        (o.lorryId && lorryIds.has(o.lorryId)) ||
         (o.customerId && customerIds.has(o.customerId))
       );
 
@@ -5339,28 +5339,53 @@ app.get('/api/reports/free-issues', async (req: Request, res: Response) => {
 
     const productMap = new Map<string, any>();
     let grandTotalFreeUnits = 0;
+    let grandTotalStandardFreeUnits = 0;
+    let grandTotalExtraFreeUnits = 0;
     let grandTotalPaidUnits = 0;
     let grandTotalFreeRetailValue = 0;
+    let grandTotalExtraFreeRetailValue = 0;
     let grandTotalFreeCostValue = 0;
+    let grandTotalExtraFreeCostValue = 0;
     const ordersWithFreeSet = new Set<string>();
+    const ordersWithExtraFreeSet = new Set<string>();
 
     for (const order of orders) {
       let orderHasFree = false;
+      let orderHasExtraFree = false;
 
       for (const item of order.items) {
         const prod = item.product;
         const paidQty = item.quantity || 0;
         const freeQty = item.freeQuantity || 0;
+        const buyRatio = prod.freeRatioBuy || 0;
+        const getRatio = prod.freeRatioGet || 0;
+
+        // Standard ratio calculation (e.g. 48 -> 4, paid 96 => 8 standard free)
+        const standardEligibleFree = (buyRatio > 0 && getRatio > 0)
+          ? Math.floor(paidQty / buyRatio) * getRatio
+          : 0;
+        const standardGiven = Math.min(freeQty, standardEligibleFree);
+        const extraFree = Math.max(0, freeQty - standardEligibleFree);
+
+        const freeVal = freeQty * (item.unitPrice || prod.unitPrice || 0);
+        const extraVal = extraFree * (item.unitPrice || prod.unitPrice || 0);
+        const freeCost = freeQty * (prod.costPrice || 0);
+        const extraCost = extraFree * (prod.costPrice || 0);
 
         grandTotalPaidUnits += paidQty;
         grandTotalFreeUnits += freeQty;
-        const freeVal = freeQty * (item.unitPrice || prod.unitPrice || 0);
-        const freeCost = freeQty * (prod.costPrice || 0);
+        grandTotalStandardFreeUnits += standardGiven;
+        grandTotalExtraFreeUnits += extraFree;
         grandTotalFreeRetailValue += freeVal;
+        grandTotalExtraFreeRetailValue += extraVal;
         grandTotalFreeCostValue += freeCost;
+        grandTotalExtraFreeCostValue += extraCost;
 
         if (freeQty > 0) {
           orderHasFree = true;
+        }
+        if (extraFree > 0) {
+          orderHasExtraFree = true;
         }
 
         let stat = productMap.get(prod.id);
@@ -5373,16 +5398,21 @@ app.get('/api/reports/free-issues', async (req: Request, res: Response) => {
             unit: prod.unit || 'pcs',
             unitPrice: item.unitPrice || prod.unitPrice || 0,
             costPrice: prod.costPrice || 0,
-            freeRatioBuy: prod.freeRatioBuy || 0,
-            freeRatioGet: prod.freeRatioGet || 0,
+            freeRatioBuy: buyRatio,
+            freeRatioGet: getRatio,
             paidQuantity: 0,
             freeQuantity: 0,
+            standardFreeQuantity: 0,
+            extraFreeQuantity: 0,
             totalQuantity: 0,
             freeRatioPercent: 0,
             freeRetailValue: 0,
+            extraFreeRetailValue: 0,
             freeCostValue: 0,
+            extraFreeCostValue: 0,
             paidRevenue: 0,
             billsCount: 0,
+            extraBillsCount: 0,
             bills: []
           };
           productMap.set(prod.id, stat);
@@ -5390,13 +5420,20 @@ app.get('/api/reports/free-issues', async (req: Request, res: Response) => {
 
         stat.paidQuantity += paidQty;
         stat.freeQuantity += freeQty;
+        stat.standardFreeQuantity += standardGiven;
+        stat.extraFreeQuantity += extraFree;
         stat.totalQuantity += (paidQty + freeQty);
         stat.paidRevenue += (item.lineTotal || (paidQty * stat.unitPrice));
         stat.freeRetailValue += freeVal;
+        stat.extraFreeRetailValue += extraVal;
         stat.freeCostValue += freeCost;
+        stat.extraFreeCostValue += extraCost;
 
         if (freeQty > 0) {
           stat.billsCount += 1;
+          if (extraFree > 0) {
+            stat.extraBillsCount += 1;
+          }
           stat.bills.push({
             orderId: order.id,
             orderNumber: order.orderNumber,
@@ -5407,7 +5444,11 @@ app.get('/api/reports/free-issues', async (req: Request, res: Response) => {
             lorryNumber: order.lorry?.vehicleNumber || 'Warehouse Counter',
             paidQty,
             freeQty,
-            freeValue: freeVal
+            standardFreeQty: standardGiven,
+            extraFreeQty: extraFree,
+            hasExtraFree: extraFree > 0,
+            freeValue: freeVal,
+            extraFreeValue: extraVal
           });
         }
       }
@@ -5415,17 +5456,23 @@ app.get('/api/reports/free-issues', async (req: Request, res: Response) => {
       if (orderHasFree) {
         ordersWithFreeSet.add(order.id);
       }
+      if (orderHasExtraFree) {
+        ordersWithExtraFreeSet.add(order.id);
+      }
     }
 
     const items = Array.from(productMap.values()).map(item => {
-      item.freeRatioPercent = item.totalQuantity > 0 
-        ? Math.round((item.freeQuantity / item.totalQuantity) * 1000) / 10 
+      item.freeRatioPercent = item.totalQuantity > 0
+        ? Math.round((item.freeQuantity / item.totalQuantity) * 1000) / 10
         : 0;
       return item;
     });
 
-    // Primary sort: products with freeQuantity > 0 first (descending), then paid quantity descending
+    // Primary sort: products with extraFreeQuantity > 0 first, then freeQuantity > 0, then paid quantity
     items.sort((a, b) => {
+      if (b.extraFreeQuantity !== a.extraFreeQuantity) {
+        return b.extraFreeQuantity - a.extraFreeQuantity;
+      }
       if (b.freeQuantity !== a.freeQuantity) {
         return b.freeQuantity - a.freeQuantity;
       }
@@ -5433,8 +5480,8 @@ app.get('/api/reports/free-issues', async (req: Request, res: Response) => {
     });
 
     const totalUnits = grandTotalPaidUnits + grandTotalFreeUnits;
-    const overallFreePercent = totalUnits > 0 
-      ? Math.round((grandTotalFreeUnits / totalUnits) * 1000) / 10 
+    const overallFreePercent = totalUnits > 0
+      ? Math.round((grandTotalFreeUnits / totalUnits) * 1000) / 10
       : 0;
 
     res.json({
@@ -5443,12 +5490,17 @@ app.get('/api/reports/free-issues', async (req: Request, res: Response) => {
       summary: {
         totalOrdersCount: orders.length,
         ordersWithFreeCount: ordersWithFreeSet.size,
+        ordersWithExtraFreeCount: ordersWithExtraFreeSet.size,
         totalFreeUnits: grandTotalFreeUnits,
+        totalStandardFreeUnits: grandTotalStandardFreeUnits,
+        totalExtraFreeUnits: grandTotalExtraFreeUnits,
         totalPaidUnits: grandTotalPaidUnits,
         totalUnits,
         overallFreePercent,
         totalFreeRetailValue: grandTotalFreeRetailValue,
+        totalExtraFreeRetailValue: grandTotalExtraFreeRetailValue,
         totalFreeCostValue: grandTotalFreeCostValue,
+        totalExtraFreeCostValue: grandTotalExtraFreeCostValue,
         distinctPromotionalItemsCount: items.filter(i => i.freeQuantity > 0).length
       },
       items
