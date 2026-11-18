@@ -451,6 +451,63 @@ export const LorrySettlement: React.FC = () => {
             )}
           </div>
 
+          {/* Customer Returns & Stale Goods Collected on Route */}
+          {activeLoading.customerReturns && activeLoading.customerReturns.length > 0 && (
+            <div className="bg-white rounded-2xl sm:rounded-3xl border border-amber-200/90 shadow-2xs p-4 sm:p-6 space-y-3 sm:space-y-4">
+              <div className="flex items-center justify-between border-b border-amber-100 pb-3">
+                <div>
+                  <h3 className="text-xs sm:text-sm font-bold text-amber-950 uppercase tracking-wider flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                    Customer Market Returns & Stale Bread Unloaded ({activeLoading.customerReturns.length} items)
+                  </h3>
+                  <p className="text-xs text-amber-800/80 mt-0.5">
+                    Goods collected from shops during route run. Quarantined in damage inventory and credited to customer accounts.
+                  </p>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs font-bold text-slate-500 block uppercase">Total Credit</span>
+                  <span className="font-mono text-sm sm:text-base font-black text-amber-800">
+                    {formatMoney(activeLoading.customerReturns.reduce((acc, r) => acc + (r.total || 0), 0))}
+                  </span>
+                </div>
+              </div>
+
+              <div className="divide-y divide-slate-100 border border-slate-100 rounded-2xl overflow-hidden text-xs">
+                {activeLoading.customerReturns.map((ret, idx) => (
+                  <div key={ret.id || idx} className="p-3 bg-amber-50/30 hover:bg-amber-50/60 flex items-center justify-between gap-3 transition">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-slate-900 truncate">
+                          {ret.product?.name || 'Product'}
+                        </span>
+                        <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded font-mono ${
+                          ret.returnType === 'DAMAGE'
+                            ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                            : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                        }`}>
+                          {ret.returnType === 'DAMAGE' ? '💥 Stale/Damage' : '✨ Resale'}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1.5">
+                        <span className="font-semibold text-slate-700">{ret.order?.customer?.name || 'Customer'}</span>
+                        <span>•</span>
+                        <span className="italic text-slate-400">{ret.reason || 'Customer Return'}</span>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="font-mono font-bold text-slate-900 block">
+                        {ret.quantity} {ret.product?.unit || 'pcs'} x {formatMoney(ret.unitPrice)}
+                      </span>
+                      <span className="font-mono font-bold text-amber-800 text-[11px]">
+                        -{formatMoney(ret.total)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Cash Handover & Closing Remarks */}
           <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 shadow-2xs p-4 sm:p-6 space-y-4">
             <h3 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider">
@@ -460,11 +517,16 @@ export const LorrySettlement: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 sm:gap-4">
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1.5">
-                  Billed Cash Sales
+                  Total Cash Collections
                 </label>
                 <div className="px-3.5 py-2.5 bg-slate-100 rounded-xl font-mono font-bold text-slate-800 text-sm">
                   {formatMoney(activeLoading.cashCollected)}
                 </div>
+                {activeLoading.routeCollections && activeLoading.routeCollections.length > 0 && (
+                  <p className="text-[10px] text-emerald-700 font-medium mt-1">
+                    Incl. {activeLoading.routeCollections.length} debt payment(s) ({formatMoney(activeLoading.routeCollections.reduce((s, p) => s + (p.amount || 0), 0))})
+                  </p>
+                )}
               </div>
 
               <div>

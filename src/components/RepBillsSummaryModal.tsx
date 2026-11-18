@@ -89,6 +89,7 @@ export const RepBillsSummaryModal: React.FC<RepBillsSummaryModalProps> = ({
       if (b.paymentMethod === 'CHEQUE') return acc;
       return acc + (b.balanceAmount !== undefined ? b.balanceAmount : Math.max(0, (b.netTotal || 0) - (b.cashReceived || 0)));
     }, 0);
+    const totalReturnDeductions = activeBills.reduce((acc: number, b: Order) => acc + (b.returnAmount || 0), 0);
 
     return {
       totalBills,
@@ -96,6 +97,7 @@ export const RepBillsSummaryModal: React.FC<RepBillsSummaryModalProps> = ({
       totalCash,
       totalCredit,
       totalCheque,
+      totalReturnDeductions,
       cashCount: cashBills.length,
       creditCount: creditBills.length,
       chequeCount: chequeBills.length
@@ -413,6 +415,12 @@ export const RepBillsSummaryModal: React.FC<RepBillsSummaryModalProps> = ({
                   {formatMoney(summaryMetrics.totalCash)}
                 </span>
               </div>
+              {summaryMetrics.totalReturnDeductions > 0 && (
+                <div className="flex justify-between text-xs font-bold text-amber-800">
+                  <span>Customer Returns / Damages:</span>
+                  <span>-{formatMoney(summaryMetrics.totalReturnDeductions)}</span>
+                </div>
+              )}
               {totalExpenses > 0 && (
                 <>
                   <div className="flex justify-between text-xs font-bold text-rose-800">
@@ -463,6 +471,7 @@ export const RepBillsSummaryModal: React.FC<RepBillsSummaryModalProps> = ({
                   const creditDue = Math.max(0, bill.netTotal - (bill.cashReceived || 0));
                   const isCash = bill.paymentMethod === 'CASH';
                   const isCheque = bill.paymentMethod === 'CHEQUE';
+                  const isReturnNote = bill.netTotal === 0 && (bill.returnAmount || 0) > 0;
 
                   return (
                     <div
@@ -470,27 +479,37 @@ export const RepBillsSummaryModal: React.FC<RepBillsSummaryModalProps> = ({
                       className="border-b border-slate-200/80 pb-1.5 last:border-b-0 space-y-0.5"
                     >
                       <div className="flex justify-between font-black">
-                        <span>
-                          {idx + 1}. #{slipNo} ({time})
+                        <span className="flex items-center gap-1">
+                          <span>{idx + 1}. #{slipNo} ({time})</span>
+                          {isReturnNote && (
+                            <span className="text-[9px] bg-amber-100 text-amber-900 px-1 py-0.2 rounded font-mono font-bold">
+                              RET
+                            </span>
+                          )}
                         </span>
-                        <span className="font-mono">{formatMoney(bill.netTotal)}</span>
+                        <span className={`font-mono ${isReturnNote ? 'text-amber-800' : ''}`}>
+                          {isReturnNote ? `-${formatMoney(bill.returnAmount || 0)}` : formatMoney(bill.netTotal)}
+                        </span>
                       </div>
                       <div className="flex justify-between text-slate-600 font-medium">
                         <span className="truncate max-w-[190px]">
                           {bill.customer?.companyName || bill.customer?.name}
                         </span>
                         <span
-                          className={`font-bold text-[10.5px] px-1 rounded ${isCash
+                          className={`font-bold text-[10.5px] px-1 rounded ${
+                            isReturnNote
+                              ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                              : isCash
                               ? 'bg-emerald-50 text-emerald-800'
                               : isCheque
-                                ? 'bg-orange-50 text-orange-800'
-                                : creditDue > 0
-                                  ? 'bg-rose-50 text-rose-800 font-bold'
-                                  : 'bg-slate-100 text-slate-700'
-                            }`}
+                              ? 'bg-orange-50 text-orange-800'
+                              : creditDue > 0
+                              ? 'bg-rose-50 text-rose-800 font-bold'
+                              : 'bg-slate-100 text-slate-700'
+                          }`}
                         >
-                          {bill.paymentMethod}
-                          {creditDue > 0 ? ` (Due: ${creditDue.toFixed(0)})` : ''}
+                          {isReturnNote ? 'RETURN CREDIT' : bill.paymentMethod}
+                          {!isReturnNote && creditDue > 0 ? ` (Due: ${creditDue.toFixed(0)})` : ''}
                         </span>
                       </div>
                     </div>

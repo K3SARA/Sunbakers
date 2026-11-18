@@ -410,13 +410,17 @@ export function build80mmEscPosBillsSummary(
   data.bills.forEach((bill, idx) => {
     const slip = bill.paperBillNumber ? `#${bill.paperBillNumber}` : bill.orderNumber;
     const time = new Date(bill.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const net = `Rs.${bill.netTotal.toFixed(2)}`;
-    addLine(padTwoColumns(`${idx + 1}. ${slip} (${time})`, net));
+    const isReturnNote = bill.netTotal === 0 && (bill.returnAmount || 0) > 0;
+    const net = isReturnNote ? `-Rs.${(bill.returnAmount || 0).toFixed(2)}` : `Rs.${bill.netTotal.toFixed(2)}`;
+    const retTag = isReturnNote ? ' [RET]' : '';
+    addLine(padTwoColumns(`${idx + 1}. ${slip}${retTag} (${time})`, net));
 
     const custName = (bill.customer?.companyName || bill.customer?.name || 'Customer').slice(0, 24);
     const creditDue = Math.max(0, bill.netTotal - (bill.cashReceived || 0));
     const statusStr =
-      bill.paymentMethod === 'CASH'
+      isReturnNote
+        ? '[RET] DEDUCTED'
+        : bill.paymentMethod === 'CASH'
         ? '[CASH] PAID'
         : bill.paymentMethod === 'CHEQUE'
         ? '[CHQ] RECORDED'

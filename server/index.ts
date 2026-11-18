@@ -2541,7 +2541,40 @@ app.get('/api/lorries/:id/current-loading', async (req: Request, res: Response) 
       }
     });
 
-    res.json(activeLoading || null);
+    if (activeLoading) {
+      const [customerReturns, routeCollections] = await Promise.all([
+        prisma.orderReturn.findMany({
+          where: {
+            order: {
+              lorryId,
+              createdAt: { gte: activeLoading.date },
+              status: { not: 'CANCELLED' }
+            }
+          },
+          include: {
+            product: true,
+            order: { include: { customer: true } }
+          },
+          orderBy: { createdAt: 'desc' }
+        }),
+        prisma.customerPayment.findMany({
+          where: {
+            lorryId,
+            createdAt: { gte: activeLoading.date }
+          },
+          include: { customer: true },
+          orderBy: { createdAt: 'desc' }
+        })
+      ]);
+
+      return res.json({
+        ...activeLoading,
+        customerReturns,
+        routeCollections
+      });
+    }
+
+    res.json(null);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -3367,6 +3400,25 @@ app.post('/api/customers/:id/payments', async (req: Request, res: Response) => {
           lorry: true
         }
       });
+
+      // If collected on a lorry in cash, update the active lorry loading sheet's cashCollected
+      if (lorryId && (paymentMethod === 'CASH' || !paymentMethod)) {
+        const activeLoading = await tx.lorryLoading.findFirst({
+          where: {
+            lorryId,
+            status: { in: ['LOADED', 'IN_TRANSIT'] }
+          },
+          orderBy: { date: 'desc' }
+        });
+        if (activeLoading) {
+          await tx.lorryLoading.update({
+            where: { id: activeLoading.id },
+            data: {
+              cashCollected: { increment: payAmount }
+            }
+          });
+        }
+      }
 
       // Bill-to-Bill Knock-off Allocation
       let remainingToAllocate = payAmount;
@@ -4510,7 +4562,11 @@ app.get('/api/reports/dashboard-stats', async (req: Request, res: Response) => {
     const lowStockProducts = (allProducts as any[]).filter((p: any) => p.currentStock <= p.minStockAlert);
     const validOrders = (periodOrders as any[]).filter((o: any) => o.status !== 'CANCELLED');
     const revenueToday = validOrders.reduce((acc: number, order: any) => acc + order.netTotal, 0);
-    const cashToday = validOrders.reduce((acc: number, order: any) => acc + (order.cashReceived || 0), 0);
+    const orderCashToday = validOrders.reduce((acc: number, order: any) => acc + (order.cashReceived || 0), 0);
+    const directCashCollections = (customerPaymentsPeriod || [])
+      .filter((p: any) => p.paymentMethod === 'CASH' || !p.paymentMethod)
+      .reduce((acc: number, p: any) => acc + p.amount, 0);
+    const cashToday = orderCashToday + directCashCollections;
     const chequesToday = validOrders.filter((o: any) => o.paymentMethod === 'CHEQUE').reduce((acc: number, order: any) => acc + order.netTotal, 0);
     const creditToday = validOrders.reduce((acc: number, order: any) => {
       if (order.paymentMethod === 'CHEQUE') return acc;
@@ -4557,8 +4613,14 @@ app.get('/api/reports/dashboard-stats', async (req: Request, res: Response) => {
 
     const repLiveStatus = (reps as any[]).map((r: any) => {
       const repOrdersToday = validOrders.filter((o: any) => o.lorryId === r.lorryId);
+      const repPaymentsToday = (customerPaymentsPeriod || []).filter((p: any) => p.lorryId === r.lorryId);
       const todaySales = repOrdersToday.reduce((acc: number, o: any) => acc + o.netTotal, 0);
-      const todayCash = repOrdersToday.reduce((acc: number, o: any) => acc + Math.min(o.netTotal, o.cashReceived || 0), 0);
+      const orderCash = repOrdersToday.reduce((acc: number, o: any) => acc + Math.min(o.netTotal, o.cashReceived || 0), 0);
+      const directCash = repPaymentsToday
+        .filter((p: any) => p.paymentMethod === 'CASH' || !p.paymentMethod)
+        .reduce((acc: number, p: any) => acc + p.amount, 0);
+      const todayCash = orderCash + directCash;
+      const todayCollections = repPaymentsToday.reduce((acc: number, p: any) => acc + p.amount, 0);
       const todayCheque = repOrdersToday.filter((o: any) => o.paymentMethod === 'CHEQUE').reduce((acc: number, o: any) => acc + o.netTotal, 0);
       const todayCredit = repOrdersToday.reduce((acc: number, o: any) => {
         if (o.paymentMethod === 'CHEQUE') return acc;
@@ -4584,6 +4646,7 @@ app.get('/api/reports/dashboard-stats', async (req: Request, res: Response) => {
         routeName: r.lorry?.route?.name || 'Assigned Route',
         todaySales,
         todayCash,
+        todayCollections,
         todayCredit,
         todayCheque,
         todayBillsCount,
@@ -4598,6 +4661,8 @@ app.get('/api/reports/dashboard-stats', async (req: Request, res: Response) => {
     res.json({
       revenueToday,
       cashToday,
+      orderCashToday,
+      directCashCollections,
       creditToday,
       chequesToday,
       expensesToday,

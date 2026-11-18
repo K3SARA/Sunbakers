@@ -65,6 +65,8 @@ export interface LorryLoading {
   settledAt?: string | null;
   items: LorryLoadingItem[];
   expenses?: Expense[];
+  customerReturns?: OrderReturn[];
+  routeCollections?: CustomerPayment[];
   createdAt: string;
 }
 
@@ -222,6 +224,7 @@ export interface OrderItem {
 export interface OrderReturn {
   id: string;
   orderId: string;
+  order?: Order;
   productId: string;
   product?: Product;
   quantity: number;
@@ -302,6 +305,8 @@ export interface DashboardStats {
   expensesToday: number;
   netProfitToday: number;
   creditCollectionsToday?: number;
+  orderCashToday?: number;
+  directCashCollections?: number;
   fleetStatus: FleetLorryStatus[];
   repLiveStatus?: RepLiveStatus[];
   recentOrders: Order[];
@@ -320,6 +325,7 @@ export interface RepLiveStatus {
   todayCash: number;
   todayCredit: number;
   todayCheque?: number;
+  todayCollections?: number;
   todayBillsCount: number;
   dailyTarget: number;
   dailyAchievementPercentage: number;

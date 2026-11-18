@@ -390,6 +390,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <div className="text-2xl sm:text-3xl font-bold tracking-tight text-emerald-600 font-mono mt-1">
               {formatMoney(stats.cashToday)}
             </div>
+            {stats.directCashCollections !== undefined && stats.directCashCollections > 0 && (
+              <p className="text-[11px] text-emerald-700 font-medium mt-1">
+                Incl. {formatMoney(stats.directCashCollections)} debt collected
+              </p>
+            )}
           </div>
 
           <div className="bg-white border border-slate-200/80 p-5 rounded-3xl shadow-2xs hover:shadow-sm transition">
@@ -428,6 +433,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <div className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 font-mono mt-1">
               {formatMoney(stats.totalOutstanding)}
             </div>
+            {stats.creditCollectionsToday !== undefined && stats.creditCollectionsToday > 0 && (
+              <p className="text-[11px] text-purple-700 font-medium mt-1">
+                {formatMoney(stats.creditCollectionsToday)} collected this period
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -469,50 +479,72 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     </td>
                   </tr>
                 ) : (
-                  stats.recentOrders.map((order) => (
-                    <tr key={order.id} className="hover:bg-slate-50/60 transition-colors">
-                      <td className="px-7 py-4 font-mono font-bold text-slate-900">
-                        {order.orderNumber}
-                      </td>
-                      <td className="px-6 py-4 font-mono font-semibold text-blue-600">
-                        {order.paperBillNumber || '—'}
-                      </td>
-                      <td className="px-6 py-4 text-xs">
-                        {order.lorry ? (
-                          <div>
-                            <span className="font-bold text-slate-800 block">{order.lorry.vehicleNumber}</span>
-                            <span className="text-slate-400">{order.lorry.driverName}</span>
+                  stats.recentOrders.map((order) => {
+                    const isReturnNote = order.netTotal === 0 && (order.returnAmount || 0) > 0;
+                    return (
+                      <tr key={order.id} className="hover:bg-slate-50/60 transition-colors">
+                        <td className="px-7 py-4 font-mono font-bold text-slate-900">
+                          <div className="flex items-center gap-1.5">
+                            <span>{order.orderNumber}</span>
+                            {isReturnNote && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.2 bg-amber-100 text-amber-800 rounded">
+                                Return Note
+                              </span>
+                            )}
                           </div>
-                        ) : (
-                          <span className="text-slate-400">Warehouse Counter</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <p className="font-semibold text-slate-900">{order.customer.name}</p>
-                        <p className="text-xs text-slate-400">{order.customer.city}</p>
-                      </td>
-                      <td className="px-6 py-4 font-bold text-slate-900 font-mono">
-                        {formatMoney(order.netTotal)}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-semibold ${order.paymentStatus === 'PAID'
-                            ? 'bg-emerald-50 text-emerald-700'
-                            : 'bg-amber-50 text-amber-700'
+                        </td>
+                        <td className="px-6 py-4 font-mono font-semibold text-blue-600">
+                          {order.paperBillNumber || '—'}
+                        </td>
+                        <td className="px-6 py-4 text-xs">
+                          {order.lorry ? (
+                            <div>
+                              <span className="font-bold text-slate-800 block">{order.lorry.vehicleNumber}</span>
+                              <span className="text-slate-400">{order.lorry.driverName}</span>
+                            </div>
+                          ) : (
+                            <span className="text-slate-400">Warehouse Counter</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          <p className="font-semibold text-slate-900">{order.customer.name}</p>
+                          <p className="text-xs text-slate-400">{order.customer.city}</p>
+                        </td>
+                        <td className="px-6 py-4 font-mono">
+                          {isReturnNote ? (
+                            <span className="font-bold text-amber-700 bg-amber-50 border border-amber-200/60 px-2 py-0.5 rounded-lg text-xs">
+                              -{formatMoney(order.returnAmount || 0)}
+                            </span>
+                          ) : (
+                            <span className="font-bold text-slate-900">
+                              {formatMoney(order.netTotal)}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-semibold ${
+                            isReturnNote
+                              ? 'bg-amber-50 text-amber-800 border border-amber-200/60'
+                              : order.paymentStatus === 'PAID'
+                              ? 'bg-emerald-50 text-emerald-700'
+                              : 'bg-amber-50 text-amber-700'
                           }`}>
-                          {order.paymentMethod} • {order.paymentStatus}
-                        </span>
-                      </td>
-                      <td className="px-7 py-4 text-right">
-                        <button
-                          onClick={() => onViewInvoice(order)}
-                          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition inline-flex items-center gap-1"
-                          title="View & Print Bill Receipt"
-                        >
-                          <Printer className="w-3.5 h-3.5" /> View Bill
-                        </button>
-                      </td>
-                    </tr>
-                  ))
+                            {isReturnNote ? 'CREDIT ADJUSTED' : `${order.paymentMethod} • ${order.paymentStatus}`}
+                          </span>
+                        </td>
+                        <td className="px-7 py-4 text-right">
+                          <button
+                            onClick={() => onViewInvoice(order)}
+                            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition inline-flex items-center gap-1 cursor-pointer"
+                            title={isReturnNote ? 'View & Print Return Slip' : 'View & Print Bill Receipt'}
+                          >
+                            <Printer className="w-3.5 h-3.5" />
+                            <span>{isReturnNote ? 'Return Slip' : 'View Bill'}</span>
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>

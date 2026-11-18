@@ -462,7 +462,10 @@ export const RepBilling: React.FC<RepBillingProps> = ({
         .catch(() => {});
     }
 
-    // 3. Immediately open 80mm printable Return Collection Slip
+    // 3. Refresh finished bills list
+    loadFinishedBills(selectedLorryId || undefined);
+
+    // 4. Immediately open 80mm printable Return Collection Slip
     setCheckoutSuccessOrder(order);
   };
 
