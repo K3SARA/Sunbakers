@@ -17,13 +17,12 @@ interface LoginProps {
 }
 
 export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('admin123');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
+  const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [showQuickFill, setShowQuickFill] = useState(false);
   const [showServerConfig, setShowServerConfig] = useState(false);
   const [serverUrlInput, setServerUrlInput] = useState(() => localStorage.getItem('distributor_custom_api_url') || '');
   const [serverSavedNotice, setServerSavedNotice] = useState(false);
@@ -110,6 +109,8 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
               type="text"
               autoCapitalize="none"
               autoCorrect="off"
+              autoComplete="off"
+              spellCheck={false}
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="Username"
@@ -125,6 +126,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             </div>
             <input
               type={showPassword ? 'text' : 'password'}
+              autoComplete="off"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Password"
@@ -141,7 +143,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             </button>
           </div>
 
-          {/* Remember Me & Help */}
+          {/* Remember Me */}
           <div className="flex items-center justify-between text-[11px] sm:text-xs text-slate-400 pt-0.5">
             <label className="flex items-center gap-1.5 cursor-pointer hover:text-slate-600 select-none">
               <input
@@ -152,13 +154,6 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
               />
               <span>Remember Me</span>
             </label>
-            <button
-              type="button"
-              onClick={() => setShowQuickFill(!showQuickFill)}
-              className="hover:text-slate-700 transition cursor-pointer italic"
-            >
-              Quick Demo Fill
-            </button>
           </div>
 
           {/* Log in Button */}
@@ -236,31 +231,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             </div>
           )}
 
-          {/* Quick Demo Credentials Drawer */}
-          {showQuickFill && (
-            <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap gap-1.5 justify-center">
-              <button
-                type="button"
-                onClick={() => {
-                  setUsername('admin');
-                  setPassword('admin123');
-                }}
-                className="px-2.5 py-1 text-[11px] rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition cursor-pointer"
-              >
-                Admin (admin / admin123)
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setUsername('navin');
-                  setPassword('navin123');
-                }}
-                className="px-2.5 py-1 text-[11px] rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition cursor-pointer"
-              >
-                Rep (navin / navin123)
-              </button>
-            </div>
-          )}
+          {/* Quick Demo Credentials Drawer removed for security */}
         </form>
       </div>
 
