@@ -88,6 +88,10 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
     newQty: number;
   } | null>(null);
 
+  // Bill-wide Discount State
+  const [billDiscountType, setBillDiscountType] = useState<'PERCENT' | 'AMOUNT'>('PERCENT');
+  const [billDiscountValue, setBillDiscountValue] = useState<string>('');
+
   // Draft persistence in localStorage
   const DRAFT_KEY = 'distributor_bill_entry_draft';
   const [hasDraft, setHasDraft] = useState<boolean>(() => {
@@ -234,9 +238,17 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
   const availableLorryProducts = selectedLorry?.lorryStocks?.filter((s: any) => (s.quantity > 0) || (s.freeQuantity && s.freeQuantity > 0)) || [];
   const selectedCustomer = selectedCustomerId !== 'walk-in' ? customers.find(c => c.id === selectedCustomerId) : null;
 
-  // Load unpaid bills when selected customer changes
+  // Load unpaid bills and apply default customer discount when selected customer changes
   useEffect(() => {
     if (selectedCustomerId && selectedCustomerId !== 'walk-in') {
+      const cust = customers.find(c => c.id === selectedCustomerId);
+      if (cust && cust.discountPercentage > 0) {
+        setBillDiscountType('PERCENT');
+        setBillDiscountValue(cust.discountPercentage.toString());
+      } else {
+        setBillDiscountValue('');
+      }
+
       setLoadingUnpaidBills(true);
       CustomerService.getUnpaidBills(selectedCustomerId)
         .then((bills: any[]) => {
@@ -264,6 +276,7 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
       setCustomerUnpaidBills([]);
       setSettlePreviousBill(false);
       setSettleAmount('');
+      setBillDiscountValue('');
     }
   }, [selectedCustomerId]);
 
@@ -478,8 +491,15 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
   const subtotal = calculateSubtotal();
   const totalItemDiscounts = Math.max(0, grossSubtotal - subtotal);
   const returnAmount = calculateReturnAmount();
-  const discountPercent = selectedCustomer?.discountPercentage || 0;
-  const discountAmount = (subtotal * discountPercent) / 100;
+
+  const parsedBillDiscount = Math.max(0, parseFloat(billDiscountValue) || 0);
+  const discountAmount = billDiscountType === 'PERCENT'
+    ? (subtotal * Math.min(100, parsedBillDiscount)) / 100
+    : Math.min(subtotal, parsedBillDiscount);
+  const effectiveDiscountPercent = subtotal > 0
+    ? parseFloat(((discountAmount / subtotal) * 100).toFixed(2))
+    : 0;
+
   const netTotal = Math.max(0, subtotal - discountAmount - returnAmount);
   const totalBilledUnits = billItems.reduce((acc, item) => acc + (item.quantity || 0), 0);
   const totalFreeUnits = billItems.reduce((acc, item) => acc + (item.freeQuantity || 0), 0);
@@ -579,6 +599,8 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
           })),
           returnItems: formattedReturnsPayload.length > 0 ? formattedReturnsPayload : undefined,
           paymentMethod,
+          discountAmount: discountAmount > 0 ? discountAmount : undefined,
+          discountPercentage: effectiveDiscountPercent > 0 ? effectiveDiscountPercent : undefined,
           cashReceived: parsedCash,
           chequeNumber: paymentMethod === 'CHEQUE' ? chequeNumber.trim() : undefined,
           bankName: paymentMethod === 'CHEQUE' ? (bankName.trim() || undefined) : undefined,
@@ -607,6 +629,8 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
           })),
           returnItems: formattedReturnsPayload.length > 0 ? formattedReturnsPayload : undefined,
           paymentMethod,
+          discountAmount: discountAmount > 0 ? discountAmount : undefined,
+          discountPercentage: effectiveDiscountPercent > 0 ? effectiveDiscountPercent : undefined,
           cashReceived: parsedCash,
           chequeNumber: paymentMethod === 'CHEQUE' ? chequeNumber.trim() : undefined,
           bankName: paymentMethod === 'CHEQUE' ? (bankName.trim() || undefined) : undefined,
@@ -1429,16 +1453,52 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                     {formatMoney(subtotal)}
                   </span>
                 </div>
-                {discountAmount > 0 && (
-                  <div>
-                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
-                      Customer Discount ({discountPercent}%)
+                {/* Total Bill Discount */}
+                <div className="bg-slate-50 border border-slate-200/90 rounded-2xl px-3 py-1.5 flex flex-col justify-center">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                      <Tag className="w-3 h-3 text-emerald-600" />
+                      <span>Bill Discount</span>
                     </span>
-                    <span className="text-sm font-mono font-semibold text-emerald-600">
-                      -{formatMoney(discountAmount)}
-                    </span>
+                    <div className="inline-flex bg-white border border-slate-200 rounded-md p-0.5 text-[10px] font-bold font-mono">
+                      <button
+                        type="button"
+                        onClick={() => setBillDiscountType('PERCENT')}
+                        className={`px-1.5 py-0.2 rounded transition ${
+                          billDiscountType === 'PERCENT' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                      >
+                        %
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBillDiscountType('AMOUNT')}
+                        className={`px-1.5 py-0.2 rounded transition ${
+                          billDiscountType === 'AMOUNT' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                      >
+                        Rs
+                      </button>
+                    </div>
                   </div>
-                )}
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="number"
+                      min="0"
+                      max={billDiscountType === 'PERCENT' ? 100 : subtotal}
+                      step={billDiscountType === 'PERCENT' ? '0.5' : '1'}
+                      value={billDiscountValue}
+                      onChange={(e) => setBillDiscountValue(e.target.value)}
+                      placeholder="0"
+                      className="w-16 bg-white border border-slate-200 rounded-lg px-2 py-0.5 text-xs font-bold text-slate-800 text-center font-mono focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                    {discountAmount > 0 && (
+                      <span className="text-xs font-mono font-bold text-emerald-600 shrink-0">
+                        -{formatMoney(discountAmount)}
+                      </span>
+                    )}
+                  </div>
+                </div>
                 {returnAmount > 0 && (
                   <div>
                     <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">

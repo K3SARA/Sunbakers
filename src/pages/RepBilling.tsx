@@ -129,7 +129,9 @@ export const RepBilling: React.FC<RepBillingProps> = ({
   const [chequeNumber, setChequeNumber] = useState<string>('');
   const [bankName, setBankName] = useState<string>('');
   const [chequeDate, setChequeDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
-  const [globalDiscountPercent] = useState<number>(0);
+  // Total Bill Discount
+  const [billDiscountType, setBillDiscountType] = useState<'PERCENT' | 'AMOUNT'>('PERCENT');
+  const [billDiscountValue, setBillDiscountValue] = useState<string>('');
   // Item-level Discount Editing State
   const [editingDiscountProductId, setEditingDiscountProductId] = useState<string | null>(null);
   const [discountInputMode, setDiscountInputMode] = useState<'PERCENT' | 'AMOUNT'>('PERCENT');
@@ -533,9 +535,17 @@ export const RepBilling: React.FC<RepBillingProps> = ({
     return customers.find(c => c.id === selectedCustomerId) || null;
   }, [customers, selectedCustomerId]);
 
-  // When customer changes, fetch unpaid bills
+  // When customer changes, fetch unpaid bills and apply default customer discount
   useEffect(() => {
     if (selectedCustomerId) {
+      const cust = customers.find(c => c.id === selectedCustomerId);
+      if (cust && cust.discountPercentage && cust.discountPercentage > 0) {
+        setBillDiscountType('PERCENT');
+        setBillDiscountValue(cust.discountPercentage.toString());
+      } else {
+        setBillDiscountValue('');
+      }
+
       CustomerService.getUnpaidBills(selectedCustomerId)
         .then(bills => {
           setCustomerUnpaidBills(bills);
@@ -558,7 +568,6 @@ export const RepBilling: React.FC<RepBillingProps> = ({
           setCollectPrevBill(false);
         });
 
-      const cust = customers.find(c => c.id === selectedCustomerId);
       if (cust && cust.creditLimit && cust.creditLimit > 0) {
         // Ready
       }
@@ -911,10 +920,22 @@ export const RepBilling: React.FC<RepBillingProps> = ({
     return returnItems.reduce((sum, item) => sum + item.quantity, 0);
   }, [returnItems]);
 
+  const parsedBillDiscount = Math.max(0, parseFloat(billDiscountValue) || 0);
+  const billDiscountAmount = useMemo(() => {
+    if (billDiscountType === 'PERCENT') {
+      return (cartSubtotal * Math.min(100, parsedBillDiscount)) / 100;
+    }
+    return Math.min(cartSubtotal, parsedBillDiscount);
+  }, [cartSubtotal, billDiscountType, parsedBillDiscount]);
+
+  const effectiveBillDiscountPercent = useMemo(() => {
+    if (cartSubtotal <= 0) return 0;
+    return parseFloat(((billDiscountAmount / cartSubtotal) * 100).toFixed(2));
+  }, [cartSubtotal, billDiscountAmount]);
+
   const finalTotal = useMemo(() => {
-    const billDiscount = (cartSubtotal * (globalDiscountPercent || 0)) / 100;
-    return Math.max(0, cartSubtotal - billDiscount - totalReturnAmount);
-  }, [cartSubtotal, globalDiscountPercent, totalReturnAmount]);
+    return Math.max(0, cartSubtotal - billDiscountAmount - totalReturnAmount);
+  }, [cartSubtotal, billDiscountAmount, totalReturnAmount]);
 
   // Date-filtered bills (filtered by selected date range)
   const dateFilteredBills = useMemo(() => {
@@ -1039,8 +1060,8 @@ export const RepBilling: React.FC<RepBillingProps> = ({
         paymentMethod,
         items: itemsPayload,
         returnItems: returnPayload,
-        discountAmount: (cartSubtotal * (globalDiscountPercent || 0)) / 100,
-        discountPercentage: globalDiscountPercent,
+        discountAmount: billDiscountAmount,
+        discountPercentage: effectiveBillDiscountPercent,
         notes: notes.trim() || undefined,
         settlePreviousBills: previousBillsPayload
       };
@@ -1084,6 +1105,7 @@ export const RepBilling: React.FC<RepBillingProps> = ({
     setCheckoutSuccessOrder(null);
     setEditingDiscountProductId(null);
     setDiscountInputValue('');
+    setBillDiscountValue('');
     setIsReturnsExpanded(false);
     setCurrentStep(1);
     setCustomerSearch('');
@@ -2205,6 +2227,50 @@ export const RepBilling: React.FC<RepBillingProps> = ({
                   <span className="font-mono font-bold text-rose-400">-{formatMoney(totalReturnAmount)}</span>
                 </div>
               )}
+              {/* Total Bill Discount */}
+              <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5 text-slate-300">
+                  <Tag className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="font-medium">Bill Discount:</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="inline-flex bg-slate-800 rounded-lg p-0.5 text-[10px] font-bold font-mono">
+                    <button
+                      type="button"
+                      onClick={() => setBillDiscountType('PERCENT')}
+                      className={`px-1.5 py-0.5 rounded transition ${
+                        billDiscountType === 'PERCENT' ? 'bg-emerald-500 text-slate-950 shadow-2xs' : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      %
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBillDiscountType('AMOUNT')}
+                      className={`px-1.5 py-0.5 rounded transition ${
+                        billDiscountType === 'AMOUNT' ? 'bg-emerald-500 text-slate-950 shadow-2xs' : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Rs
+                    </button>
+                  </div>
+                  <input
+                    type="number"
+                    min="0"
+                    max={billDiscountType === 'PERCENT' ? 100 : cartSubtotal}
+                    step={billDiscountType === 'PERCENT' ? '0.5' : '1'}
+                    value={billDiscountValue}
+                    onChange={(e) => setBillDiscountValue(e.target.value)}
+                    placeholder="0"
+                    className="w-16 bg-slate-800 border border-slate-700 rounded-lg px-2 py-0.5 text-xs font-bold text-white text-center font-mono focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                  />
+                  {billDiscountAmount > 0 && (
+                    <span className="font-mono text-emerald-400 font-bold text-xs shrink-0">
+                      -{formatMoney(billDiscountAmount)}
+                    </span>
+                  )}
+                </div>
+              </div>
               <div className="border-t border-slate-700/80 pt-2 flex items-center justify-between">
                 <div>
                   <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
@@ -2698,10 +2764,10 @@ export const RepBilling: React.FC<RepBillingProps> = ({
                   <span>Net Delivery Subtotal:</span>
                   <span className="font-mono font-bold text-slate-900">{formatMoney(cartSubtotal)}</span>
                 </div>
-                {(globalDiscountPercent || 0) > 0 && (
+                {billDiscountAmount > 0 && (
                   <div className="flex justify-between text-emerald-600 font-bold">
-                    <span>Customer Discount ({globalDiscountPercent}%):</span>
-                    <span className="font-mono">- {formatMoney((cartSubtotal * (globalDiscountPercent || 0)) / 100)}</span>
+                    <span>Bill Discount {billDiscountType === 'PERCENT' ? `(${billDiscountValue}%)` : `(Flat Rs. ${billDiscountValue})`}:</span>
+                    <span className="font-mono">- {formatMoney(billDiscountAmount)}</span>
                   </div>
                 )}
                 {totalReturnAmount > 0 && (

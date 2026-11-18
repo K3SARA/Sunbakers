@@ -23,6 +23,7 @@ interface OrderEntryProps {
 interface CartItem {
   product: Product;
   quantity: number;
+  discountPercent?: number;
 }
 
 export const OrderEntry: React.FC<OrderEntryProps> = ({ onBack, onOrderCompleted }) => {
@@ -37,6 +38,10 @@ export const OrderEntry: React.FC<OrderEntryProps> = ({ onBack, onOrderCompleted
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Total Bill Discount
+  const [orderDiscountType, setOrderDiscountType] = useState<'PERCENT' | 'AMOUNT'>('PERCENT');
+  const [orderDiscountValue, setOrderDiscountValue] = useState<string>('');
 
   useEffect(() => {
     const loadInitialData = async () => {
@@ -58,6 +63,15 @@ export const OrderEntry: React.FC<OrderEntryProps> = ({ onBack, onOrderCompleted
   }, []);
 
   const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
+
+  useEffect(() => {
+    if (selectedCustomer && selectedCustomer.discountPercentage > 0) {
+      setOrderDiscountType('PERCENT');
+      setOrderDiscountValue(selectedCustomer.discountPercentage.toString());
+    } else {
+      setOrderDiscountValue('');
+    }
+  }, [selectedCustomerId]);
 
   const categories = ['ALL', ...Array.from(new Set(products.map(p => p.category)))];
 
@@ -112,10 +126,35 @@ export const OrderEntry: React.FC<OrderEntryProps> = ({ onBack, onOrderCompleted
     );
   };
 
-  const subtotal = cart.reduce((sum, item) => sum + item.product.unitPrice * item.quantity, 0);
-  const discountRate = selectedCustomer?.discountPercentage || 0;
-  const discountAmount = (subtotal * discountRate) / 100;
-  const netTotal = subtotal - discountAmount;
+  const updateItemDiscount = (productId: string, pct: number) => {
+    setCart(prev =>
+      prev.map(item => {
+        if (item.product.id === productId) {
+          const clamped = Math.min(100, Math.max(0, pct || 0));
+          return { ...item, discountPercent: clamped };
+        }
+        return item;
+      })
+    );
+  };
+
+  const grossSubtotal = cart.reduce((sum, item) => sum + item.product.unitPrice * item.quantity, 0);
+  const totalItemDiscounts = cart.reduce((sum, item) => {
+    const pct = item.discountPercent || 0;
+    const discPerUnit = (item.product.unitPrice * pct) / 100;
+    return sum + (discPerUnit * item.quantity);
+  }, 0);
+  const subtotal = Math.max(0, grossSubtotal - totalItemDiscounts);
+
+  const parsedOrderDiscount = Math.max(0, parseFloat(orderDiscountValue) || 0);
+  const discountAmount = orderDiscountType === 'PERCENT'
+    ? (subtotal * Math.min(100, parsedOrderDiscount)) / 100
+    : Math.min(subtotal, parsedOrderDiscount);
+  const effectiveDiscountPercent = subtotal > 0
+    ? parseFloat(((discountAmount / subtotal) * 100).toFixed(2))
+    : 0;
+
+  const netTotal = Math.max(0, subtotal - discountAmount);
 
   const handleCompleteOrder = async () => {
     if (!selectedCustomerId) {
@@ -135,7 +174,17 @@ export const OrderEntry: React.FC<OrderEntryProps> = ({ onBack, onOrderCompleted
         customerId: selectedCustomerId,
         paymentStatus,
         notes,
-        items: cart.map(i => ({ productId: i.product.id, quantity: i.quantity }))
+        discountAmount: discountAmount > 0 ? discountAmount : undefined,
+        discountPercentage: effectiveDiscountPercent > 0 ? effectiveDiscountPercent : undefined,
+        items: cart.map(i => {
+          const pct = i.discountPercent || 0;
+          const discountedUnitPrice = pct > 0 ? Math.max(0, i.product.unitPrice * (1 - pct / 100)) : undefined;
+          return {
+            productId: i.product.id,
+            quantity: i.quantity,
+            unitPrice: discountedUnitPrice
+          };
+        })
       });
       onOrderCompleted(created);
     } catch (err: any) {
@@ -343,7 +392,25 @@ export const OrderEntry: React.FC<OrderEntryProps> = ({ onBack, onOrderCompleted
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-3 shrink-0">
+                    <div className="flex items-center gap-2.5 shrink-0">
+                      {/* Item Discount % */}
+                      <div className="flex items-center" title="Item Discount %">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.5"
+                          placeholder="0%"
+                          value={item.discountPercent || ''}
+                          onChange={(e) => updateItemDiscount(item.product.id, parseFloat(e.target.value) || 0)}
+                          className={`w-14 text-center text-xs font-bold font-mono py-1 px-1.5 rounded-lg border focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                            item.discountPercent && item.discountPercent > 0
+                              ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                              : 'bg-slate-50 border-slate-200 text-slate-600'
+                          }`}
+                        />
+                      </div>
+
                       {/* Quantity Stepper */}
                       <div className="flex items-center border border-slate-200 bg-white rounded-xl overflow-hidden shadow-xs">
                         <button
@@ -364,7 +431,7 @@ export const OrderEntry: React.FC<OrderEntryProps> = ({ onBack, onOrderCompleted
                       </div>
 
                       <div className="w-20 text-right font-bold text-sm text-slate-900">
-                        {formatCurrency(item.product.unitPrice * item.quantity)}
+                        {formatCurrency((item.discountPercent && item.discountPercent > 0 ? item.product.unitPrice * (1 - item.discountPercent / 100) : item.product.unitPrice) * item.quantity)}
                       </div>
 
                       <button
@@ -416,15 +483,56 @@ export const OrderEntry: React.FC<OrderEntryProps> = ({ onBack, onOrderCompleted
             {/* Price Breakdown */}
             <div className="bg-slate-50 p-4 rounded-2xl space-y-2 text-sm">
               <div className="flex justify-between text-slate-500 font-medium">
-                <span>Subtotal ({cart.reduce((a, b) => a + b.quantity, 0)} units)</span>
-                <span className="font-semibold text-slate-800">{formatCurrency(subtotal)}</span>
+                <span>Gross Subtotal ({cart.reduce((a, b) => a + b.quantity, 0)} units)</span>
+                <span className="font-semibold text-slate-800">{formatCurrency(grossSubtotal)}</span>
               </div>
-              {discountAmount > 0 && (
-                <div className="flex justify-between text-emerald-600 font-semibold">
-                  <span>Client Tier Discount ({discountRate}%)</span>
-                  <span>-{formatCurrency(discountAmount)}</span>
+              {totalItemDiscounts > 0 && (
+                <div className="flex justify-between text-emerald-600 font-medium text-xs">
+                  <span>Item Discounts Savings</span>
+                  <span>-{formatCurrency(totalItemDiscounts)}</span>
                 </div>
               )}
+              {/* Total Order Discount */}
+              <div className="flex items-center justify-between pt-1 border-t border-slate-200/70 text-xs">
+                <span className="font-semibold text-slate-600">Order Discount</span>
+                <div className="flex items-center gap-1.5">
+                  <div className="inline-flex bg-white border border-slate-200 rounded-md p-0.5 text-[10px] font-bold font-mono">
+                    <button
+                      type="button"
+                      onClick={() => setOrderDiscountType('PERCENT')}
+                      className={`px-1.5 py-0.2 rounded transition ${
+                        orderDiscountType === 'PERCENT' ? 'bg-[#0071E3] text-white' : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      %
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setOrderDiscountType('AMOUNT')}
+                      className={`px-1.5 py-0.2 rounded transition ${
+                        orderDiscountType === 'AMOUNT' ? 'bg-[#0071E3] text-white' : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      Rs
+                    </button>
+                  </div>
+                  <input
+                    type="number"
+                    min="0"
+                    max={orderDiscountType === 'PERCENT' ? 100 : subtotal}
+                    step={orderDiscountType === 'PERCENT' ? '0.5' : '1'}
+                    value={orderDiscountValue}
+                    onChange={(e) => setOrderDiscountValue(e.target.value)}
+                    placeholder="0"
+                    className="w-16 bg-white border border-slate-200 rounded-lg px-2 py-0.5 text-xs font-bold text-slate-800 text-center font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                  {discountAmount > 0 && (
+                    <span className="text-xs font-mono font-bold text-emerald-600">
+                      -{formatCurrency(discountAmount)}
+                    </span>
+                  )}
+                </div>
+              </div>
               <div className="flex justify-between text-lg font-bold text-slate-900 border-t border-slate-200/80 pt-2">
                 <span>Net Total Due</span>
                 <span>{formatCurrency(netTotal)}</span>
