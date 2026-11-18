@@ -12,6 +12,7 @@
     "electron/dist/**/*",
     "node_modules/.prisma/**/*",
     "node_modules/@prisma/**/*",
+    "!**/node_modules/@capacitor/**",
     "prisma/schema.prisma",
     "package.json"
   ],

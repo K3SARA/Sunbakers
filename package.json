@@ -29,9 +29,6 @@
     "use:sqlite": "node -e \"require('fs').writeFileSync('prisma/schema.prisma', require('fs').readFileSync('prisma/schema.prisma', 'utf8').replace(/provider = \\\"postgresql\\\"/, 'provider = \\\"sqlite\\\"'))\" && prisma generate"
   },
   "dependencies": {
-    "@capacitor/android": "^6.2.3",
-    "@capacitor/cli": "^6.2.3",
-    "@capacitor/core": "^6.2.3",
     "@prisma/client": "^5.22.0",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
@@ -56,6 +53,9 @@
     "vite": "^5.4.11"
   },
   "devDependencies": {
+    "@capacitor/android": "^6.2.3",
+    "@capacitor/cli": "^6.2.3",
+    "@capacitor/core": "^6.2.3",
     "concurrently": "^9.1.0",
     "cross-env": "^7.0.3",
     "electron": "^33.2.1",

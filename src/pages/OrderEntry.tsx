@@ -8,7 +8,8 @@ import {
   Plus, 
   Minus,
   Receipt,
-  UserCheck
+  UserCheck,
+  AlertTriangle
 } from 'lucide-react';
 import { CustomerService, ProductService, OrderService } from '../services/api';
 import { Product, Customer, Order } from '../types';
@@ -60,7 +61,12 @@ export const OrderEntry: React.FC<OrderEntryProps> = ({ onBack, onOrderCompleted
 
   const categories = ['ALL', ...Array.from(new Set(products.map(p => p.category)))];
 
-  const addToCart = (product: Product) => {
+  const [duplicateConfirmProduct, setDuplicateConfirmProduct] = useState<{
+    product: Product;
+    currentQty: number;
+  } | null>(null);
+
+  const executeAddToCart = (product: Product) => {
     if (product.currentStock <= 0) return;
 
     setCart(prev => {
@@ -73,6 +79,21 @@ export const OrderEntry: React.FC<OrderEntryProps> = ({ onBack, onOrderCompleted
       }
       return [...prev, { product, quantity: 1 }];
     });
+  };
+
+  const addToCart = (product: Product, force: boolean = false) => {
+    if (product.currentStock <= 0) return;
+
+    const existing = cart.find(item => item.product.id === product.id);
+    if (existing && !force) {
+      setDuplicateConfirmProduct({
+        product,
+        currentQty: existing.quantity
+      });
+      return;
+    }
+
+    executeAddToCart(product);
   };
 
   const updateQuantity = (productId: string, qty: number) => {
@@ -426,6 +447,66 @@ export const OrderEntry: React.FC<OrderEntryProps> = ({ onBack, onOrderCompleted
           </div>
         </div>
       </div>
+
+      {/* Duplicate Cart Item Confirmation Popup */}
+      {duplicateConfirmProduct && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl border border-slate-100 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-200/60">
+                <AlertTriangle className="w-5 h-5 stroke-[2.5]" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Item Already in Cart</h3>
+                <p className="text-[11px] text-slate-500">Duplicate cart item confirmation</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5 space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <h4 className="text-xs font-bold text-slate-900">{duplicateConfirmProduct.product.name}</h4>
+                  <p className="text-[10px] text-slate-500 font-mono">SKU: {duplicateConfirmProduct.product.sku}</p>
+                </div>
+                <span className="text-xs font-bold text-blue-600 font-mono">
+                  {formatCurrency(duplicateConfirmProduct.product.unitPrice)}
+                </span>
+              </div>
+
+              <div className="pt-2 border-t border-slate-200/70 flex items-center justify-between text-xs">
+                <span className="text-slate-500">Already in Cart:</span>
+                <span className="font-bold text-amber-700 bg-amber-100/70 px-2 py-0.5 rounded-md font-mono">
+                  {duplicateConfirmProduct.currentQty} units
+                </span>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              <span className="font-bold text-slate-800">"{duplicateConfirmProduct.product.name}"</span> is already in your cart. Would you like to add 1 more unit to the existing item (total will be {duplicateConfirmProduct.currentQty + 1} units)?
+            </p>
+
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setDuplicateConfirmProduct(null)}
+                className="py-2.5 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  executeAddToCart(duplicateConfirmProduct.product);
+                  setDuplicateConfirmProduct(null);
+                }}
+                className="py-2.5 px-3 rounded-xl bg-[#0071E3] hover:bg-blue-600 text-xs font-bold text-white shadow-xs transition flex items-center justify-center gap-1 cursor-pointer"
+              >
+                <span>Add 1 More</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

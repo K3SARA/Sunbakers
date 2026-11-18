@@ -111,6 +111,13 @@ export const RepBilling: React.FC<RepBillingProps> = ({
   const [returnReason, setReturnReason] = useState<string>('Stale / Expired');
   const [isReturnsExpanded, setIsReturnsExpanded] = useState<boolean>(false);
 
+  // Duplicate Item Confirmation State
+  const [duplicateConfirmItem, setDuplicateConfirmItem] = useState<{
+    product: Product;
+    existingCartItem: CartItem;
+    qtyToAdd: number;
+  } | null>(null);
+
   // Step 3: Brand
   const [selectedBrand, setSelectedBrand] = useState<string>('');
 
@@ -638,7 +645,7 @@ export const RepBilling: React.FC<RepBillingProps> = ({
   }, [products, selectedBrand, itemSearch]);
 
   // Cart Management
-  const addToCart = (product: Product, qty: number = 1) => {
+  const executeAddToCart = (product: Product, qty: number = 1) => {
     const stockInfo = lorryStockMap.get(product.id);
     const lorryStock = stockInfo ? stockInfo.stock : product.currentStock;
     const buyRatio = product.freeRatioBuy || 0;
@@ -672,6 +679,19 @@ export const RepBilling: React.FC<RepBillingProps> = ({
         }
       ];
     });
+  };
+
+  const addToCart = (product: Product, qty: number = 1, force: boolean = false) => {
+    const existing = cart.find(i => i.productId === product.id);
+    if (existing && !force) {
+      setDuplicateConfirmItem({
+        product,
+        existingCartItem: existing,
+        qtyToAdd: qty
+      });
+      return;
+    }
+    executeAddToCart(product, qty);
   };
 
   const updateCartQty = (productId: string, delta: number) => {
@@ -2317,11 +2337,29 @@ export const RepBilling: React.FC<RepBillingProps> = ({
                 return (
                   <div
                     key={product.id}
-                    className="p-3 bg-white border border-slate-200 rounded-xl flex items-center justify-between gap-2 shadow-2xs"
+                    onClick={() => {
+                      if (inCart) {
+                        setDuplicateConfirmItem({
+                          product,
+                          existingCartItem: inCart,
+                          qtyToAdd: 1
+                        });
+                      } else {
+                        addToCart(product, 1);
+                      }
+                    }}
+                    className={`p-3 bg-white border rounded-xl flex items-center justify-between gap-2 shadow-2xs cursor-pointer transition ${
+                      inCart ? 'border-blue-300 bg-blue-50/20 hover:border-blue-400' : 'border-slate-200 hover:border-slate-300'
+                    }`}
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <h4 className="text-xs font-bold text-slate-900 truncate">{product.name}</h4>
+                        {inCart && (
+                          <span className="text-[10px] font-bold text-blue-700 bg-blue-100/70 border border-blue-200 px-1.5 py-0.2 rounded font-mono">
+                            In Cart: {inCart.quantity}
+                          </span>
+                        )}
                         {inCart && (inCart.discountPercent || 0) > 0 && (
                           <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1 py-0.2 rounded font-mono">
                             -{inCart.discountPercent}% Disc
@@ -2340,12 +2378,15 @@ export const RepBilling: React.FC<RepBillingProps> = ({
                       </p>
                     </div>
 
-                    <div className="shrink-0">
+                    <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
                       {inCart ? (
                         <div className="flex items-center bg-blue-50 border border-blue-200 rounded-lg p-0.5">
                           <button
                             type="button"
-                            onClick={() => updateCartQty(product.id, -1)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              updateCartQty(product.id, -1);
+                            }}
                             className="w-7 h-7 bg-white rounded flex items-center justify-center font-bold text-blue-700 text-xs shadow-2xs hover:bg-blue-100 active:scale-95 transition"
                             title="Decrease quantity"
                           >
@@ -2356,6 +2397,7 @@ export const RepBilling: React.FC<RepBillingProps> = ({
                             min="1"
                             step="1"
                             value={inCart.quantity === 0 ? '' : inCart.quantity}
+                            onClick={(e) => e.stopPropagation()}
                             onChange={(e) => {
                               const val = e.target.value === '' ? 0 : parseInt(e.target.value, 10);
                               setCartItemQty(product.id, isNaN(val) ? 0 : Math.max(0, val));
@@ -2370,7 +2412,10 @@ export const RepBilling: React.FC<RepBillingProps> = ({
                           />
                           <button
                             type="button"
-                            onClick={() => addToCart(product, 1)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              updateCartQty(product.id, 1);
+                            }}
                             className="w-7 h-7 bg-blue-600 text-white rounded flex items-center justify-center font-bold text-xs shadow-2xs hover:bg-blue-700 active:scale-95 transition"
                             title="Increase quantity"
                           >
@@ -2380,7 +2425,10 @@ export const RepBilling: React.FC<RepBillingProps> = ({
                       ) : (
                         <button
                           type="button"
-                          onClick={() => addToCart(product, 1)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            addToCart(product, 1);
+                          }}
                           className="py-1 px-3 bg-blue-600 text-white font-bold text-xs rounded-lg shadow-xs hover:bg-blue-700 active:scale-95 transition"
                         >
                           + Add
@@ -2721,6 +2769,68 @@ export const RepBilling: React.FC<RepBillingProps> = ({
           </div>
         )}
       </div>
+
+      {/* DUPLICATE CART ITEM CONFIRMATION POPUP */}
+      {duplicateConfirmItem && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl border border-slate-100 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-200/60">
+                <AlertTriangle className="w-5 h-5 stroke-[2.5]" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Item Already in Cart</h3>
+                <p className="text-[11px] text-slate-500">Duplicate cart item confirmation</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5 space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <h4 className="text-xs font-bold text-slate-900">{duplicateConfirmItem.product.name}</h4>
+                  <p className="text-[10px] text-slate-500 font-mono">SKU: {duplicateConfirmItem.product.sku} • {duplicateConfirmItem.product.category}</p>
+                </div>
+                <span className="text-xs font-bold text-blue-600 font-mono">
+                  {formatMoney(duplicateConfirmItem.existingCartItem.unitPrice)}
+                </span>
+              </div>
+
+              <div className="pt-2 border-t border-slate-200/70 flex items-center justify-between text-xs">
+                <span className="text-slate-500">Already in Cart:</span>
+                <span className="font-bold text-amber-700 bg-amber-100/70 px-2 py-0.5 rounded-md font-mono">
+                  {duplicateConfirmItem.existingCartItem.quantity} {duplicateConfirmItem.product.unit || 'units'}
+                </span>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              <span className="font-bold text-slate-800">"{duplicateConfirmItem.product.name}"</span> is already in your cart with <span className="font-bold text-slate-900">{duplicateConfirmItem.existingCartItem.quantity} units</span>.
+              <br /><br />
+              Do you want to add another <span className="font-bold text-blue-600">{duplicateConfirmItem.qtyToAdd} unit{duplicateConfirmItem.qtyToAdd > 1 ? 's' : ''}</span> to the existing cart item (total will be <span className="font-bold text-emerald-600">{duplicateConfirmItem.existingCartItem.quantity + duplicateConfirmItem.qtyToAdd} units</span>)?
+            </p>
+
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setDuplicateConfirmItem(null)}
+                className="py-2.5 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  executeAddToCart(duplicateConfirmItem.product, duplicateConfirmItem.qtyToAdd);
+                  setDuplicateConfirmItem(null);
+                }}
+                className="py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-xs font-bold text-white shadow-xs transition flex items-center justify-center gap-1 cursor-pointer"
+              >
+                <span>Add More</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* SUCCESS MODAL POPUP */}
       {checkoutSuccessOrder && (

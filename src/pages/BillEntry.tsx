@@ -79,6 +79,15 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showAddCustomerModal, setShowAddCustomerModal] = useState<boolean>(false);
 
+  // Duplicate item confirmation modal state
+  const [duplicateConfirm, setDuplicateConfirm] = useState<{
+    product: AvailableItem;
+    targetIndex: number;
+    existingRowIndex: number;
+    existingQty: number;
+    newQty: number;
+  } | null>(null);
+
   // Draft persistence in localStorage
   const DRAFT_KEY = 'distributor_bill_entry_draft';
   const [hasDraft, setHasDraft] = useState<boolean>(() => {
@@ -365,6 +374,65 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
     }
     updated[index] = currentRow;
     setReturnItems(updated);
+  };
+
+  // Safe product selection with duplicate item detection
+  const handleProductSelect = (index: number, selectedProductId: string) => {
+    if (!selectedProductId) {
+      updateItemRow(index, 'productId', '');
+      return;
+    }
+
+    const existingIndex = billItems.findIndex(
+      (it, i) => i !== index && it.productId === selectedProductId && it.productId !== ''
+    );
+
+    if (existingIndex !== -1) {
+      const itemInfo = availableItems.find(s => s.productId === selectedProductId);
+      if (itemInfo) {
+        setDuplicateConfirm({
+          product: itemInfo,
+          targetIndex: index,
+          existingRowIndex: existingIndex,
+          existingQty: billItems[existingIndex].quantity || 1,
+          newQty: billItems[index].quantity || 1
+        });
+        return;
+      }
+    }
+
+    updateItemRow(index, 'productId', selectedProductId);
+  };
+
+  const handleReturnProductSelect = (index: number, selectedProductId: string) => {
+    if (!selectedProductId) {
+      updateReturnRow(index, 'productId', '');
+      return;
+    }
+
+    const existingIndex = returnItems.findIndex(
+      (it, i) => i !== index && it.productId === selectedProductId && it.productId !== ''
+    );
+
+    if (existingIndex !== -1) {
+      const p = warehouseProducts.find(prod => prod.id === selectedProductId);
+      if (p) {
+        const confirmCombine = window.confirm(
+          `⚠️ "${p.name}" is already in Return Line #${existingIndex + 1} with ${returnItems[existingIndex].quantity} units.\n\nClick OK to combine the return quantities, or Cancel to pick another item.`
+        );
+        if (confirmCombine) {
+          updateReturnRow(existingIndex, 'quantity', (returnItems[existingIndex].quantity || 1) + (returnItems[index].quantity || 1));
+          if (returnItems.length > 1) {
+            removeReturnRow(index);
+          } else {
+            updateReturnRow(index, 'productId', '');
+          }
+        }
+        return;
+      }
+    }
+
+    updateReturnRow(index, 'productId', selectedProductId);
   };
 
   const removeItemRow = (index: number) => {
@@ -964,7 +1032,7 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                       <div className="flex-1 w-full">
                         <select
                           value={item.productId}
-                          onChange={(e) => updateItemRow(index, 'productId', e.target.value)}
+                          onChange={(e) => handleProductSelect(index, e.target.value)}
                           required
                           className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
@@ -1127,7 +1195,7 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                       <div className="flex-1 w-full">
                         <select
                           value={ret.productId}
-                          onChange={(e) => updateReturnRow(index, 'productId', e.target.value)}
+                          onChange={(e) => handleReturnProductSelect(index, e.target.value)}
                           required
                           className="w-full bg-white border border-amber-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
                         >
@@ -1579,6 +1647,86 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
           </table>
         </div>
       </div>
+
+      {/* DUPLICATE ITEM CONFIRMATION POPUP */}
+      {duplicateConfirm && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-100 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-200/60">
+                <AlertTriangle className="w-5 h-5 stroke-[2.5]" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Item Already in Bill</h3>
+                <p className="text-[11px] text-slate-500">Duplicate line item confirmation</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5 space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <h4 className="text-xs font-bold text-slate-900">{duplicateConfirm.product.name}</h4>
+                  <p className="text-[10px] text-slate-500 font-mono">Category: {duplicateConfirm.product.category}</p>
+                </div>
+                <span className="text-xs font-bold text-blue-600 font-mono">
+                  {formatMoney(duplicateConfirm.product.unitPrice)}
+                </span>
+              </div>
+
+              <div className="pt-2 border-t border-slate-200/70 flex items-center justify-between text-xs">
+                <span className="text-slate-500">Already in Line #{duplicateConfirm.existingRowIndex + 1}:</span>
+                <span className="font-bold text-amber-700 bg-amber-100/70 px-2 py-0.5 rounded-md font-mono">
+                  {duplicateConfirm.existingQty} units
+                </span>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              <span className="font-bold text-slate-800">"{duplicateConfirm.product.name}"</span> is already entered in <span className="font-semibold text-slate-900">Line #{duplicateConfirm.existingRowIndex + 1}</span>. How would you like to proceed?
+            </p>
+
+            <div className="flex flex-col gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  const combinedQty = duplicateConfirm.existingQty + duplicateConfirm.newQty;
+                  updateItemRow(duplicateConfirm.existingRowIndex, 'quantity', combinedQty);
+                  if (billItems.length > 1) {
+                    removeItemRow(duplicateConfirm.targetIndex);
+                  } else {
+                    updateItemRow(duplicateConfirm.targetIndex, 'productId', '');
+                  }
+                  setDuplicateConfirm(null);
+                }}
+                className="w-full py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-xs font-bold text-white shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <span>Combine into Line #{duplicateConfirm.existingRowIndex + 1} ({duplicateConfirm.existingQty + duplicateConfirm.newQty} units)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  updateItemRow(duplicateConfirm.targetIndex, 'productId', duplicateConfirm.product.productId);
+                  setDuplicateConfirm(null);
+                }}
+                className="w-full py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 transition cursor-pointer"
+              >
+                Keep as a Separate Line Item
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setDuplicateConfirm(null);
+                }}
+                className="w-full py-2 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-500 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* QUICK ADD CUSTOMER MODAL */}
       <CustomerModal
