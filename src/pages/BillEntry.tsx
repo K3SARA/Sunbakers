@@ -295,6 +295,7 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
     freeStock: number;
     freeRatioBuy?: number;
     freeRatioGet?: number;
+    category?: string;
   }
 
   const availableItems: AvailableItem[] = billMode === 'LORRY'
@@ -307,7 +308,8 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
         stock: s.quantity,
         freeStock: s.freeQuantity || 0,
         freeRatioBuy: s.product.freeRatioBuy,
-        freeRatioGet: s.product.freeRatioGet
+        freeRatioGet: s.product.freeRatioGet,
+        category: s.product.category
       }))
     : warehouseProducts
         .filter(p => p.currentStock > 0 || (p.freeStock && p.freeStock > 0))
@@ -320,7 +322,8 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
           stock: p.currentStock,
           freeStock: p.freeStock || 0,
           freeRatioBuy: p.freeRatioBuy,
-          freeRatioGet: p.freeRatioGet
+          freeRatioGet: p.freeRatioGet,
+          category: p.category
         }));
 
   const addItemRow = () => {
@@ -1726,7 +1729,9 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <h4 className="text-xs font-bold text-slate-900">{duplicateConfirm.product.name}</h4>
-                  <p className="text-[10px] text-slate-500 font-mono">Category: {duplicateConfirm.product.category}</p>
+                  {duplicateConfirm.product.category && (
+                    <p className="text-[10px] text-slate-500 font-mono">Category: {duplicateConfirm.product.category}</p>
+                  )}
                 </div>
                 <span className="text-xs font-bold text-blue-600 font-mono">
                   {formatMoney(duplicateConfirm.product.unitPrice)}

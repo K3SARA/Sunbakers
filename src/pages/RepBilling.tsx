@@ -2743,7 +2743,7 @@ export const RepBilling: React.FC<RepBillingProps> = ({
             )}
 
             {/* Calculation Breakdown */}
-            {(totalReturnAmount > 0 || totalItemDiscounts > 0 || (globalDiscountPercent || 0) > 0) && (
+            {(totalReturnAmount > 0 || totalItemDiscounts > 0 || billDiscountAmount > 0) && (
               <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-1.5 text-xs">
                 {totalItemDiscounts > 0 && (
                   <>
