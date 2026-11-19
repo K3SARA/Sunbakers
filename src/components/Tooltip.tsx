@@ -33,3 +33,4 @@ export const InfoTooltip: React.FC<{ text: string; className?: string }> = ({ te
     </Tooltip>
   );
 };
+
