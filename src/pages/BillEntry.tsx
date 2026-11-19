@@ -949,11 +949,8 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
         </div>
       )}
 
-      {/* Bill Entry Workspace */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Form Entry Workspace (2 Cols) */}
-        <div className="lg:col-span-2">
-          <form onSubmit={handleSubmitBill} className="space-y-4">
+      {/* Bill Entry Workspace (Full Width) */}
+      <form onSubmit={handleSubmitBill} className="space-y-5">
 
             {/* SECTION 1: Paper Bill Slip & Customer Details */}
             <div className="bg-white rounded-3xl border border-slate-200/80 shadow-2xs p-5 sm:p-6 space-y-4">
@@ -1351,7 +1348,7 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                   <div>
                     <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
                       <RotateCcw className="w-4 h-4 text-amber-600 inline-block mr-1.5 -mt-0.5" />
-                      <span>Customer Returns / Damaged Goods (Credit Deduction)</span>
+                      <span>Customer Returns / Damaged Good</span>
                       <span className="inline-block ml-1.5 align-middle">
                         <InfoTooltip text="Record expired, market returns or damaged items returned by client to deduct credit" />
                       </span>
@@ -1779,70 +1776,72 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
             </div>
 
           </form>
-        </div>
 
-        {/* Right-Side Stock Overview (1 Col) */}
-        <div className="space-y-4">
-          <div className="bg-white rounded-3xl border border-slate-200/80 shadow-2xs p-5 space-y-3">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                {billMode === 'LORRY' ? (
-                  <>
-                    <Truck className="w-4 h-4 text-blue-600" />
-                    Stock Left in {selectedLorry?.vehicleNumber || 'Lorry'}
-                  </>
-                ) : (
-                  <>
-                    <Building2 className="w-4 h-4 text-emerald-600" />
-                    Central Warehouse Stock
-                  </>
-                )}
-              </h3>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
-                {availableItems.length} Items Available
-              </span>
+      {/* Current Floating Stock in Lorry / Central Warehouse Footer Tile */}
+      <div className="bg-white rounded-3xl border border-slate-200/80 shadow-2xs p-5 sm:p-6 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3.5 gap-2">
+          <div className="flex items-center gap-2.5">
+            <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+              billMode === 'LORRY' ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'
+            }`}>
+              {billMode === 'LORRY' ? <Truck className="w-4 h-4" /> : <Building2 className="w-4 h-4" />}
             </div>
-
-            <div className="space-y-1.5 max-h-80 overflow-y-auto pr-1">
-              {availableItems.length > 0 ? (
-                availableItems.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center justify-between py-2 px-3 bg-slate-50 rounded-xl text-xs hover:bg-slate-100/70 transition-colors"
-                  >
-                    <div className="pr-2">
-                      <span className="font-medium text-slate-800 block truncate max-w-[140px] sm:max-w-[180px]">
-                        {item.name}
-                      </span>
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-mono text-[10px] text-slate-400">{formatMoney(item.unitPrice)}</span>
-                        {item.freeRatioBuy && item.freeRatioBuy > 0 && item.freeRatioGet ? (
-                          <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1 rounded">
-                            Buy {item.freeRatioBuy}+{item.freeRatioGet}
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-end shrink-0">
-                      <span className="font-mono font-bold text-slate-900 px-2 py-0.5 bg-white border border-slate-200 rounded-lg text-xs">
-                        {item.stock} {item.unit}
-                      </span>
-                      {item.freeStock > 0 && (
-                        <span className="text-[10px] font-mono font-semibold text-emerald-700 bg-emerald-50 px-1 rounded mt-0.5 border border-emerald-200/60">
-                          +{item.freeStock} Free
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-8 text-xs text-slate-400">
-                  {billMode === 'LORRY' ? 'Lorry has 0 items remaining.' : 'Warehouse has 0 items in stock.'}
-                </div>
-              )}
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                <span>{billMode === 'LORRY' ? `Stock Left in ${selectedLorry?.vehicleNumber || 'Lorry'}` : 'Central Warehouse Stock'}</span>
+                <InfoTooltip text={billMode === 'LORRY'
+                  ? 'Real-time floating stock currently loaded and remaining in this lorry.'
+                  : 'Current available stock in the central warehouse.'} />
+              </h3>
             </div>
           </div>
+
+          <span className="text-xs font-bold px-3 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200/60 w-fit">
+            {availableItems.length} {availableItems.length === 1 ? 'Item' : 'Items'} Available
+          </span>
         </div>
+
+        {availableItems.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-96 overflow-y-auto pr-1">
+            {availableItems.map((item) => (
+              <div
+                key={item.id}
+                className="flex items-center justify-between p-3 bg-slate-50/80 hover:bg-slate-100/80 rounded-2xl border border-slate-200/60 transition-colors"
+              >
+                <div className="min-w-0 pr-2">
+                  <span className="font-semibold text-slate-800 text-xs block truncate" title={item.name}>
+                    {item.name}
+                  </span>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="font-mono text-[11px] text-slate-400 font-medium">
+                      {formatMoney(item.unitPrice)}
+                    </span>
+                    {item.freeRatioBuy && item.freeRatioBuy > 0 && item.freeRatioGet ? (
+                      <span className="text-[9px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded border border-purple-200/50">
+                        Buy {item.freeRatioBuy}+{item.freeRatioGet}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="flex flex-col items-end shrink-0">
+                  <span className="font-mono font-bold text-slate-900 px-2 py-0.5 bg-white border border-slate-200 rounded-xl text-xs shadow-2xs">
+                    {item.stock} {item.unit}
+                  </span>
+                  {item.freeStock > 0 && (
+                    <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded-md mt-1 border border-emerald-200/70">
+                      +{item.freeStock} Free
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-xs text-slate-400">
+            {billMode === 'LORRY' ? 'Lorry has 0 items remaining.' : 'Warehouse has 0 items in stock.'}
+          </div>
+        )}
       </div>
 
       {/* Today's Recorded Bills & Free Issues Section */}
