@@ -40,6 +40,7 @@ model Product {
   recipes            Recipe[]            @relation("ProductRecipes")
   recipeItems        RecipeItem[]        @relation("RecipeComponents")
   productionRunItems ProductionRunItem[] @relation("RunConsumedItems")
+  transferItems      LorryTransferItem[]
 }
 
 model StockMovement {
@@ -87,6 +88,8 @@ model Lorry {
   expenses         Expense[]
   customerPayments CustomerPayment[]
   users            User[]
+  transfersSent     LorryTransfer[] @relation("TransfersFrom")
+  transfersReceived LorryTransfer[] @relation("TransfersTo")
 }
 
 // Real-time floating inventory held on each lorry
@@ -134,13 +137,17 @@ model LorryLoadingItem {
   loading        LorryLoading @relation(fields: [loadingId], references: [id], onDelete: Cascade)
   productId      String
   product        Product      @relation(fields: [productId], references: [id])
-  loadedQty       Int // Morning loaded qty (regular)
-  loadedFreeQty   Int          @default(0) // Morning loaded qty (free issue)
-  soldQty         Int          @default(0) // Sum of sales recorded via paper bills
-  freeQty         Int          @default(0) // Free promotional units issued
-  returnedQty     Int          @default(0) // Returned back to warehouse at settlement (regular)
-  returnedFreeQty Int          @default(0) // Returned back to warehouse at settlement (free issue)
-  discrepancyQty  Int          @default(0) // Difference (loaded - sold - free - returned)
+  loadedQty             Int // Morning loaded qty (regular)
+  loadedFreeQty         Int          @default(0) // Morning loaded qty (free issue)
+  transferredOutQty     Int          @default(0) // Transferred to another lorry (regular)
+  transferredOutFreeQty Int          @default(0) // Transferred to another lorry (free promo)
+  transferredInQty      Int          @default(0) // Received from another lorry (regular)
+  transferredInFreeQty  Int          @default(0) // Received from another lorry (free promo)
+  soldQty               Int          @default(0) // Sum of sales recorded via paper bills
+  freeQty               Int          @default(0) // Free promotional units issued
+  returnedQty           Int          @default(0) // Returned back to warehouse at settlement (regular)
+  returnedFreeQty       Int          @default(0) // Returned back to warehouse at settlement (free issue)
+  discrepancyQty        Int          @default(0) // Difference (loaded - sold - free - returned)
 }
 
 // --------------------------------------------------------
@@ -558,4 +565,34 @@ model Payroll {
   updatedAt        DateTime        @updatedAt
 
   salaryAdvances   SalaryAdvance[]
+}
+
+// --------------------------------------------------------
+// 12. ON-ROUTE INTER-LORRY STOCK TRANSFERS (V2V EXCHANGES)
+// --------------------------------------------------------
+model LorryTransfer {
+  id              String              @id @default(uuid())
+  transferNumber  String              @unique // e.g. "TRF-20261119-001"
+  paperSlipNumber String?             // Physical paper note/slip # brought by driver (e.g. "EX-104")
+  fromLorryId     String
+  toLorryId       String
+  fromLoadingId   String?
+  toLoadingId     String?
+  notes           String?
+  transferredBy   String?             // Admin name
+  createdAt       DateTime            @default(now())
+
+  fromLorry       Lorry               @relation("TransfersFrom", fields: [fromLorryId], references: [id])
+  toLorry         Lorry               @relation("TransfersTo", fields: [toLorryId], references: [id])
+  items           LorryTransferItem[]
+}
+
+model LorryTransferItem {
+  id           String        @id @default(uuid())
+  transferId   String
+  transfer     LorryTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product       @relation(fields: [productId], references: [id])
+  quantity     Int           @default(0) // Regular paid units transferred
+  freeQuantity Int           @default(0) // Free promo units transferred
 }

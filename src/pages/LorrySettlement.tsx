@@ -9,10 +9,12 @@ import {
   Plus,
   X
 } from 'lucide-react';
-import { Lorry, LorryLoading, ExpenseCategory } from '../types';
+import { Lorry, LorryLoading, ExpenseCategory, LorryTransfer } from '../types';
 import { LorryService, ExpenseService } from '../services/api';
 import { useCurrency } from '../context/CurrencyContext';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
+import { InterLorryTransferModal } from '../components/InterLorryTransferModal';
+import { InterLorryTransferPrintModal } from '../components/InterLorryTransferPrintModal';
 
 interface ReturnRow {
   productId: string;
@@ -20,6 +22,10 @@ interface ReturnRow {
   unit: string;
   loadedQty: number;
   loadedFreeQty: number;
+  transferredInQty: number;
+  transferredInFreeQty: number;
+  transferredOutQty: number;
+  transferredOutFreeQty: number;
   soldQty: number;
   freeQty: number;
   expectedRemaining: number;
@@ -47,6 +53,11 @@ export const LorrySettlement: React.FC<LorrySettlementProps> = ({ isActive }) =>
   const [expAmount, setExpAmount] = useState<string>('');
   const [expRef, setExpRef] = useState<string>('');
   const [expSaving, setExpSaving] = useState<boolean>(false);
+
+  // On-Route Inter-Lorry Transfer Modal
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState<boolean>(false);
+  const [isTransferPrintModalOpen, setIsTransferPrintModalOpen] = useState<boolean>(false);
+  const [activeTransferSlip, setActiveTransferSlip] = useState<LorryTransfer | null>(null);
 
   const [, setLoading] = useState<boolean>(false);
   const [submitting, setSubmitting] = useState<boolean>(false);
@@ -88,10 +99,13 @@ export const LorrySettlement: React.FC<LorrySettlementProps> = ({ isActive }) =>
       if (active) {
         const rows: ReturnRow[] = active.items.map(item => {
           const totalOutflow = item.soldQty + (item.freeQty || 0);
-          const totalLoaded = item.loadedQty + (item.loadedFreeQty || 0);
-          const expected = Math.max(0, totalLoaded - totalOutflow);
-          // Default: allocate remaining return to regular stock first, and free stock if remaining > loadedQty
-          const retRegular = Math.min(expected, Math.max(0, item.loadedQty - item.soldQty));
+          const trfIn = (item.transferredInQty || 0) + (item.transferredInFreeQty || 0);
+          const trfOut = (item.transferredOutQty || 0) + (item.transferredOutFreeQty || 0);
+          const totalNetLoaded = Math.max(0, (item.loadedQty + (item.loadedFreeQty || 0) + trfIn) - trfOut);
+          const expected = Math.max(0, totalNetLoaded - totalOutflow);
+          
+          const netRegularAvailable = Math.max(0, (item.loadedQty + (item.transferredInQty || 0) - (item.transferredOutQty || 0)) - item.soldQty);
+          const retRegular = Math.min(expected, netRegularAvailable);
           const retFree = Math.max(0, expected - retRegular);
           return {
             productId: item.productId,
@@ -99,6 +113,10 @@ export const LorrySettlement: React.FC<LorrySettlementProps> = ({ isActive }) =>
             unit: item.product.unit,
             loadedQty: item.loadedQty,
             loadedFreeQty: item.loadedFreeQty || 0,
+            transferredInQty: item.transferredInQty || 0,
+            transferredInFreeQty: item.transferredInFreeQty || 0,
+            transferredOutQty: item.transferredOutQty || 0,
+            transferredOutFreeQty: item.transferredOutFreeQty || 0,
             soldQty: item.soldQty,
             freeQty: item.freeQty || 0,
             expectedRemaining: expected,
@@ -234,6 +252,15 @@ export const LorrySettlement: React.FC<LorrySettlementProps> = ({ isActive }) =>
             Compare morning loaded items against sales bills. Unsold items return to Central Warehouse.
           </p>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setIsTransferModalOpen(true)}
+          className="self-start md:self-auto inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
+        >
+          <RotateCcw className="w-4 h-4" />
+          <span>Record Route Exchange Slip</span>
+        </button>
       </div>
 
       {/* Notifications */}
@@ -346,11 +373,12 @@ export const LorrySettlement: React.FC<LorrySettlementProps> = ({ isActive }) =>
             </div>
 
             <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
-              <table className="w-full text-left text-sm min-w-[620px]">
+              <table className="w-full text-left text-sm min-w-[700px]">
                 <thead>
                   <tr className="border-b border-slate-100 text-xs font-bold text-slate-500 uppercase tracking-wider">
                     <th className="py-3 px-3.5">Product Name</th>
                     <th className="py-3 px-3.5 text-center">Loaded</th>
+                    <th className="py-3 px-3.5 text-center">Route Transfer</th>
                     <th className="py-3 px-3.5 text-center">Paid Sold</th>
                     <th className="py-3 px-3.5 text-center">Free Issued</th>
                     <th className="py-3 px-3.5 text-center">Expected Left</th>
@@ -361,6 +389,8 @@ export const LorrySettlement: React.FC<LorrySettlementProps> = ({ isActive }) =>
                 <tbody className="divide-y divide-slate-100">
                   {returnRows.map((row, index) => {
                     const diff = row.expectedRemaining - (row.returnedQty || 0);
+                    const netTransfer = (row.transferredInQty + row.transferredInFreeQty) - (row.transferredOutQty + row.transferredOutFreeQty);
+
                     return (
                       <tr key={row.productId} className="hover:bg-slate-50/70 transition-colors">
                         <td className="py-3 px-3 font-medium text-slate-900">
@@ -368,6 +398,28 @@ export const LorrySettlement: React.FC<LorrySettlementProps> = ({ isActive }) =>
                         </td>
                         <td className="py-3 px-3 text-center font-mono font-semibold text-slate-700">
                           {row.loadedQty} {row.unit}
+                          {row.loadedFreeQty > 0 && (
+                            <span className="text-[10px] text-blue-600 block">+{row.loadedFreeQty} free</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-3 text-center font-mono text-xs">
+                          {netTransfer > 0 ? (
+                            <span
+                              className="inline-flex items-center px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200/80 font-bold"
+                              title={`Received ${row.transferredInQty} paid + ${row.transferredInFreeQty} free from another lorry`}
+                            >
+                              +{netTransfer} Recv
+                            </span>
+                          ) : netTransfer < 0 ? (
+                            <span
+                              className="inline-flex items-center px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200/80 font-bold"
+                              title={`Handed over ${row.transferredOutQty} paid + ${row.transferredOutFreeQty} free to another lorry`}
+                            >
+                              {netTransfer} Sent
+                            </span>
+                          ) : (
+                            <span className="text-slate-300 font-sans">—</span>
+                          )}
                         </td>
                         <td className="py-3 px-3 text-center font-mono font-bold text-emerald-600">
                           {row.soldQty} {row.unit}
@@ -388,7 +440,7 @@ export const LorrySettlement: React.FC<LorrySettlementProps> = ({ isActive }) =>
                           <input
                             type="number"
                             min="0"
-                            max={row.loadedQty}
+                            max={Math.max(row.loadedQty, row.expectedRemaining)}
                             value={row.returnedQty}
                             onChange={(e) => updateReturnedQty(index, parseInt(e.target.value, 10) || 0)}
                             className="w-20 sm:w-24 text-center bg-slate-50 border border-slate-200 rounded-xl px-2 py-1 font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -733,6 +785,29 @@ export const LorrySettlement: React.FC<LorrySettlementProps> = ({ isActive }) =>
           </div>
         </div>
       )}
+
+      {/* On-Route Inter-Lorry Stock Transfer Modal */}
+      <InterLorryTransferModal
+        isOpen={isTransferModalOpen}
+        onClose={() => setIsTransferModalOpen(false)}
+        defaultFromLorryId={selectedLorryId}
+        onSuccess={(transfer) => {
+          setActiveTransferSlip(transfer);
+          setIsTransferPrintModalOpen(true);
+          loadLorries();
+          if (selectedLorryId) fetchLoading(selectedLorryId);
+          setSuccessMessage(
+            `Inter-lorry exchange recorded successfully (Voucher: ${transfer.transferNumber}). Lorry balances updated!`
+          );
+        }}
+      />
+
+      {/* Printable Transfer Slip Voucher Modal */}
+      <InterLorryTransferPrintModal
+        isOpen={isTransferPrintModalOpen}
+        onClose={() => setIsTransferPrintModalOpen(false)}
+        transfer={activeTransferSlip}
+      />
     </div>
   );
 };

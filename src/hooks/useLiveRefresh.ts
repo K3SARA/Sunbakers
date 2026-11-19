@@ -100,3 +100,4 @@ export function useLiveRefresh(
     return () => clearInterval(intervalId);
   }, [isActive, pollInterval]);
 }
+

@@ -8,6 +8,7 @@ import {
   Route,
   Lorry,
   LorryLoading,
+  LorryTransfer,
   SystemSettings,
   ProfitAndLossReport,
   Supplier,
@@ -142,7 +143,17 @@ export const LorryService = {
     returns: { productId: string; returnedQty: number; returnedFreeQty?: number }[];
     cashHandover: number;
     notes?: string;
-  }) => api.post<LorryLoading>(`/lorries/${id}/settle`, payload).then(r => r.data)
+  }) => api.post<LorryLoading>(`/lorries/${id}/settle`, payload).then(r => r.data),
+  createTransfer: (payload: {
+    paperSlipNumber?: string;
+    fromLorryId: string;
+    toLorryId: string;
+    notes?: string;
+    transferredBy?: string;
+    items: { productId: string; quantity: number; freeQuantity?: number }[];
+  }) => api.post<LorryTransfer>('/lorries/transfers', payload).then(r => r.data),
+  getTransfers: (params?: { date?: string; lorryId?: string }) =>
+    api.get<LorryTransfer[]>('/lorries/transfers', { params }).then(r => r.data)
 };
 
 export const CustomerService = {

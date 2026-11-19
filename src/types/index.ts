@@ -39,11 +39,40 @@ export interface LorryLoadingItem {
   product: Product;
   loadedQty: number;
   loadedFreeQty?: number;
+  transferredOutQty?: number;
+  transferredOutFreeQty?: number;
+  transferredInQty?: number;
+  transferredInFreeQty?: number;
   soldQty: number;
   freeQty: number;
   returnedQty: number;
   returnedFreeQty?: number;
   discrepancyQty: number;
+}
+
+export interface LorryTransferItem {
+  id: string;
+  transferId: string;
+  productId: string;
+  product: Product;
+  quantity: number;
+  freeQuantity?: number;
+}
+
+export interface LorryTransfer {
+  id: string;
+  transferNumber: string;
+  paperSlipNumber?: string | null;
+  fromLorryId: string;
+  fromLorry: Lorry;
+  toLorryId: string;
+  toLorry: Lorry;
+  fromLoadingId?: string | null;
+  toLoadingId?: string | null;
+  notes?: string | null;
+  transferredBy?: string | null;
+  items: LorryTransferItem[];
+  createdAt: string;
 }
 
 export interface LorryLoading {

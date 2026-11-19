@@ -16,10 +16,12 @@ import {
   X,
   Printer
 } from 'lucide-react';
-import { Lorry, Product, LorryLoading as LorryLoadingType } from '../types';
+import { Lorry, Product, LorryLoading as LorryLoadingType, LorryTransfer } from '../types';
 import { LorryService, ProductService } from '../services/api';
 import { useCurrency } from '../context/CurrencyContext';
 import { LorryLoadingPrintModal } from '../components/LorryLoadingPrintModal';
+import { InterLorryTransferModal } from '../components/InterLorryTransferModal';
+import { InterLorryTransferPrintModal } from '../components/InterLorryTransferPrintModal';
 import { InfoTooltip } from '../components/Tooltip';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
 
@@ -62,6 +64,11 @@ export const LorryLoading: React.FC<LorryLoadingProps> = ({ isActive = true }) =
   // Printing state for morning lorry load
   const [printLoadingData, setPrintLoadingData] = useState<LorryLoadingType | null>(null);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState<boolean>(false);
+
+  // On-Route Inter-Lorry Transfer Modal
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState<boolean>(false);
+  const [isTransferPrintModalOpen, setIsTransferPrintModalOpen] = useState<boolean>(false);
+  const [activeTransferSlip, setActiveTransferSlip] = useState<LorryTransfer | null>(null);
 
   // Search & Combobox states for items
   const [activeDropdownIndex, setActiveDropdownIndex] = useState<number | null>(null);
@@ -393,11 +400,22 @@ export const LorryLoading: React.FC<LorryLoadingProps> = ({ isActive = true }) =
           </p>
         </div>
 
-        <div className="self-start sm:self-auto flex items-center gap-2 text-xs font-medium bg-white px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-2xl border border-slate-200/80 shadow-2xs">
-          <Calendar className="w-4 h-4 text-slate-400" />
-          <span className="text-slate-600 font-medium">
-            Today: {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-          </span>
+        <div className="self-start sm:self-auto flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsTransferModalOpen(true)}
+            className="inline-flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 active:scale-95 text-white font-bold text-xs rounded-2xl shadow-2xs transition-all cursor-pointer"
+          >
+            <RotateCcw className="w-4 h-4" />
+            <span>Record Route Exchange Slip</span>
+          </button>
+
+          <div className="flex items-center gap-2 text-xs font-medium bg-white px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-2xl border border-slate-200/80 shadow-2xs">
+            <Calendar className="w-4 h-4 text-slate-400" />
+            <span className="text-slate-600 font-medium">
+              Today: {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -1194,6 +1212,29 @@ export const LorryLoading: React.FC<LorryLoadingProps> = ({ isActive = true }) =
         isOpen={isPrintModalOpen}
         onClose={() => setIsPrintModalOpen(false)}
         defaultFormat="80mm"
+      />
+
+      {/* On-Route Inter-Lorry Stock Transfer Modal */}
+      <InterLorryTransferModal
+        isOpen={isTransferModalOpen}
+        onClose={() => setIsTransferModalOpen(false)}
+        defaultFromLorryId={selectedLorryId}
+        onSuccess={(transfer) => {
+          setActiveTransferSlip(transfer);
+          setIsTransferPrintModalOpen(true);
+          loadData();
+          if (selectedLorryId) fetchActiveLoading(selectedLorryId);
+          setSuccessMessage(
+            `Inter-lorry exchange recorded successfully (Voucher: ${transfer.transferNumber}). Lorry balances updated!`
+          );
+        }}
+      />
+
+      {/* Printable Transfer Slip Voucher Modal */}
+      <InterLorryTransferPrintModal
+        isOpen={isTransferPrintModalOpen}
+        onClose={() => setIsTransferPrintModalOpen(false)}
+        transfer={activeTransferSlip}
       />
     </div>
   );

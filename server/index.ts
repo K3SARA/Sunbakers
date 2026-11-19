@@ -2524,6 +2524,297 @@ app.post('/api/lorries/:id/load', async (req: Request, res: Response) => {
   }
 });
 
+// Record an on-route inter-lorry stock exchange (V2V Transfer)
+app.post('/api/lorries/transfers', async (req: Request, res: Response) => {
+  const { paperSlipNumber, fromLorryId, toLorryId, notes, transferredBy, items } = req.body;
+
+  if (!fromLorryId || !toLorryId) {
+    return res.status(400).json({ error: 'Source lorry and destination lorry are required.' });
+  }
+
+  if (fromLorryId === toLorryId) {
+    return res.status(400).json({ error: 'Cannot transfer stock to the same lorry.' });
+  }
+
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'At least one product item is required for inter-lorry exchange.' });
+  }
+
+  try {
+    const transferResult = await prisma.$transaction(async (tx) => {
+      const fromLorry = await tx.lorry.findUniqueOrThrow({
+        where: { id: fromLorryId },
+        include: { route: true }
+      });
+
+      const toLorry = await tx.lorry.findUniqueOrThrow({
+        where: { id: toLorryId },
+        include: { route: true }
+      });
+
+      // Find active loadings if any
+      const fromLoading = await tx.lorryLoading.findFirst({
+        where: { lorryId: fromLorryId, status: { in: ['LOADED', 'IN_TRANSIT'] } },
+        orderBy: { date: 'desc' },
+        include: { items: true }
+      });
+
+      const toLoading = await tx.lorryLoading.findFirst({
+        where: { lorryId: toLorryId, status: { in: ['LOADED', 'IN_TRANSIT'] } },
+        orderBy: { date: 'desc' },
+        include: { items: true }
+      });
+
+      // Validate floating stock availability on source lorry
+      for (const item of items) {
+        const qty = parseInt(item.quantity, 10) || 0;
+        const freeQty = parseInt(item.freeQuantity, 10) || 0;
+        if (qty <= 0 && freeQty <= 0) continue;
+
+        const currentLorryStock = await tx.lorryStock.findUnique({
+          where: {
+            lorryId_productId: {
+              lorryId: fromLorryId,
+              productId: item.productId
+            }
+          },
+          include: { product: true }
+        });
+
+        const prodName = currentLorryStock?.product?.name || 'Selected product';
+        const availRegular = currentLorryStock?.quantity || 0;
+        const availFree = currentLorryStock?.freeQuantity || 0;
+
+        if (qty > 0 && availRegular < qty) {
+          throw new Error(`Insufficient regular stock on ${fromLorry.vehicleNumber} for "${prodName}". Available: ${availRegular}, requested to transfer: ${qty}`);
+        }
+
+        if (freeQty > 0 && availFree < freeQty) {
+          throw new Error(`Insufficient free issue stock on ${fromLorry.vehicleNumber} for "${prodName}". Available: ${availFree}, requested to transfer: ${freeQty}`);
+        }
+      }
+
+      // Generate Transfer Voucher Number (e.g. TRF-20261119-001)
+      const todayStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      const countToday = await tx.lorryTransfer.count({
+        where: {
+          createdAt: {
+            gte: new Date(new Date().setHours(0, 0, 0, 0))
+          }
+        }
+      });
+      const transferNumber = `TRF-${todayStr}-${(countToday + 1).toString().padStart(3, '0')}`;
+
+      // Create LorryTransfer record
+      const transferRecord = await tx.lorryTransfer.create({
+        data: {
+          transferNumber,
+          paperSlipNumber: paperSlipNumber?.trim() || null,
+          fromLorryId,
+          toLorryId,
+          fromLoadingId: fromLoading?.id || null,
+          toLoadingId: toLoading?.id || null,
+          notes: notes?.trim() || null,
+          transferredBy: transferredBy?.trim() || 'Admin'
+        }
+      });
+
+      // Process items
+      for (const item of items) {
+        const qty = parseInt(item.quantity, 10) || 0;
+        const freeQty = parseInt(item.freeQuantity, 10) || 0;
+        if (qty <= 0 && freeQty <= 0) continue;
+
+        // 1. Create transfer line item
+        await tx.lorryTransferItem.create({
+          data: {
+            transferId: transferRecord.id,
+            productId: item.productId,
+            quantity: qty,
+            freeQuantity: freeQty
+          }
+        });
+
+        // 2. Decrement source lorry floating stock
+        await tx.lorryStock.update({
+          where: {
+            lorryId_productId: {
+              lorryId: fromLorryId,
+              productId: item.productId
+            }
+          },
+          data: {
+            quantity: qty > 0 ? { decrement: qty } : undefined,
+            freeQuantity: freeQty > 0 ? { decrement: freeQty } : undefined
+          }
+        });
+
+        // 3. Increment destination lorry floating stock
+        await tx.lorryStock.upsert({
+          where: {
+            lorryId_productId: {
+              lorryId: toLorryId,
+              productId: item.productId
+            }
+          },
+          update: {
+            quantity: qty > 0 ? { increment: qty } : undefined,
+            freeQuantity: freeQty > 0 ? { increment: freeQty } : undefined
+          },
+          create: {
+            lorryId: toLorryId,
+            productId: item.productId,
+            quantity: qty,
+            freeQuantity: freeQty
+          }
+        });
+
+        // 4. Update source lorry active loading sheet (if exists)
+        if (fromLoading) {
+          const fromItemLine = fromLoading.items.find(i => i.productId === item.productId);
+          if (fromItemLine) {
+            await tx.lorryLoadingItem.update({
+              where: { id: fromItemLine.id },
+              data: {
+                transferredOutQty: { increment: qty },
+                transferredOutFreeQty: { increment: freeQty }
+              }
+            });
+          }
+        }
+
+        // 5. Update destination lorry active loading sheet (if exists)
+        if (toLoading) {
+          const toItemLine = toLoading.items.find(i => i.productId === item.productId);
+          if (toItemLine) {
+            await tx.lorryLoadingItem.update({
+              where: { id: toItemLine.id },
+              data: {
+                transferredInQty: { increment: qty },
+                transferredInFreeQty: { increment: freeQty }
+              }
+            });
+          } else {
+            // Product was not loaded in morning dispatch for Lorry B; create item line
+            await tx.lorryLoadingItem.create({
+              data: {
+                loadingId: toLoading.id,
+                productId: item.productId,
+                loadedQty: 0,
+                loadedFreeQty: 0,
+                transferredInQty: qty,
+                transferredInFreeQty: freeQty,
+                soldQty: 0,
+                freeQty: 0,
+                returnedQty: 0,
+                returnedFreeQty: 0,
+                discrepancyQty: 0
+              }
+            });
+          }
+        }
+
+        // 6. Record StockMovement entries for full auditability
+        const slipRef = paperSlipNumber ? `(Paper Slip: ${paperSlipNumber})` : `(Voucher: ${transferNumber})`;
+        if (qty > 0) {
+          await tx.stockMovement.create({
+            data: {
+              productId: item.productId,
+              type: 'LORRY_TRANSFER',
+              quantity: -qty,
+              isFreeIssue: false,
+              referenceId: transferNumber,
+              notes: `Transferred ${qty} to ${toLorry.vehicleNumber} ${slipRef}`
+            }
+          });
+          await tx.stockMovement.create({
+            data: {
+              productId: item.productId,
+              type: 'LORRY_TRANSFER',
+              quantity: qty,
+              isFreeIssue: false,
+              referenceId: transferNumber,
+              notes: `Received ${qty} from ${fromLorry.vehicleNumber} ${slipRef}`
+            }
+          });
+        }
+        if (freeQty > 0) {
+          await tx.stockMovement.create({
+            data: {
+              productId: item.productId,
+              type: 'LORRY_TRANSFER',
+              quantity: -freeQty,
+              isFreeIssue: true,
+              referenceId: transferNumber,
+              notes: `Free promo stock transferred to ${toLorry.vehicleNumber} ${slipRef}`
+            }
+          });
+          await tx.stockMovement.create({
+            data: {
+              productId: item.productId,
+              type: 'LORRY_TRANSFER',
+              quantity: freeQty,
+              isFreeIssue: true,
+              referenceId: transferNumber,
+              notes: `Free promo stock received from ${fromLorry.vehicleNumber} ${slipRef}`
+            }
+          });
+        }
+      }
+
+      return await tx.lorryTransfer.findUnique({
+        where: { id: transferRecord.id },
+        include: {
+          fromLorry: { include: { route: true } },
+          toLorry: { include: { route: true } },
+          items: { include: { product: true } }
+        }
+      });
+    });
+
+    res.status(201).json(transferResult);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// List past inter-lorry transfers
+app.get('/api/lorries/transfers', async (req: Request, res: Response) => {
+  try {
+    const { date, lorryId, limit } = req.query;
+    const where: any = {};
+
+    if (date && typeof date === 'string') {
+      const targetDate = new Date(date);
+      const startOfDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 0, 0, 0, 0);
+      const endOfDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 23, 59, 59, 999);
+      where.createdAt = { gte: startOfDay, lte: endOfDay };
+    }
+
+    if (lorryId && typeof lorryId === 'string') {
+      where.OR = [
+        { fromLorryId: lorryId },
+        { toLorryId: lorryId }
+      ];
+    }
+
+    const transfers = await prisma.lorryTransfer.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: limit ? parseInt(limit as string, 10) : 50,
+      include: {
+        fromLorry: { include: { route: true } },
+        toLorry: { include: { route: true } },
+        items: { include: { product: true } }
+      }
+    });
+
+    res.json(transfers);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get current active loading sheet for a lorry
 app.get('/api/lorries/:id/current-loading', async (req: Request, res: Response) => {
   try {
@@ -3089,8 +3380,8 @@ app.post('/api/lorries/:id/settle', async (req: Request, res: Response) => {
         const itemLine = loading.items.find(i => i.productId === ret.productId);
         if (itemLine) {
           const totalDispatched = itemLine.soldQty + (itemLine.freeQty || 0);
-          const totalLoaded = itemLine.loadedQty + (itemLine.loadedFreeQty || 0);
-          const discrepancy = totalLoaded - (totalDispatched + returnQty + returnFreeQty);
+          const totalNetLoaded = (itemLine.loadedQty + (itemLine.loadedFreeQty || 0) + (itemLine.transferredInQty || 0) + (itemLine.transferredInFreeQty || 0)) - ((itemLine.transferredOutQty || 0) + (itemLine.transferredOutFreeQty || 0));
+          const discrepancy = totalNetLoaded - (totalDispatched + returnQty + returnFreeQty);
           await tx.lorryLoadingItem.update({
             where: { id: itemLine.id },
             data: {
