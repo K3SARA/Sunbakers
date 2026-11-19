@@ -106,12 +106,12 @@ export function build80mmEscPosReceipt(order: Order, settings?: SystemSettings |
   addBytes(COMMANDS.ALIGN_CENTER);
   addBytes(COMMANDS.DOUBLE_SIZE);
   addBytes(COMMANDS.BOLD_ON);
-  addLine(settings?.companyName || 'Sunbakers & confectionary');
+  addLine(settings?.companyName || 'Samantha Distributors');
   addBytes(COMMANDS.NORMAL_SIZE);
   addBytes(COMMANDS.BOLD_OFF);
 
-  addLine(settings?.address || '239,kurukutthala ,kadugannawa');
-  addLine(`Tel: ${settings?.phone || '+94 77 254 9414'}`);
+  addLine(settings?.address || 'Andiramada, Hiriwadunna');
+  addLine(`Tel: ${settings?.phone || '0717874286 / 0717914437'}`);
   if (settings?.registrationNumber) {
     addLine(`Reg/VAT: ${settings.registrationNumber}`);
   }
@@ -346,12 +346,12 @@ export function build80mmEscPosBillsSummary(
   addBytes(COMMANDS.ALIGN_CENTER);
   addBytes(COMMANDS.DOUBLE_SIZE);
   addBytes(COMMANDS.BOLD_ON);
-  addLine(settings?.companyName || 'Sunbakers & confectionary');
+  addLine(settings?.companyName || 'Samantha Distributors');
   addBytes(COMMANDS.NORMAL_SIZE);
   addBytes(COMMANDS.BOLD_OFF);
 
-  addLine(settings?.address || '239,kurukutthala ,kadugannawa');
-  addLine(`Tel: ${settings?.phone || '+94 77 254 9414'}`);
+  addLine(settings?.address || 'Andiramada, Hiriwadunna');
+  addLine(`Tel: ${settings?.phone || '0717874286 / 0717914437'}`);
   if (settings?.registrationNumber) {
     addLine(`Reg/VAT: ${settings.registrationNumber}`);
   }
@@ -663,12 +663,12 @@ export function build80mmEscPosLorryLoading(
   addBytes(COMMANDS.ALIGN_CENTER);
   addBytes(COMMANDS.DOUBLE_SIZE);
   addBytes(COMMANDS.BOLD_ON);
-  addLine(settings?.companyName || 'Sunbakers & confectionary');
+  addLine(settings?.companyName || 'Samantha Distributors');
   addBytes(COMMANDS.NORMAL_SIZE);
   addBytes(COMMANDS.BOLD_OFF);
 
-  addLine(settings?.address || '239,kurukutthala ,kadugannawa');
-  addLine(`Tel: ${settings?.phone || '+94 77 254 9414'}`);
+  addLine(settings?.address || 'Andiramada, Hiriwadunna');
+  addLine(`Tel: ${settings?.phone || '0717874286 / 0717914437'}`);
 
   addLine(dividerLine('='));
   addBytes(COMMANDS.BOLD_ON);
@@ -749,7 +749,7 @@ export function build80mmEscPosLorryLoading(
   // 7. Footer
   addBytes(COMMANDS.ALIGN_CENTER);
   addLine('*** VERIFIED FOR MORNING ROUTE ***');
-  addLine('Sunbakers Distribution Management');
+  addLine('Samantha Distributors Management');
   addLine(dividerLine('.'));
 
   // 8. Feed & Cut

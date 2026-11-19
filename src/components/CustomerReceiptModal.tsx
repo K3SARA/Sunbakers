@@ -1,9 +1,10 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { X, Printer, CheckCircle2 } from 'lucide-react';
-import { CustomerPayment, Customer } from '../types';
+import { CustomerPayment, Customer, SystemSettings } from '../types';
 import samanthaLogo from '../assets/samantha-logo.png';
 import { useCurrency } from '../context/CurrencyContext';
 import { printReceiptElement } from '../utils/printHelper';
+import { SettingsService } from '../services/api';
 
 interface CustomerReceiptModalProps {
   payment: CustomerPayment | null;
@@ -20,6 +21,15 @@ export const CustomerReceiptModal: React.FC<CustomerReceiptModalProps> = ({
 }) => {
   const { formatMoney } = useCurrency();
   const receiptRef = useRef<HTMLDivElement>(null);
+  const [companySettings, setCompanySettings] = useState<SystemSettings | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      SettingsService.get()
+        .then((s) => setCompanySettings(s))
+        .catch(() => {});
+    }
+  }, [isOpen]);
 
   if (!isOpen || !payment) return null;
 
@@ -67,13 +77,13 @@ export const CustomerReceiptModal: React.FC<CustomerReceiptModalProps> = ({
                 />
               </div>
               <h2 className="text-base font-black text-black uppercase tracking-tight leading-tight">
-                Sunbakers & confectionary
+                {companySettings?.companyName || 'Samantha Distributors'}
               </h2>
               <p className="text-[11px] text-black font-semibold leading-tight mt-0.5">
-                239,kurukutthala ,kadugannawa
+                {companySettings?.address || 'Andiramada, Hiriwadunna'}
               </p>
               <p className="text-[11px] text-black font-bold">
-                Tel: +94 77 254 9414
+                Tel: {companySettings?.phone || '0717874286 / 0717914437'}
               </p>
             </div>
 

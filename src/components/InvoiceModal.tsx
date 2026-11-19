@@ -199,7 +199,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
             <div className="receipt-80mm w-full max-w-[360px] mx-auto bg-white p-3.5 sm:p-4 shadow-sm border border-slate-300 rounded-xl text-black font-mono text-[13.5px] sm:text-[14px] leading-snug select-text print:max-w-none print:w-full print:border-none print:shadow-none print:rounded-none print:p-0 print:m-0 print:bg-white font-bold">
               {/* Receipt Logo & Header */}
               <div className="text-center space-y-1 pb-2">
-                {/* Sunbakers & Confectionary Logo */}
+                {/* Samantha Distributors Logo */}
                 <div className="flex justify-center mb-1.5">
                   <img
                     src={samanthaLogo}
@@ -209,14 +209,14 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                 </div>
 
                 <h2 className="text-base sm:text-lg font-black tracking-wider uppercase text-black leading-tight">
-                  {companySettings?.companyName || 'Sunbakers & confectionary'}
+                  {companySettings?.companyName || 'Samantha Distributors'}
                 </h2>
 
                 <p className="text-xs sm:text-[13px] text-black font-bold leading-tight">
-                  {companySettings?.address || '239,kurukutthala ,kadugannawa'}
+                  {companySettings?.address || 'Andiramada, Hiriwadunna'}
                 </p>
                 <p className="text-xs sm:text-[13px] text-black font-black">
-                  Tel: {companySettings?.phone || '+94 77 254 9414'}
+                  Tel: {companySettings?.phone || '0717874286 / 0717914437'}
                 </p>
                 {companySettings?.registrationNumber && (
                   <p className="text-xs text-black font-bold">Reg/VAT: {companySettings.registrationNumber}</p>
@@ -469,13 +469,13 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                     />
                     <div>
                       <h3 className="font-black text-sm text-black">
-                        {companySettings?.companyName || 'Sunbakers & confectionary'}
+                        {companySettings?.companyName || 'Samantha Distributors'}
                       </h3>
                       <p className="text-xs font-bold text-black">
-                        {companySettings?.address || '239,kurukutthala ,kadugannawa'}
+                        {companySettings?.address || 'Andiramada, Hiriwadunna'}
                       </p>
                       <p className="text-xs font-black text-black font-mono">
-                        Tel: {companySettings?.phone || '+94 77 254 9414'}
+                        Tel: {companySettings?.phone || '0717874286 / 0717914437'}
                       </p>
                     </div>
                   </div>

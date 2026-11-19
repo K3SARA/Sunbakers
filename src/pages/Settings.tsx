@@ -36,13 +36,13 @@ export const Settings: React.FC<SettingsProps> = ({ isActive }) => {
   const [lorries, setLorries] = useState<Lorry[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
   const [settings, setSettings] = useState<SystemSettings>({
-    companyName: 'Distributor Pro Lanka (Pvt) Ltd',
-    tagline: 'Authorized Wholesale FMCG Distribution & Fleet Console',
-    phone: '+94 11 234 5678 / +94 77 123 4567',
+    companyName: 'Samantha Distributors',
+    tagline: 'Fast Reliable Delivery',
+    phone: '0717874286 / 0717914437',
     email: 'distribution@example.com',
-    address: 'No. 88, Commercial Zone, Colombo, Sri Lanka',
-    registrationNumber: 'PV-84920/2022',
-    invoiceFooterNote: 'Goods once delivered and acknowledged on paper slip cannot be returned without formal warehouse return authorization.',
+    address: 'Andiramada, Hiriwadunna',
+    registrationNumber: '',
+    invoiceFooterNote: 'Goods received in fresh & satisfactory condition. Thank you for your business!',
     defaultCurrency: 'LKR',
     defaultCreditLimit: 50000,
     lowStockThreshold: 10

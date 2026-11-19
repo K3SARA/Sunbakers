@@ -88,7 +88,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           Log in
         </h1>
         <p className="text-[11px] text-slate-400 text-center mb-6 font-medium tracking-wide">
-          Sun Bakers &amp; Confectionery &bull; Bakery &amp; Distribution
+          Samantha Distributor
         </p>
 
         {/* Error Alert */}

@@ -28,11 +28,11 @@ app.get('/api/health', (_req, res) => {
 const SETTINGS_FILE = path.join(__dirname, '../settings.json');
 
 const defaultSettings = {
-  companyName: 'Sunbakers & confectionary',
-  tagline: 'Fresh Bakery & Confectionary Distribution',
-  phone: '+94 77 254 9414',
-  email: 'sunbakers@gmail.com',
-  address: '239,kurukutthala ,kadugannawa',
+  companyName: 'Samantha Distributors',
+  tagline: 'Fast Reliable Delivery',
+  phone: '0717874286 / 0717914437',
+  email: 'distribution@example.com',
+  address: 'Andiramada, Hiriwadunna',
   registrationNumber: '',
   invoiceFooterNote: 'Goods received in fresh & satisfactory condition. Thank you for your business!',
   defaultCurrency: 'LKR',

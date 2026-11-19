@@ -344,13 +344,13 @@ export const RepBillsSummaryModal: React.FC<RepBillsSummaryModalProps> = ({
               </div>
 
               <h2 className="text-base sm:text-lg font-black tracking-wider uppercase text-black leading-tight">
-                {companySettings?.companyName || 'Sunbakers & confectionary'}
+                {companySettings?.companyName || 'Samantha Distributors'}
               </h2>
               <p className="text-[11.5px] sm:text-[12px] text-black font-semibold leading-tight">
-                {companySettings?.address || '239,kurukutthala ,kadugannawa'}
+                {companySettings?.address || 'Andiramada, Hiriwadunna'}
               </p>
               <p className="text-[11.5px] sm:text-[12px] text-black font-bold">
-                Tel: {companySettings?.phone || '+94 77 254 9414'}
+                Tel: {companySettings?.phone || '0717874286 / 0717914437'}
               </p>
               {companySettings?.registrationNumber && (
                 <p className="text-[10.5px] text-black font-medium">
