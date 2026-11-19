@@ -963,12 +963,14 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                     1
                   </span>
                   <div>
-                    <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                      <FileText className={`w-4 h-4 ${billMode === 'LORRY' ? 'text-blue-600' : 'text-emerald-600'}`} />
+                    <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                      <FileText className={`w-4 h-4 ${billMode === 'LORRY' ? 'text-blue-600' : 'text-emerald-600'} inline-block mr-1.5 -mt-0.5`} />
                       <span>{billMode === 'LORRY' ? 'Bill Details' : 'Walk-in Counter Sale Details'}</span>
-                      <InfoTooltip text={billMode === 'LORRY'
-                        ? 'Paper bill slip reference number brought by driver & customer selection'
-                        : 'Desk counter receipt & retail account selection'} />
+                      <span className="inline-block ml-1.5 align-middle">
+                        <InfoTooltip text={billMode === 'LORRY'
+                          ? 'Paper bill slip reference number brought by driver & customer selection'
+                          : 'Desk counter receipt & retail account selection'} />
+                      </span>
                     </h2>
                   </div>
                 </div>
@@ -1166,10 +1168,12 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                     2
                   </span>
                   <div>
-                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                      <ShoppingBag className="w-4 h-4 text-purple-600" />
+                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                      <ShoppingBag className="w-4 h-4 text-purple-600 inline-block mr-1.5 -mt-0.5" />
                       <span>{billMode === 'LORRY' ? 'Items Sold From Lorry Stock' : 'Items Sold From Central Warehouse'}</span>
-                      <InfoTooltip text="Line-by-line items, paid quantities, free promotional units, and item discounts" />
+                      <span className="inline-block ml-1.5 align-middle">
+                        <InfoTooltip text="Line-by-line items, paid quantities, free promotional units, and item discounts" />
+                      </span>
                     </h3>
                   </div>
                 </div>
@@ -1345,10 +1349,12 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                     3
                   </span>
                   <div>
-                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                      <RotateCcw className="w-4 h-4 text-amber-600" />
+                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                      <RotateCcw className="w-4 h-4 text-amber-600 inline-block mr-1.5 -mt-0.5" />
                       <span>Customer Returns / Damaged Goods (Credit Deduction)</span>
-                      <InfoTooltip text="Record expired, market returns or damaged items returned by client to deduct credit" />
+                      <span className="inline-block ml-1.5 align-middle">
+                        <InfoTooltip text="Record expired, market returns or damaged items returned by client to deduct credit" />
+                      </span>
                     </h3>
                   </div>
                 </div>
@@ -1485,10 +1491,12 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                     4
                   </span>
                   <div>
-                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                      <CreditCard className="w-4 h-4 text-emerald-600" />
+                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                      <CreditCard className="w-4 h-4 text-emerald-600 inline-block mr-1.5 -mt-0.5" />
                       <span>Payment Method & Cash Settlement</span>
-                      <InfoTooltip text="Record driver cash collections, cheque payments or client credit balances" />
+                      <span className="inline-block ml-1.5 align-middle">
+                        <InfoTooltip text="Record driver cash collections, cheque payments or client credit balances" />
+                      </span>
                     </h3>
                   </div>
                 </div>
