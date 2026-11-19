@@ -101,8 +101,8 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                 type="button"
                 onClick={() => setFormat('80mm')}
                 className={`px-2.5 py-1 rounded-lg flex items-center gap-1 transition ${format === '80mm'
-                    ? 'bg-white text-blue-700 shadow-2xs font-bold'
-                    : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white text-blue-700 shadow-2xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
                   }`}
                 title="80mm Thermal Receipt (Mobile / Bluetooth)"
               >
@@ -114,8 +114,8 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                 type="button"
                 onClick={() => setFormat('a4')}
                 className={`px-2.5 py-1 rounded-lg flex items-center gap-1 transition ${format === 'a4'
-                    ? 'bg-white text-blue-700 shadow-2xs font-bold'
-                    : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white text-blue-700 shadow-2xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
                   }`}
                 title="Full A4 / Slip"
               >
@@ -176,10 +176,10 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
         {/* Live Bluetooth Status Banner (if active) */}
         {btStatus && (
           <div className={`px-4 py-2 text-xs font-medium flex items-center gap-2 border-b print:hidden transition-all ${btSuccess
-              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-              : btStatus.includes('failed') || btStatus.includes('not supported') || btStatus.includes('cancelled')
-                ? 'bg-amber-50 text-amber-800 border-amber-200'
-                : 'bg-blue-50 text-blue-800 border-blue-200 animate-pulse'
+            ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+            : btStatus.includes('failed') || btStatus.includes('not supported') || btStatus.includes('cancelled')
+              ? 'bg-amber-50 text-amber-800 border-amber-200'
+              : 'bg-blue-50 text-blue-800 border-blue-200 animate-pulse'
             }`}>
             {btSuccess ? (
               <Check className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -203,7 +203,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                 <div className="flex justify-center mb-1.5">
                   <img
                     src={samanthaLogo}
-                    alt="Sun Bakers & Confectionary"
+                    alt="Samantha Distributor"
                     className="w-16 h-16 sm:w-20 sm:h-20 object-contain mx-auto rounded-full border border-slate-300 shadow-2xs print:border-none"
                   />
                 </div>
@@ -464,7 +464,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                   <div className="flex items-center gap-3 sm:justify-end">
                     <img
                       src={samanthaLogo}
-                      alt="Sun Bakers & Confectionary"
+                      alt="Samantha Distributor"
                       className="w-14 h-14 object-contain rounded-full border border-slate-300 shadow-2xs shrink-0"
                     />
                     <div>

@@ -1319,11 +1319,10 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice, isActive = 
                             <button
                               type="button"
                               onClick={addItemRow}
-                              className={`w-7 h-7 rounded-lg flex items-center justify-center transition shadow-2xs cursor-pointer ${
-                                billMode === 'LORRY'
+                              className={`w-7 h-7 rounded-lg flex items-center justify-center transition shadow-2xs cursor-pointer ${billMode === 'LORRY'
                                   ? 'bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200/60'
                                   : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200/60'
-                              }`}
+                                }`}
                               title="Add Item Line"
                             >
                               <Plus className="w-3.5 h-3.5 stroke-[2.5]" />

@@ -121,12 +121,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="flex items-center gap-3.5">
             <img
               src={samanthaLogo}
-              alt="Sun Bakers & Confectionary"
+              alt="Samantha Distributor"
               className="w-10 h-10 rounded-xl object-contain drop-shadow-xs shrink-0"
             />
             <div>
               <h1 className="font-bold text-slate-900 text-base tracking-tight leading-snug">
-                Sun Bakers & Confectionary
+                Samantha Distributor
               </h1>
               <span className="text-xs font-medium text-slate-400 block -mt-0.5">
                 Fleet &amp; Distribution

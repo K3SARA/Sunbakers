@@ -122,7 +122,7 @@ function createWindow() {
     minWidth: 1080,
     minHeight: 720,
     backgroundColor: '#F1F3F6',
-    title: 'Sun Bakers & Confectionary Management',
+    title: 'Samantha Distributor Management',
     icon: iconPath,
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     autoHideMenuBar: true,

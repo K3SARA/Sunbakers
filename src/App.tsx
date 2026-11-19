@@ -28,6 +28,7 @@ import { RepMobilePortal } from './pages/RepMobilePortal';
 import { InvoiceModal } from './components/InvoiceModal';
 import { CurrencyProvider, useCurrency, CURRENCIES } from './context/CurrencyContext';
 import { Order, User } from './types';
+import samanthaLogo from './assets/samantha-logo.png';
 
 export const AppContent: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
@@ -99,12 +100,14 @@ export const AppContent: React.FC = () => {
             >
               <Menu className="w-5 h-5" />
             </button>
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white shadow-2xs">
-                <Truck className="w-4.5 h-4.5 stroke-[2.2]" />
-              </div>
+            <div className="flex items-center gap-2.5">
+              <img
+                src={samanthaLogo}
+                alt="Samantha Distributor"
+                className="w-8 h-8 rounded-full object-contain border border-slate-200/80 shadow-2xs"
+              />
               <span className="font-bold text-slate-900 text-base tracking-tight">
-                Distributor Pro
+                Samantha Distributor
               </span>
             </div>
           </div>

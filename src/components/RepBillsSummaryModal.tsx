@@ -251,8 +251,8 @@ export const RepBillsSummaryModal: React.FC<RepBillsSummaryModalProps> = ({
               onClick={handleBluetoothPrint}
               disabled={btLoading}
               className={`px-2.5 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1 transition shadow-2xs active:scale-95 cursor-pointer ${btSuccess
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                ? 'bg-emerald-600 text-white'
+                : 'bg-indigo-600 hover:bg-indigo-700 text-white'
                 }`}
               title="Print via Bluetooth Thermal Printer"
             >
@@ -286,8 +286,8 @@ export const RepBillsSummaryModal: React.FC<RepBillsSummaryModalProps> = ({
                 type="button"
                 onClick={() => setSelectedScope('ALL')}
                 className={`px-2 py-0.5 rounded-lg text-xs font-bold transition ${selectedScope === 'ALL'
-                    ? 'bg-blue-600 text-white shadow-2xs'
-                    : 'bg-white text-slate-600 hover:bg-slate-200 border border-slate-200'
+                  ? 'bg-blue-600 text-white shadow-2xs'
+                  : 'bg-white text-slate-600 hover:bg-slate-200 border border-slate-200'
                   }`}
               >
                 All Bills ({allBills.length})
@@ -296,8 +296,8 @@ export const RepBillsSummaryModal: React.FC<RepBillsSummaryModalProps> = ({
                 type="button"
                 onClick={() => setSelectedScope('FILTERED')}
                 className={`px-2 py-0.5 rounded-lg text-xs font-bold transition ${selectedScope === 'FILTERED'
-                    ? 'bg-blue-600 text-white shadow-2xs'
-                    : 'bg-white text-slate-600 hover:bg-slate-200 border border-slate-200'
+                  ? 'bg-blue-600 text-white shadow-2xs'
+                  : 'bg-white text-slate-600 hover:bg-slate-200 border border-slate-200'
                   }`}
               >
                 Filtered ({activeFilter}: {filteredBills?.length})
@@ -310,12 +310,12 @@ export const RepBillsSummaryModal: React.FC<RepBillsSummaryModalProps> = ({
         {btStatus && (
           <div
             className={`px-4 py-2 text-xs font-medium flex items-center gap-2 border-b print:hidden transition-all shrink-0 ${btSuccess
-                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                : btStatus.includes('failed') ||
-                  btStatus.includes('not supported') ||
-                  btStatus.includes('cancelled')
-                  ? 'bg-amber-50 text-amber-800 border-amber-200'
-                  : 'bg-blue-50 text-blue-800 border-blue-200 animate-pulse'
+              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+              : btStatus.includes('failed') ||
+                btStatus.includes('not supported') ||
+                btStatus.includes('cancelled')
+                ? 'bg-amber-50 text-amber-800 border-amber-200'
+                : 'bg-blue-50 text-blue-800 border-blue-200 animate-pulse'
               }`}
           >
             {btSuccess ? (
@@ -338,7 +338,7 @@ export const RepBillsSummaryModal: React.FC<RepBillsSummaryModalProps> = ({
               <div className="flex justify-center mb-1">
                 <img
                   src={samanthaLogo}
-                  alt="Sun Bakers & Confectionary"
+                  alt="Samantha Distributor"
                   className="w-16 h-16 object-contain mx-auto rounded-full border border-slate-200/60 shadow-2xs print:border-none"
                 />
               </div>
@@ -496,17 +496,16 @@ export const RepBillsSummaryModal: React.FC<RepBillsSummaryModalProps> = ({
                           {bill.customer?.companyName || bill.customer?.name}
                         </span>
                         <span
-                          className={`font-bold text-[10.5px] px-1 rounded ${
-                            isReturnNote
+                          className={`font-bold text-[10.5px] px-1 rounded ${isReturnNote
                               ? 'bg-amber-100 text-amber-900 border border-amber-300'
                               : isCash
-                              ? 'bg-emerald-50 text-emerald-800'
-                              : isCheque
-                              ? 'bg-orange-50 text-orange-800'
-                              : creditDue > 0
-                              ? 'bg-rose-50 text-rose-800 font-bold'
-                              : 'bg-slate-100 text-slate-700'
-                          }`}
+                                ? 'bg-emerald-50 text-emerald-800'
+                                : isCheque
+                                  ? 'bg-orange-50 text-orange-800'
+                                  : creditDue > 0
+                                    ? 'bg-rose-50 text-rose-800 font-bold'
+                                    : 'bg-slate-100 text-slate-700'
+                            }`}
                         >
                           {isReturnNote ? 'RETURN CREDIT' : bill.paymentMethod}
                           {!isReturnNote && creditDue > 0 ? ` (Due: ${creditDue.toFixed(0)})` : ''}
@@ -633,8 +632,8 @@ export const RepBillsSummaryModal: React.FC<RepBillsSummaryModalProps> = ({
               onClick={handleBluetoothPrint}
               disabled={btLoading}
               className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-2xs ${btSuccess
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                ? 'bg-emerald-600 text-white'
+                : 'bg-indigo-600 hover:bg-indigo-700 text-white'
                 }`}
             >
               {btLoading ? (

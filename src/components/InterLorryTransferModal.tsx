@@ -485,3 +485,4 @@ export const InterLorryTransferModal: React.FC<InterLorryTransferModalProps> = (
     </div>
   );
 };
+

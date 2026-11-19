@@ -1,6 +1,6 @@
 {
   "appId": "com.samanthadistributor.app",
-  "productName": "Sun Bakers & Confectionary",
+  "productName": "Samantha Distributor",
   "copyright": "Copyright © 2026 Samantha & Co.",
   "electronDist": "node_modules/electron/dist",
   "directories": {
