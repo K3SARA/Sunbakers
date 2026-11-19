@@ -27,6 +27,7 @@ import { Lorry, Customer, Order, Product } from '../types';
 import { LorryService, CustomerService, OrderService, ProductService } from '../services/api';
 import { useCurrency } from '../context/CurrencyContext';
 import { CustomerModal } from '../components/CustomerModal';
+import { InfoTooltip } from '../components/Tooltip';
 
 interface BillItemRow {
   productId: string;
@@ -296,7 +297,7 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
           })
         );
         setHasDraft(true);
-      } catch (e) {}
+      } catch (e) { }
     }
   }, [
     billMode,
@@ -315,7 +316,7 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
   const handleClearForm = () => {
     try {
       localStorage.removeItem(DRAFT_KEY);
-    } catch (e) {}
+    } catch (e) { }
     setPaperBillNumber('');
     setBillItems([{ productId: '', quantity: 1, freeQuantity: 0 }]);
     setReturnItems([]);
@@ -436,31 +437,31 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
 
   const availableItems: AvailableItem[] = billMode === 'LORRY'
     ? availableLorryProducts.map((s: any) => ({
-        id: s.id,
-        productId: s.productId,
-        name: s.product.name,
-        unit: s.product.unit,
-        unitPrice: s.product.unitPrice,
-        stock: s.quantity,
-        freeStock: s.freeQuantity || 0,
-        freeRatioBuy: s.product.freeRatioBuy,
-        freeRatioGet: s.product.freeRatioGet,
-        category: s.product.category
-      }))
+      id: s.id,
+      productId: s.productId,
+      name: s.product.name,
+      unit: s.product.unit,
+      unitPrice: s.product.unitPrice,
+      stock: s.quantity,
+      freeStock: s.freeQuantity || 0,
+      freeRatioBuy: s.product.freeRatioBuy,
+      freeRatioGet: s.product.freeRatioGet,
+      category: s.product.category
+    }))
     : warehouseProducts
-        .filter(p => p.currentStock > 0 || (p.freeStock && p.freeStock > 0))
-        .map(p => ({
-          id: p.id,
-          productId: p.id,
-          name: p.name,
-          unit: p.unit,
-          unitPrice: p.unitPrice,
-          stock: p.currentStock,
-          freeStock: p.freeStock || 0,
-          freeRatioBuy: p.freeRatioBuy,
-          freeRatioGet: p.freeRatioGet,
-          category: p.category
-        }));
+      .filter(p => p.currentStock > 0 || (p.freeStock && p.freeStock > 0))
+      .map(p => ({
+        id: p.id,
+        productId: p.id,
+        name: p.name,
+        unit: p.unit,
+        unitPrice: p.unitPrice,
+        stock: p.currentStock,
+        freeStock: p.freeStock || 0,
+        freeRatioBuy: p.freeRatioBuy,
+        freeRatioGet: p.freeRatioGet,
+        category: p.category
+      }));
 
   const addItemRow = () => {
     setBillItems([...billItems, { productId: '', quantity: 1, freeQuantity: 0, discountPercent: 0 }]);
@@ -710,12 +711,12 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
       const previousBillsPayload =
         settlePreviousBill && customerUnpaidBills.length > 0 && parseFloat(settleAmount) > 0
           ? [
-              {
-                orderId: customerUnpaidBills[0].id,
-                amount: parseFloat(settleAmount),
-                paymentMethod: 'CASH'
-              }
-            ]
+            {
+              orderId: customerUnpaidBills[0].id,
+              amount: parseFloat(settleAmount),
+              paymentMethod: 'CASH'
+            }
+          ]
           : undefined;
 
       const formattedReturnsPayload = validReturns.map(r => ({
@@ -789,7 +790,7 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
       // Reset form & remove draft
       try {
         localStorage.removeItem(DRAFT_KEY);
-      } catch (e) {}
+      } catch (e) { }
       setHasDraft(false);
       setPaperBillNumber('');
       setBillItems([{ productId: '', quantity: 1, freeQuantity: 0 }]);
@@ -820,12 +821,12 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
             <Receipt className="w-4 h-4" />
             <span>Billing Operations</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
-            Sales Bill Entry
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-            Issue sales bills for driver lorry deliveries or direct walk-in / counter customers.
-          </p>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
+              Sales Bill Entry
+            </h1>
+            <InfoTooltip text="Issue sales bills for driver lorry deliveries or direct walk-in / counter customers." />
+          </div>
         </div>
 
         <div className="self-start sm:self-auto flex items-center gap-2 text-xs font-medium bg-white px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-2xl border border-slate-200/80 shadow-2xs">
@@ -841,33 +842,27 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
         <button
           type="button"
           onClick={() => handleModeSwitch('LORRY')}
-          className={`flex-1 py-3 px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2.5 transition-all ${
-            billMode === 'LORRY'
-              ? 'bg-white text-blue-600 shadow-xs border border-slate-200/60'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
-          }`}
+          className={`flex-1 py-2.5 px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${billMode === 'LORRY'
+            ? 'bg-white text-blue-600 shadow-xs border border-slate-200/60'
+            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+            }`}
         >
           <Truck className="w-4.5 h-4.5 shrink-0" />
-          <div className="text-left">
-            <div className="leading-tight">🚚 Lorry Route Delivery Bill</div>
-            <div className="text-[10px] font-normal text-slate-400">Driver paper slip entry • Deducts from lorry floating stock</div>
-          </div>
+          <span>🚚 Lorry Route Delivery Bill</span>
+          <InfoTooltip text="Driver paper slip entry • Deducts from lorry floating stock" />
         </button>
 
         <button
           type="button"
           onClick={() => handleModeSwitch('WALK_IN')}
-          className={`flex-1 py-3 px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2.5 transition-all ${
-            billMode === 'WALK_IN'
-              ? 'bg-white text-emerald-600 shadow-xs border border-slate-200/60'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
-          }`}
+          className={`flex-1 py-2.5 px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${billMode === 'WALK_IN'
+            ? 'bg-white text-emerald-600 shadow-xs border border-slate-200/60'
+            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+            }`}
         >
           <Building2 className="w-4.5 h-4.5 shrink-0" />
-          <div className="text-left">
-            <div className="leading-tight">🏢 Walk-in / Counter Direct Sale</div>
-            <div className="text-[10px] font-normal text-slate-400">Warehouse direct desk sale • Deducts directly from central warehouse</div>
-          </div>
+          <span>🏢 Walk-in / Counter Direct Sale</span>
+          <InfoTooltip text="Warehouse direct desk sale • Deducts directly from central warehouse" />
         </button>
       </div>
 
@@ -923,11 +918,10 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                 <button
                   key={lorry.id}
                   onClick={() => setSelectedLorryId(lorry.id)}
-                  className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap flex-1 sm:flex-initial text-center ${
-                    isSelected
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                  }`}
+                  className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap flex-1 sm:flex-initial text-center ${isSelected
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    }`}
                 >
                   {lorry.vehicleNumber}
                 </button>
@@ -937,18 +931,21 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
         </div>
       ) : (
         /* Walk-in Counter Notice Banner */
-        <div className="bg-emerald-50/70 p-3.5 sm:p-4 rounded-3xl border border-emerald-200/80 shadow-2xs flex items-center gap-3">
-          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
-            <Building2 className="w-5 h-5" />
+        <div className="bg-emerald-50/70 p-3 sm:p-3.5 rounded-2xl border border-emerald-200/80 shadow-2xs flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+              <Building2 className="w-4 h-4" />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider">
+                Direct Warehouse Sales Counter
+              </span>
+              <InfoTooltip text="Items billed here are issued on-the-spot and deducted directly from Central Warehouse stock (no lorry loading required)." />
+            </div>
           </div>
-          <div>
-            <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider block">
-              Direct Warehouse Sales Counter
-            </span>
-            <p className="text-xs text-emerald-700">
-              Items billed here are issued on-the-spot and deducted directly from the Central Warehouse stock (no lorry loading required).
-            </p>
-          </div>
+          <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-100/70 px-2.5 py-0.5 rounded-lg border border-emerald-200/60 hidden sm:inline-block">
+            Central Stock
+          </span>
         </div>
       )}
 
@@ -968,13 +965,11 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                   <div>
                     <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
                       <FileText className={`w-4 h-4 ${billMode === 'LORRY' ? 'text-blue-600' : 'text-emerald-600'}`} />
-                      {billMode === 'LORRY' ? 'Paper Bill Slip Details' : 'Walk-in Counter Sale Details'}
-                    </h2>
-                    <p className="text-[11px] text-slate-400">
-                      {billMode === 'LORRY'
+                      <span>{billMode === 'LORRY' ? 'Bill Details' : 'Walk-in Counter Sale Details'}</span>
+                      <InfoTooltip text={billMode === 'LORRY'
                         ? 'Paper bill slip reference number brought by driver & customer selection'
-                        : 'Desk counter receipt & retail account selection'}
-                    </p>
+                        : 'Desk counter receipt & retail account selection'} />
+                    </h2>
                   </div>
                 </div>
 
@@ -994,7 +989,7 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                 <div className="bg-slate-50/80 p-3.5 rounded-2xl border border-slate-200/70 space-y-1.5">
                   <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                     <Hash className="w-3.5 h-3.5 text-slate-400" />
-                    {billMode === 'LORRY' ? "Driver's Paper Bill # (Slip / Invoice No)" : 'Office / Counter Receipt # (Optional)'}
+                    {billMode === 'LORRY' ? "Bill Number" : 'Office / Counter Receipt # (Optional)'}
                   </label>
                   <input
                     type="text"
@@ -1009,7 +1004,7 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                   <div className="flex items-center justify-between">
                     <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                       <Users className="w-3.5 h-3.5 text-slate-400" />
-                      {billMode === 'LORRY' ? 'Retail Customer / Outlet *' : 'Customer Account *'}
+                      {billMode === 'LORRY' ? 'Customer' : 'Customer Account *'}
                     </label>
                     {selectedCustomer && selectedCustomer.discountPercentage > 0 && (
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200">
@@ -1173,22 +1168,19 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                   <div>
                     <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
                       <ShoppingBag className="w-4 h-4 text-purple-600" />
-                      {billMode === 'LORRY' ? 'Items Sold From Lorry Stock' : 'Items Sold From Central Warehouse'}
+                      <span>{billMode === 'LORRY' ? 'Items Sold From Lorry Stock' : 'Items Sold From Central Warehouse'}</span>
+                      <InfoTooltip text="Line-by-line items, paid quantities, free promotional units, and item discounts" />
                     </h3>
-                    <p className="text-[11px] text-slate-400">
-                      Line-by-line items, paid quantities, free promotional units, and item discounts
-                    </p>
                   </div>
                 </div>
 
                 <button
                   type="button"
                   onClick={addItemRow}
-                  className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-xl transition-colors shadow-2xs ${
-                    billMode === 'LORRY'
-                      ? 'text-white bg-blue-600 hover:bg-blue-700'
-                      : 'text-white bg-emerald-600 hover:bg-emerald-700'
-                  }`}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-xl transition-colors shadow-2xs ${billMode === 'LORRY'
+                    ? 'text-white bg-blue-600 hover:bg-blue-700'
+                    : 'text-white bg-emerald-600 hover:bg-emerald-700'
+                    }`}
                 >
                   <Plus className="w-4 h-4" /> Add Item Line
                 </button>
@@ -1225,11 +1217,10 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                     return (
                       <div
                         key={index}
-                        className={`flex flex-col sm:grid sm:grid-cols-12 items-stretch sm:items-center gap-2.5 p-3 rounded-2xl border transition-all ${
-                          hasDiscount
-                            ? 'bg-emerald-50/20 border-emerald-200/90'
-                            : 'bg-slate-50/80 border-slate-200/80 hover:bg-slate-50'
-                        }`}
+                        className={`flex flex-col sm:grid sm:grid-cols-12 items-stretch sm:items-center gap-2.5 p-3 rounded-2xl border transition-all ${hasDiscount
+                          ? 'bg-emerald-50/20 border-emerald-200/90'
+                          : 'bg-slate-50/80 border-slate-200/80 hover:bg-slate-50'
+                          }`}
                       >
                         {/* 1. Product Selector (5 cols) */}
                         <div className="sm:col-span-5">
@@ -1304,11 +1295,10 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                               value={item.discountPercent !== undefined && item.discountPercent > 0 ? item.discountPercent : ''}
                               onChange={(e) => updateItemRow(index, 'discountPercent', parseFloat(e.target.value) || 0)}
                               placeholder="0%"
-                              className={`w-full border rounded-xl px-1.5 py-2 text-xs font-bold text-center focus:outline-none focus:ring-2 font-mono ${
-                                hasDiscount
-                                  ? 'bg-emerald-100/70 border-emerald-300 text-emerald-900 focus:ring-emerald-500'
-                                  : 'bg-white border-slate-200 text-slate-700 focus:ring-blue-500'
-                              }`}
+                              className={`w-full border rounded-xl px-1.5 py-2 text-xs font-bold text-center focus:outline-none focus:ring-2 font-mono ${hasDiscount
+                                ? 'bg-emerald-100/70 border-emerald-300 text-emerald-900 focus:ring-emerald-500'
+                                : 'bg-white border-slate-200 text-slate-700 focus:ring-blue-500'
+                                }`}
                             />
                           </div>
                         </div>
@@ -1352,11 +1342,9 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                   <div>
                     <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
                       <RotateCcw className="w-4 h-4 text-amber-600" />
-                      Customer Returns / Damaged Goods (Credit Deduction)
+                      <span>Customer Returns / Damaged Goods (Credit Deduction)</span>
+                      <InfoTooltip text="Record expired, market returns or damaged items returned by client to deduct credit" />
                     </h3>
-                    <p className="text-[11px] text-slate-400">
-                      Record expired, market returns or damaged items returned by client to deduct credit
-                    </p>
                   </div>
                 </div>
 
@@ -1494,11 +1482,9 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                   <div>
                     <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
                       <CreditCard className="w-4 h-4 text-emerald-600" />
-                      Payment Method & Cash Settlement
+                      <span>Payment Method & Cash Settlement</span>
+                      <InfoTooltip text="Record driver cash collections, cheque payments or client credit balances" />
                     </h3>
-                    <p className="text-[11px] text-slate-400">
-                      Record driver cash collections, cheque payments or client credit balances
-                    </p>
                   </div>
                 </div>
               </div>
@@ -1541,20 +1527,18 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                   const unpaidBal = Math.max(0, netTotal - (parseFloat(cashReceived) || 0));
                   const isPaid = unpaidBal <= 0.01 && netTotal > 0;
                   return (
-                    <div className={`p-3.5 rounded-2xl border space-y-1.5 ${
-                      isPaid
-                        ? 'bg-emerald-50/70 border-emerald-200/80 text-emerald-900'
-                        : unpaidBal > 0
+                    <div className={`p-3.5 rounded-2xl border space-y-1.5 ${isPaid
+                      ? 'bg-emerald-50/70 border-emerald-200/80 text-emerald-900'
+                      : unpaidBal > 0
                         ? 'bg-rose-50/60 border-rose-200/80 text-rose-900'
                         : 'bg-slate-50/80 border-slate-200/70 text-slate-800'
-                    }`}>
+                      }`}>
                       <div className="flex items-center justify-between">
                         <label className="text-[11px] font-bold uppercase tracking-wider">
                           Unpaid Balance
                         </label>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                          isPaid ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
-                        }`}>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isPaid ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                          }`}>
                           {isPaid ? 'Fully Paid' : 'Credit Balance'}
                         </span>
                       </div>
@@ -1572,10 +1556,11 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
                       <CreditCard className="w-4 h-4 text-blue-600" />
-                      Cheque Information (Tracked in PDC Management)
+                      <span>Cheque Information</span>
+                      <InfoTooltip text="Cheque details are recorded and auto-tracked in Post-Dated Cheques (PDC) Management." />
                     </span>
-                    <span className="text-[11px] font-semibold text-blue-600 bg-white px-2.5 py-0.5 rounded-md border border-blue-200">
-                      Auto-allocated to Cheque Registry
+                    <span className="text-[11px] font-semibold text-blue-600 bg-white px-2 py-0.5 rounded-md border border-blue-200">
+                      PDC Cheque
                     </span>
                   </div>
 
@@ -1686,18 +1671,16 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                         <button
                           type="button"
                           onClick={() => setBillDiscountType('PERCENT')}
-                          className={`px-1.5 py-0.2 rounded transition ${
-                            billDiscountType === 'PERCENT' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-500 hover:text-slate-800'
-                          }`}
+                          className={`px-1.5 py-0.2 rounded transition ${billDiscountType === 'PERCENT' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-500 hover:text-slate-800'
+                            }`}
                         >
                           %
                         </button>
                         <button
                           type="button"
                           onClick={() => setBillDiscountType('AMOUNT')}
-                          className={`px-1.5 py-0.2 rounded transition ${
-                            billDiscountType === 'AMOUNT' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-500 hover:text-slate-800'
-                          }`}
+                          className={`px-1.5 py-0.2 rounded transition ${billDiscountType === 'AMOUNT' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-500 hover:text-slate-800'
+                            }`}
                         >
                           Rs
                         </button>
@@ -1762,11 +1745,10 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                     <button
                       type="submit"
                       disabled={submitting || availableItems.length === 0}
-                      className={`px-6 py-3.5 active:scale-[0.99] text-white text-sm font-bold rounded-2xl shadow-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer ${
-                        billMode === 'LORRY'
-                          ? 'bg-[#0071E3] hover:bg-blue-600'
-                          : 'bg-emerald-600 hover:bg-emerald-700'
-                      }`}
+                      className={`px-6 py-3.5 active:scale-[0.99] text-white text-sm font-bold rounded-2xl shadow-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer ${billMode === 'LORRY'
+                        ? 'bg-[#0071E3] hover:bg-blue-600'
+                        : 'bg-emerald-600 hover:bg-emerald-700'
+                        }`}
                     >
                       <Receipt className="w-4 h-4" />
                       <span>
@@ -1854,36 +1836,32 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
       <div className="bg-white rounded-3xl border border-slate-200/80 shadow-2xs p-6 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-3">
           <div>
-            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-              {recentViewMode === 'BILLS' ? 'Recent Bills Recorded' : 'Billed Free Issues (Item-Wise)'}
-            </h3>
-            <p className="text-xs text-slate-400 mt-0.5">
-              {recentViewMode === 'BILLS'
+            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+              <span>{recentViewMode === 'BILLS' ? 'Recent Bills Recorded' : 'Billed Free Issues (Item-Wise)'}</span>
+              <InfoTooltip text={recentViewMode === 'BILLS'
                 ? 'Bills brought by drivers and direct counter sales saved in the system today.'
-                : "Item-wise breakdown of promotional free issues given on today's bills."}
-            </p>
+                : "Item-wise breakdown of promotional free issues given on today's bills."} />
+            </h3>
           </div>
 
           <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-2xl w-fit">
             <button
               type="button"
               onClick={() => setRecentViewMode('BILLS')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                recentViewMode === 'BILLS'
-                  ? 'bg-white text-slate-900 shadow-2xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${recentViewMode === 'BILLS'
+                ? 'bg-white text-slate-900 shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900'
+                }`}
             >
               Recent Bills ({todayOrders.length})
             </button>
             <button
               type="button"
               onClick={() => setRecentViewMode('FREE_ISSUES')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                recentViewMode === 'FREE_ISSUES'
-                  ? 'bg-white text-purple-700 shadow-2xs'
-                  : 'text-slate-600 hover:text-purple-700'
-              }`}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${recentViewMode === 'FREE_ISSUES'
+                ? 'bg-white text-purple-700 shadow-2xs'
+                : 'text-slate-600 hover:text-purple-700'
+                }`}
             >
               <Gift className="w-3.5 h-3.5 text-purple-600" />
               Billed Free Issues ({todayFreeIssuesItemWise.length})
@@ -1940,13 +1918,12 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                       </td>
                       <td className="py-3.5 px-3.5">
                         <span
-                          className={`px-2.5 py-1 rounded-lg text-xs font-bold uppercase ${
-                            order.paymentStatus === 'PAID'
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
-                              : order.paymentStatus === 'PARTIAL'
-                                ? 'bg-amber-50 text-amber-700 border border-amber-200/60'
-                                : 'bg-rose-50 text-rose-700 border border-rose-200/60'
-                          }`}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold uppercase ${order.paymentStatus === 'PAID'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
+                            : order.paymentStatus === 'PARTIAL'
+                              ? 'bg-amber-50 text-amber-700 border border-amber-200/60'
+                              : 'bg-rose-50 text-rose-700 border border-rose-200/60'
+                            }`}
                         >
                           {order.paymentMethod} • {order.paymentStatus}
                         </span>
@@ -2014,13 +1991,12 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                         <React.Fragment key={item.productId}>
                           <tr
                             onClick={() => toggleFreeItemExpand(item.productId)}
-                            className={`cursor-pointer transition-colors ${
-                              hasExtra
-                                ? 'bg-amber-50/30 hover:bg-amber-50/50'
-                                : isExpanded
+                            className={`cursor-pointer transition-colors ${hasExtra
+                              ? 'bg-amber-50/30 hover:bg-amber-50/50'
+                              : isExpanded
                                 ? 'bg-purple-50/30'
                                 : 'hover:bg-slate-50/70'
-                            }`}
+                              }`}
                           >
                             <td className="py-3 px-3 text-center text-slate-400">
                               {isExpanded ? (
@@ -2066,11 +2042,10 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                             </td>
                             <td className="py-3 px-3 text-center">
                               <span
-                                className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${
-                                  hasExtra
-                                    ? 'bg-amber-50 text-amber-800 border-amber-200'
-                                    : 'bg-slate-100 text-slate-700 border-slate-200'
-                                }`}
+                                className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${hasExtra
+                                  ? 'bg-amber-50 text-amber-800 border-amber-200'
+                                  : 'bg-slate-100 text-slate-700 border-slate-200'
+                                  }`}
                               >
                                 {item.billsCount} {item.billsCount === 1 ? 'bill' : 'bills'}
                               </span>
@@ -2159,8 +2134,10 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                 <AlertTriangle className="w-5 h-5 stroke-[2.5]" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-slate-900">Item Already in Bill</h3>
-                <p className="text-[11px] text-slate-500">Duplicate line item confirmation</p>
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <span>Item Already in Bill</span>
+                  <InfoTooltip text="This product has already been added to a line item in this bill slip." />
+                </h3>
               </div>
             </div>
 
