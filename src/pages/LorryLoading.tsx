@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Calendar,
   AlertCircle,
+  AlertTriangle,
   FileSpreadsheet,
   Boxes,
   Compass,
@@ -19,6 +20,7 @@ import { Lorry, Product, LorryLoading as LorryLoadingType } from '../types';
 import { LorryService, ProductService } from '../services/api';
 import { useCurrency } from '../context/CurrencyContext';
 import { LorryLoadingPrintModal } from '../components/LorryLoadingPrintModal';
+import { InfoTooltip } from '../components/Tooltip';
 
 interface LoadingRow {
   productId: string;
@@ -39,6 +41,18 @@ export const LorryLoading: React.FC = () => {
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Duplicate item confirmation modal state
+  const [duplicateConfirm, setDuplicateConfirm] = useState<{
+    product: Product;
+    targetIndex: number;
+    existingRowIndex: number;
+    existingQty: number;
+    newQty: number;
+    existingFreeQty?: number;
+    newFreeQty?: number;
+    isQuickAdd?: boolean;
+  } | null>(null);
 
   // Printing state for morning lorry load
   const [printLoadingData, setPrintLoadingData] = useState<LorryLoadingType | null>(null);
@@ -93,8 +107,59 @@ export const LorryLoading: React.FC = () => {
     );
   }, [warehouseProducts, quickSearch]);
 
+  const handleProductSelect = (index: number, selectedProductId: string) => {
+    if (!selectedProductId) {
+      updateRow(index, 'productId', '');
+      return;
+    }
+
+    // Check if this product is already in another row
+    const existingIndex = loadingRows.findIndex(
+      (r, i) => i !== index && r.productId === selectedProductId
+    );
+
+    if (existingIndex !== -1) {
+      const prod = warehouseProducts.find(p => p.id === selectedProductId);
+      if (prod) {
+        setDuplicateConfirm({
+          product: prod,
+          targetIndex: index,
+          existingRowIndex: existingIndex,
+          existingQty: loadingRows[existingIndex].quantity || 0,
+          newQty: loadingRows[index].quantity || 0,
+          existingFreeQty: loadingRows[existingIndex].freeQuantity || 0,
+          newFreeQty: loadingRows[index].freeQuantity || 0,
+          isQuickAdd: false
+        });
+        return;
+      }
+    }
+
+    updateRow(index, 'productId', selectedProductId);
+  };
+
   const handleQuickAddProduct = (prod: Product) => {
     if (!hasAvailableUnits(prod)) return;
+
+    // Check if this product is already in loadingRows
+    const existingIndex = loadingRows.findIndex(r => r.productId === prod.id);
+    if (existingIndex !== -1) {
+      const emptyRowIndex = loadingRows.findIndex(r => !r.productId);
+      const targetIndex = emptyRowIndex >= 0 ? emptyRowIndex : loadingRows.length;
+      setDuplicateConfirm({
+        product: prod,
+        targetIndex,
+        existingRowIndex: existingIndex,
+        existingQty: loadingRows[existingIndex].quantity || 0,
+        newQty: 0,
+        existingFreeQty: loadingRows[existingIndex].freeQuantity || 0,
+        newFreeQty: 0,
+        isQuickAdd: true
+      });
+      setQuickSearch('');
+      return;
+    }
+
     // If the last or only row is empty, fill it; otherwise append a new row
     const emptyRowIndex = loadingRows.findIndex(r => !r.productId);
     if (emptyRowIndex >= 0) {
@@ -611,7 +676,7 @@ export const LorryLoading: React.FC = () => {
                                     key={p.id}
                                     type="button"
                                     onClick={() => {
-                                      updateRow(index, 'productId', p.id);
+                                      handleProductSelect(index, p.id);
                                       setActiveDropdownIndex(null);
                                       setRowSearchQueries(prev => ({ ...prev, [index]: '' }));
                                     }}
@@ -1003,6 +1068,111 @@ export const LorryLoading: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* DUPLICATE ITEM CONFIRMATION POPUP */}
+      {duplicateConfirm && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-100 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-200/60">
+                <AlertTriangle className="w-5 h-5 stroke-[2.5]" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <span>Item Already in Loading List</span>
+                  <InfoTooltip text="This product has already been added to a line item in this lorry loading." />
+                </h3>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5 space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <h4 className="text-xs font-bold text-slate-900">{duplicateConfirm.product.name}</h4>
+                  <p className="text-[10px] text-slate-500 font-mono">
+                    SKU: {duplicateConfirm.product.sku}
+                    {duplicateConfirm.product.category && ` • ${duplicateConfirm.product.category}`}
+                  </p>
+                </div>
+                <span className="text-xs font-bold text-blue-600 font-mono">
+                  {formatMoney(duplicateConfirm.product.unitPrice)}
+                </span>
+              </div>
+
+              <div className="pt-2 border-t border-slate-200/70 flex items-center justify-between text-xs">
+                <span className="text-slate-500">Already in Line #{duplicateConfirm.existingRowIndex + 1}:</span>
+                <span className="font-bold text-amber-700 bg-amber-100/70 px-2 py-0.5 rounded-md font-mono">
+                  {duplicateConfirm.existingQty} {duplicateConfirm.product.unit || 'units'}
+                  {(duplicateConfirm.existingFreeQty || 0) > 0 && ` (+${duplicateConfirm.existingFreeQty} free)`}
+                </span>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              <span className="font-bold text-slate-800">"{duplicateConfirm.product.name}"</span> is already entered in <span className="font-semibold text-slate-900">Line #{duplicateConfirm.existingRowIndex + 1}</span>. How would you like to proceed?
+            </p>
+
+            <div className="flex flex-col gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  const combinedQty = duplicateConfirm.existingQty + duplicateConfirm.newQty;
+                  const combinedFree = (duplicateConfirm.existingFreeQty || 0) + (duplicateConfirm.newFreeQty || 0);
+                  updateRow(duplicateConfirm.existingRowIndex, 'quantity', combinedQty);
+                  if (combinedFree > 0) {
+                    updateRow(duplicateConfirm.existingRowIndex, 'freeQuantity', combinedFree);
+                  }
+                  if (!duplicateConfirm.isQuickAdd) {
+                    if (loadingRows.length > 1) {
+                      removeRow(duplicateConfirm.targetIndex);
+                    } else {
+                      updateRow(duplicateConfirm.targetIndex, 'productId', '');
+                    }
+                  }
+                  setDuplicateConfirm(null);
+                }}
+                className="w-full py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-xs font-bold text-white shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <span>
+                  Combine into Line #{duplicateConfirm.existingRowIndex + 1}
+                  {duplicateConfirm.newQty > 0 || (duplicateConfirm.newFreeQty || 0) > 0
+                    ? ` (${duplicateConfirm.existingQty + duplicateConfirm.newQty} units)`
+                    : ''}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (duplicateConfirm.isQuickAdd) {
+                    if (duplicateConfirm.targetIndex < loadingRows.length) {
+                      updateRow(duplicateConfirm.targetIndex, 'productId', duplicateConfirm.product.id);
+                    } else {
+                      setLoadingRows([...loadingRows, { productId: duplicateConfirm.product.id, quantity: 0, freeQuantity: 0 }]);
+                    }
+                  } else {
+                    updateRow(duplicateConfirm.targetIndex, 'productId', duplicateConfirm.product.id);
+                  }
+                  setDuplicateConfirm(null);
+                }}
+                className="w-full py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 transition cursor-pointer"
+              >
+                Keep as a Separate Line Item
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setDuplicateConfirm(null);
+                }}
+                className="w-full py-2 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-500 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Printable Loading Sheet Modal */}
       <LorryLoadingPrintModal
