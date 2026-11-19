@@ -1196,150 +1196,143 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                   </span>
                 </div>
               ) : (
-                <div className="space-y-2.5">
-                  {/* Table Column Headers (Desktop) */}
-                  <div className="hidden sm:flex items-center gap-2.5 sm:gap-3 px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    <div className="w-6 shrink-0 text-center">#</div>
-                    <div className="flex-1 min-w-0">Product Item</div>
-                    <div className="w-24 shrink-0 text-center">Paid Qty</div>
-                    <div className="w-24 shrink-0 text-center">Free Promo</div>
-                    <div className="w-18 shrink-0 text-center">Disc %</div>
-                    <div className="w-28 shrink-0 text-right">Line Total</div>
-                    <div className="w-8 shrink-0"></div>
-                  </div>
+                <div className="overflow-x-auto rounded-2xl border border-slate-200/90 shadow-2xs">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-slate-50/90 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        <th className="py-2.5 px-3 w-10 text-center">#</th>
+                        <th className="py-2.5 px-3 min-w-[240px]">Product Item</th>
+                        <th className="py-2.5 px-2 w-24 text-center">Paid Qty</th>
+                        <th className="py-2.5 px-2 w-24 text-center">Free Promo</th>
+                        <th className="py-2.5 px-2 w-20 text-center">Disc %</th>
+                        <th className="py-2.5 px-3 w-32 text-right whitespace-nowrap">Line Total</th>
+                        <th className="py-2.5 px-2 w-10 text-center"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                      {billItems.map((item, index) => {
+                        const itemInfo = availableItems.find(s => s.productId === item.productId);
+                        const basePrice = itemInfo ? itemInfo.unitPrice : 0;
+                        const effectivePrice = item.unitPrice !== undefined ? item.unitPrice : basePrice;
+                        const lineTotal = effectivePrice * (item.quantity || 0);
+                        const hasDiscount = (item.discountPercent || 0) > 0;
+                        const hasScheme = Boolean(itemInfo && itemInfo.freeRatioBuy && itemInfo.freeRatioBuy > 0 && itemInfo.freeRatioGet);
 
-                  {billItems.map((item, index) => {
-                    const itemInfo = availableItems.find(s => s.productId === item.productId);
-                    const basePrice = itemInfo ? itemInfo.unitPrice : 0;
-                    const effectivePrice = item.unitPrice !== undefined ? item.unitPrice : basePrice;
-                    const lineTotal = effectivePrice * (item.quantity || 0);
-                    const hasDiscount = (item.discountPercent || 0) > 0;
-                    const hasScheme = Boolean(itemInfo && itemInfo.freeRatioBuy && itemInfo.freeRatioBuy > 0 && itemInfo.freeRatioGet);
-
-                    return (
-                      <div
-                        key={index}
-                        className={`flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 p-3 rounded-2xl border transition-all ${hasDiscount
-                          ? 'bg-emerald-50/20 border-emerald-200/90 shadow-2xs'
-                          : 'bg-slate-50/80 border-slate-200/80 hover:bg-slate-50 shadow-2xs'
-                          }`}
-                      >
-                        {/* Row Index */}
-                        <div className="hidden sm:flex w-6 shrink-0 items-center justify-center text-xs font-bold font-mono text-slate-400">
-                          {index + 1}
-                        </div>
-
-                        {/* 1. Product Selector */}
-                        <div className="flex-1 min-w-0">
-                          <select
-                            value={item.productId}
-                            onChange={(e) => handleProductSelect(index, e.target.value)}
-                            required
-                            className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 truncate shadow-2xs cursor-pointer"
+                        return (
+                          <tr
+                            key={index}
+                            className={`transition-colors ${hasDiscount ? 'bg-emerald-50/20 hover:bg-emerald-50/40' : 'hover:bg-slate-50/60'
+                              }`}
                           >
-                            <option value="">
-                              {billMode === 'LORRY' ? '-- Select Item on Lorry --' : '-- Select Item in Warehouse --'}
-                            </option>
-                            {availableItems.map((s) => (
-                              <option key={s.productId} value={s.productId}>
-                                {s.name} ({billMode === 'LORRY' ? 'Lorry' : 'Warehouse'}: {s.stock} paid + {s.freeStock} free)
-                                {s.freeRatioBuy && s.freeRatioBuy > 0 && s.freeRatioGet
-                                  ? ` ★ Buy ${s.freeRatioBuy}+${s.freeRatioGet} Free`
-                                  : ''} - {formatMoney(s.unitPrice)}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
+                            {/* # */}
+                            <td className="py-2 px-3 text-center font-mono text-xs font-bold text-slate-400">
+                              {index + 1}
+                            </td>
 
-                        {/* 2. Paid Qty */}
-                        <div className="w-full sm:w-24 shrink-0">
-                          <div className="relative">
-                            <span className="sm:hidden text-[10px] font-bold text-slate-400 block mb-1 text-center">Paid Qty</span>
-                            <input
-                              type="number"
-                              min="1"
-                              max={itemInfo ? (itemInfo.stock + itemInfo.freeStock) : 9999}
-                              value={item.quantity || ''}
-                              onChange={(e) => updateItemRow(index, 'quantity', parseInt(e.target.value, 10) || 0)}
-                              placeholder="1"
-                              title="Billed / Paid Quantity"
-                              required
-                              className="w-full bg-white border border-slate-200 rounded-xl px-2 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 text-center font-mono shadow-2xs"
-                            />
-                          </div>
-                        </div>
+                            {/* Product Selector */}
+                            <td className="py-2 px-3 min-w-[240px]">
+                              <select
+                                value={item.productId}
+                                onChange={(e) => handleProductSelect(index, e.target.value)}
+                                required
+                                className="w-full bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 truncate shadow-2xs transition cursor-pointer"
+                              >
+                                <option value="">
+                                  {billMode === 'LORRY' ? '-- Select Item on Lorry --' : '-- Select Item in Warehouse --'}
+                                </option>
+                                {availableItems.map((s) => (
+                                  <option key={s.productId} value={s.productId}>
+                                    {s.name} ({billMode === 'LORRY' ? 'Lorry' : 'Warehouse'}: {s.stock} paid + {s.freeStock} free)
+                                    {s.freeRatioBuy && s.freeRatioBuy > 0 && s.freeRatioGet
+                                      ? ` ★ Buy ${s.freeRatioBuy}+${s.freeRatioGet} Free`
+                                      : ''} - {formatMoney(s.unitPrice)}
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
 
-                        {/* 3. Free Issue Qty */}
-                        <div className="w-full sm:w-24 shrink-0">
-                          <div className="relative">
-                            <span className="sm:hidden text-[10px] font-bold text-purple-600 block mb-1 text-center">Free Promo</span>
-                            <input
-                              type="number"
-                              min="0"
-                              max={itemInfo ? (itemInfo.stock + itemInfo.freeStock) : 9999}
-                              value={item.freeQuantity !== undefined ? item.freeQuantity : ''}
-                              onChange={(e) => updateItemRow(index, 'freeQuantity', parseInt(e.target.value, 10) || 0)}
-                              placeholder="0"
-                              title="Promotional Free Issue (Cost: Rs. 0.00)"
-                              className="w-full bg-purple-50/70 border border-purple-200 text-purple-900 rounded-xl px-2 py-2 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-purple-500 text-center font-mono shadow-2xs"
-                            />
-                            {Boolean(hasScheme && item.quantity > 0) ? (
-                              <span className="absolute -top-2 right-1 px-1 bg-purple-600 text-[8px] font-bold text-white rounded shadow-2xs pointer-events-none">
-                                Auto
+                            {/* Paid Qty */}
+                            <td className="py-2 px-2 w-24">
+                              <input
+                                type="number"
+                                min="1"
+                                max={itemInfo ? (itemInfo.stock + itemInfo.freeStock) : 9999}
+                                value={item.quantity || ''}
+                                onChange={(e) => updateItemRow(index, 'quantity', parseInt(e.target.value, 10) || 0)}
+                                placeholder="1"
+                                title="Billed / Paid Quantity"
+                                required
+                                className="w-full bg-white border border-slate-200 rounded-xl px-2 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 text-center font-mono shadow-2xs"
+                              />
+                            </td>
+
+                            {/* Free Promo */}
+                            <td className="py-2 px-2 w-24">
+                              <div className="relative">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max={itemInfo ? (itemInfo.stock + itemInfo.freeStock) : 9999}
+                                  value={item.freeQuantity !== undefined ? item.freeQuantity : ''}
+                                  onChange={(e) => updateItemRow(index, 'freeQuantity', parseInt(e.target.value, 10) || 0)}
+                                  placeholder="0"
+                                  title="Promotional Free Issue (Cost: Rs. 0.00)"
+                                  className="w-full bg-purple-50/70 border border-purple-200 text-purple-900 rounded-xl px-2 py-2 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-purple-500 text-center font-mono shadow-2xs"
+                                />
+                                {Boolean(hasScheme && item.quantity > 0) ? (
+                                  <span className="absolute -top-2 right-1 px-1 bg-purple-600 text-[8px] font-bold text-white rounded shadow-2xs pointer-events-none">
+                                    Auto
+                                  </span>
+                                ) : null}
+                              </div>
+                            </td>
+
+                            {/* Disc % */}
+                            <td className="py-2 px-2 w-20">
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="any"
+                                value={item.discountPercent !== undefined && item.discountPercent > 0 ? item.discountPercent : ''}
+                                onChange={(e) => updateItemRow(index, 'discountPercent', parseFloat(e.target.value) || 0)}
+                                placeholder="0%"
+                                title="Item discount percentage"
+                                className={`w-full border rounded-xl px-2 py-2 text-xs font-bold text-center focus:outline-none focus:ring-2 font-mono shadow-2xs ${hasDiscount
+                                  ? 'bg-emerald-100/70 border-emerald-300 text-emerald-900 focus:ring-emerald-500'
+                                  : 'bg-white border-slate-200 text-slate-700 focus:ring-blue-500 placeholder:text-slate-400'
+                                  }`}
+                              />
+                            </td>
+
+                            {/* Line Total */}
+                            <td className="py-2 px-3 w-32 text-right whitespace-nowrap">
+                              <span className="font-mono text-xs sm:text-sm font-bold text-slate-900 block">
+                                {formatMoney(lineTotal)}
                               </span>
-                            ) : null}
-                          </div>
-                        </div>
+                              {hasDiscount && (
+                                <span className="font-mono text-[10px] text-emerald-700 font-semibold block">
+                                  @{formatMoney(effectivePrice)}
+                                </span>
+                              )}
+                            </td>
 
-                        {/* 4. Item Discount % */}
-                        <div className="w-full sm:w-18 shrink-0">
-                          <div className="relative" title="Item discount %">
-                            <span className="sm:hidden text-[10px] font-bold text-slate-400 block mb-1 text-center">Disc %</span>
-                            <input
-                              type="number"
-                              min="0"
-                              max="100"
-                              step="any"
-                              value={item.discountPercent !== undefined && item.discountPercent > 0 ? item.discountPercent : ''}
-                              onChange={(e) => updateItemRow(index, 'discountPercent', parseFloat(e.target.value) || 0)}
-                              placeholder="0%"
-                              className={`w-full border rounded-xl px-2 py-2 text-xs font-bold text-center focus:outline-none focus:ring-2 font-mono shadow-2xs ${hasDiscount
-                                ? 'bg-emerald-100/70 border-emerald-300 text-emerald-900 focus:ring-emerald-500'
-                                : 'bg-white border-slate-200 text-slate-700 focus:ring-blue-500 placeholder:text-slate-400'
-                                }`}
-                            />
-                          </div>
-                        </div>
-
-                        {/* 5. Line Total */}
-                        <div className="w-full sm:w-28 shrink-0 flex items-center justify-between sm:justify-end">
-                          <span className="sm:hidden text-xs font-bold text-slate-500">Line Total:</span>
-                          <div className="text-right">
-                            <span className="block font-mono text-xs sm:text-sm font-bold text-slate-900 whitespace-nowrap">
-                              {formatMoney(lineTotal)}
-                            </span>
-                            {hasDiscount && (
-                              <span className="block font-mono text-[10px] text-emerald-700 font-semibold whitespace-nowrap">
-                                @{formatMoney(effectivePrice)}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* 6. Delete Button */}
-                        <div className="w-full sm:w-8 shrink-0 flex justify-end sm:justify-center">
-                          <button
-                            type="button"
-                            onClick={() => removeItemRow(index)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-                            title="Remove Line Item"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
+                            {/* Delete Button */}
+                            <td className="py-2 px-2 w-10 text-center">
+                              <button
+                                type="button"
+                                onClick={() => removeItemRow(index)}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                                title="Remove Line Item"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
