@@ -13,7 +13,7 @@
     "build:electron": "tsc -p tsconfig.electron.json",
     "build:vite": "vite build",
     "build": "node scripts/prepare-prisma.js && vite build && prisma generate",
-    "build:all": "node scripts/prepare-prisma.js && prisma generate && npm run build:vite && npm run build:server && npm run build:electron",
+    "build:all": "node scripts/prepare-prisma.js && (prisma generate || node -e \"console.log('Using existing Prisma client')\") && npm run build:vite && npm run build:server && npm run build:electron",
     "dist": "npm run build:all && electron-builder --win",
     "dist:fast": "electron-builder --win",
     "dist:installer": "node scripts/build-installer.js",
