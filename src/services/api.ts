@@ -65,6 +65,28 @@ const api = axios.create({
   }
 });
 
+// Broadcast any database mutation in real-time across all active app views
+api.interceptors.response.use(
+  (response) => {
+    const method = (response.config.method || '').toLowerCase();
+    if (['post', 'put', 'patch', 'delete'].includes(method)) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('app:data-changed', {
+            detail: {
+              url: response.config.url,
+              method,
+              timestamp: Date.now()
+            }
+          })
+        );
+      }
+    }
+    return response;
+  },
+  (error) => Promise.reject(error)
+);
+
 export const ProductService = {
   getAll: (lowStock?: boolean, search?: string) =>
     api.get<Product[]>('/products', { params: { lowStock, search } }).then(r => r.data),

@@ -17,12 +17,14 @@ import {
 import { CustomerPayment, Order } from '../types';
 import { ChequeService, ChequeStats } from '../services/api';
 import { useCurrency } from '../context/CurrencyContext';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 
 interface ChequesProps {
   onViewInvoice?: (order: Order) => void;
+  isActive?: boolean;
 }
 
-export const Cheques: React.FC<ChequesProps> = ({ onViewInvoice }) => {
+export const Cheques: React.FC<ChequesProps> = ({ onViewInvoice, isActive }) => {
   const { formatMoney } = useCurrency();
 
   const [cheques, setCheques] = useState<CustomerPayment[]>([]);
@@ -73,6 +75,10 @@ export const Cheques: React.FC<ChequesProps> = ({ onViewInvoice }) => {
       setRefreshing(false);
     }
   };
+
+  useLiveRefresh(() => {
+    loadData(false);
+  }, { isActive });
 
   useEffect(() => {
     loadData();

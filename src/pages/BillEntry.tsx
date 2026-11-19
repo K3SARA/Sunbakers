@@ -28,6 +28,7 @@ import { LorryService, CustomerService, OrderService, ProductService } from '../
 import { useCurrency } from '../context/CurrencyContext';
 import { CustomerModal } from '../components/CustomerModal';
 import { InfoTooltip } from '../components/Tooltip';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 
 interface BillItemRow {
   productId: string;
@@ -47,9 +48,10 @@ interface BillReturnRow {
 
 interface BillEntryProps {
   onViewInvoice?: (order: Order) => void;
+  isActive?: boolean;
 }
 
-export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
+export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice, isActive = true }) => {
   const { formatMoney } = useCurrency();
 
   // Mode: LORRY (Evening driver paper slip entry) vs WALK_IN (Counter / Walk-in sale from warehouse)
@@ -331,6 +333,10 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
   useEffect(() => {
     loadData();
   }, []);
+
+  useLiveRefresh(() => {
+    loadData();
+  }, { isActive });
 
   const loadData = async () => {
     try {

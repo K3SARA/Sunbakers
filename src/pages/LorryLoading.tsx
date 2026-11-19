@@ -21,6 +21,7 @@ import { LorryService, ProductService } from '../services/api';
 import { useCurrency } from '../context/CurrencyContext';
 import { LorryLoadingPrintModal } from '../components/LorryLoadingPrintModal';
 import { InfoTooltip } from '../components/Tooltip';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 
 interface LoadingRow {
   productId: string;
@@ -28,7 +29,11 @@ interface LoadingRow {
   freeQuantity?: number;
 }
 
-export const LorryLoading: React.FC = () => {
+export interface LorryLoadingProps {
+  isActive?: boolean;
+}
+
+export const LorryLoading: React.FC<LorryLoadingProps> = ({ isActive = true }) => {
   const { formatMoney } = useCurrency();
   const [lorries, setLorries] = useState<Lorry[]>([]);
   const [selectedLorryId, setSelectedLorryId] = useState<string>('');
@@ -231,6 +236,13 @@ export const LorryLoading: React.FC = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  useLiveRefresh(() => {
+    loadData();
+    if (selectedLorryId) {
+      fetchActiveLoading(selectedLorryId);
+    }
+  }, { isActive });
 
   const loadData = async () => {
     try {

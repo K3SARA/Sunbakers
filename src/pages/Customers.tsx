@@ -22,8 +22,14 @@ import { CustomerModal } from '../components/CustomerModal';
 import { CustomerPaymentModal } from '../components/CustomerPaymentModal';
 import { CustomerReceiptModal } from '../components/CustomerReceiptModal';
 import { useCurrency } from '../context/CurrencyContext';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 
-export const Customers: React.FC<{ onViewInvoice?: (order: Order) => void }> = ({ onViewInvoice: _onViewInvoice }) => {
+interface CustomersProps {
+  onViewInvoice?: (order: Order) => void;
+  isActive?: boolean;
+}
+
+export const Customers: React.FC<CustomersProps> = ({ onViewInvoice: _onViewInvoice, isActive }) => {
   const { formatMoney } = useCurrency();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
@@ -68,6 +74,8 @@ export const Customers: React.FC<{ onViewInvoice?: (order: Order) => void }> = (
       setLoading(false);
     }
   };
+
+  useLiveRefresh(loadData, { isActive });
 
   useEffect(() => {
     loadData();

@@ -18,14 +18,23 @@ import { ReportService } from '../services/api';
 import { ProfitAndLossReport } from '../types';
 import { useCurrency } from '../context/CurrencyContext';
 import { DateRangeFilter, DatePreset } from '../components/DateRangeFilter';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 
-export const ProfitAndLoss: React.FC = () => {
+interface ProfitAndLossProps {
+  isActive?: boolean;
+}
+
+export const ProfitAndLoss: React.FC<ProfitAndLossProps> = ({ isActive }) => {
   const { formatMoney } = useCurrency();
   const [report, setReport] = useState<ProfitAndLossReport | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [datePreset, setDatePreset] = useState<DatePreset>('today');
   const [dateRange, setDateRange] = useState<{ from?: string; to?: string }>({});
   const [searchProduct, setSearchProduct] = useState<string>('');
+
+  useLiveRefresh(() => {
+    loadReport();
+  }, { isActive });
 
   useEffect(() => {
     loadReport();

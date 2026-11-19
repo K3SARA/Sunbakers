@@ -121,6 +121,7 @@ export const AppContent: React.FC = () => {
         <div className="flex-1 overflow-y-auto pb-16 md:pb-0">
           <div className={currentTab === 'dashboard' ? '' : 'hidden'}>
             <Dashboard
+              isActive={currentTab === 'dashboard'}
               onNavigateToLoading={() => setCurrentTab('lorry-loading')}
               onNavigateToBillEntry={() => setCurrentTab('bill-entry')}
               onNavigateToSettlement={() => setCurrentTab('lorry-settlement')}
@@ -131,27 +132,34 @@ export const AppContent: React.FC = () => {
           </div>
 
           <div className={currentTab === 'inventory' ? '' : 'hidden'}>
-            <Inventory onNavigateToSuppliers={() => setCurrentTab('suppliers')} />
+            <Inventory
+              isActive={currentTab === 'inventory'}
+              onNavigateToSuppliers={() => setCurrentTab('suppliers')}
+            />
           </div>
 
           <div className={currentTab === 'suppliers' ? '' : 'hidden'}>
-            <Suppliers />
+            <Suppliers isActive={currentTab === 'suppliers'} />
           </div>
 
           <div className={currentTab === 'manufacturing' ? '' : 'hidden'}>
-            <Manufacturing />
+            <Manufacturing isActive={currentTab === 'manufacturing'} />
           </div>
 
           <div className={currentTab === 'lorry-loading' ? '' : 'hidden'}>
-            <LorryLoading />
+            <LorryLoading isActive={currentTab === 'lorry-loading'} />
           </div>
 
           <div className={currentTab === 'bill-entry' ? '' : 'hidden'}>
-            <BillEntry onViewInvoice={(order) => setActiveInvoiceOrder(order)} />
+            <BillEntry
+              isActive={currentTab === 'bill-entry'}
+              onViewInvoice={(order) => setActiveInvoiceOrder(order)}
+            />
           </div>
 
           <div className={currentTab === 'rep-billing' ? '' : 'hidden'}>
             <RepBilling
+              isActive={currentTab === 'rep-billing'}
               user={currentUser}
               onViewInvoice={(order) => setActiveInvoiceOrder(order)}
               onExitToMenu={() => setCurrentTab('dashboard')}
@@ -159,39 +167,45 @@ export const AppContent: React.FC = () => {
           </div>
 
           <div className={currentTab === 'lorry-settlement' ? '' : 'hidden'}>
-            <LorrySettlement />
+            <LorrySettlement isActive={currentTab === 'lorry-settlement'} />
           </div>
 
           <div className={currentTab === 'customers' ? '' : 'hidden'}>
-            <Customers onViewInvoice={(order) => setActiveInvoiceOrder(order)} />
+            <Customers
+              isActive={currentTab === 'customers'}
+              onViewInvoice={(order) => setActiveInvoiceOrder(order)}
+            />
           </div>
 
           <div className={currentTab === 'hr-payroll' ? '' : 'hidden'}>
-            <HrPayroll />
+            <HrPayroll isActive={currentTab === 'hr-payroll'} />
           </div>
 
           <div className={currentTab === 'cheques' ? '' : 'hidden'}>
-            <Cheques onViewInvoice={(order) => setActiveInvoiceOrder(order)} />
+            <Cheques
+              isActive={currentTab === 'cheques'}
+              onViewInvoice={(order) => setActiveInvoiceOrder(order)}
+            />
           </div>
 
           <div className={currentTab === 'reports' ? '' : 'hidden'}>
-            <Reports />
+            <Reports isActive={currentTab === 'reports'} />
           </div>
 
           <div className={currentTab === 'expenses' ? '' : 'hidden'}>
-            <Expenses />
+            <Expenses isActive={currentTab === 'expenses'} />
           </div>
 
           <div className={currentTab === 'pnl' ? '' : 'hidden'}>
-            <ProfitAndLoss />
+            <ProfitAndLoss isActive={currentTab === 'pnl'} />
           </div>
 
           <div className={currentTab === 'free-issues' ? '' : 'hidden'}>
-            <FreeIssues />
+            <FreeIssues isActive={currentTab === 'free-issues'} />
           </div>
 
           <div className={currentTab === 'settings' ? '' : 'hidden'}>
-            <Settings />
+            <Settings isActive={currentTab === 'settings'} />
           </div>
         </div>
 

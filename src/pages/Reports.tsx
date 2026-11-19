@@ -21,8 +21,13 @@ import { useCurrency } from '../context/CurrencyContext';
 import { DateRangeFilter, DatePreset } from '../components/DateRangeFilter';
 import { ProfitAndLoss } from './ProfitAndLoss';
 import { FreeIssues } from './FreeIssues';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 
-export const Reports: React.FC = () => {
+interface ReportsProps {
+  isActive?: boolean;
+}
+
+export const Reports: React.FC<ReportsProps> = ({ isActive }) => {
   const { formatMoney } = useCurrency();
   const [activeTab, setActiveTab] = useState<'PNL' | 'LORRIES' | 'RETURNS' | 'ROUTES' | 'SALES' | 'FREE_ISSUES' | 'STOCK' | 'BALANCES' | 'REPS'>('LORRIES');
   const [, setLoading] = useState(false);
@@ -45,6 +50,10 @@ export const Reports: React.FC = () => {
   const [selectedVehicleFilter, setSelectedVehicleFilter] = useState<string>('ALL');
   const [returnTypeFilter, setReturnTypeFilter] = useState<'ALL' | 'DAMAGE' | 'RESALE'>('ALL');
   const [returnSearch, setReturnSearch] = useState<string>('');
+
+  useLiveRefresh(() => {
+    loadActiveReport();
+  }, { isActive });
 
   useEffect(() => {
     loadActiveReport();

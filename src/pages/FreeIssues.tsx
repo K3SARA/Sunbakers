@@ -23,12 +23,14 @@ import { ReportService, LorryService, ProductService } from '../services/api';
 import { FreeIssuesReport, FreeIssueItem, Lorry } from '../types';
 import { useCurrency } from '../context/CurrencyContext';
 import { DateRangeFilter, DatePreset } from '../components/DateRangeFilter';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 
 interface FreeIssuesProps {
   embedded?: boolean;
+  isActive?: boolean;
 }
 
-export const FreeIssues: React.FC<FreeIssuesProps> = ({ embedded = false }) => {
+export const FreeIssues: React.FC<FreeIssuesProps> = ({ embedded = false, isActive }) => {
   const { formatMoney } = useCurrency();
 
   const [report, setReport] = useState<FreeIssuesReport | null>(null);
@@ -65,6 +67,10 @@ export const FreeIssues: React.FC<FreeIssuesProps> = ({ embedded = false }) => {
       .then(setLorries)
       .catch((err) => console.error('Failed to load lorries', err));
   }, []);
+
+  useLiveRefresh(() => {
+    fetchReport();
+  }, { isActive });
 
   // Fetch Report Data when date range or lorry filter changes
   useEffect(() => {

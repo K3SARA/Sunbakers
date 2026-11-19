@@ -17,12 +17,14 @@ import { ProductModal } from '../components/ProductModal';
 import { StockAdjustModal } from '../components/StockAdjustModal';
 import { BulkStockImportModal } from '../components/BulkStockImportModal';
 import { useCurrency } from '../context/CurrencyContext';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 
 interface InventoryProps {
   onNavigateToSuppliers?: () => void;
+  isActive?: boolean;
 }
 
-export const Inventory: React.FC<InventoryProps> = ({ onNavigateToSuppliers }) => {
+export const Inventory: React.FC<InventoryProps> = ({ onNavigateToSuppliers, isActive }) => {
   const { formatMoney } = useCurrency();
   const [products, setProducts] = useState<Product[]>([]);
   const [, setLoading] = useState(true);
@@ -48,6 +50,8 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigateToSuppliers }) =
       setLoading(false);
     }
   };
+
+  useLiveRefresh(loadProducts, { isActive });
 
   useEffect(() => {
     loadProducts();

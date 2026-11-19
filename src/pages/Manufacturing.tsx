@@ -34,6 +34,7 @@ import {
   formatIngredientQty,
   convertToInventoryBaseQty
 } from '../utils/weightUnits';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 
 interface RecipeRowItem {
   componentProductId: string;
@@ -41,7 +42,11 @@ interface RecipeRowItem {
   unit: string;
 }
 
-export const Manufacturing: React.FC = () => {
+interface ManufacturingProps {
+  isActive?: boolean;
+}
+
+export const Manufacturing: React.FC<ManufacturingProps> = ({ isActive }) => {
   const { formatMoney } = useCurrency();
 
   // Active Tab
@@ -209,6 +214,10 @@ export const Manufacturing: React.FC = () => {
       ) || null
     );
   }, [produceUsageStats, selectedProduceId]);
+
+  useLiveRefresh(() => {
+    loadAllData();
+  }, { isActive });
 
   useEffect(() => {
     loadAllData();

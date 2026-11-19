@@ -31,13 +31,18 @@ import {
 } from '../types';
 import { useCurrency } from '../context/CurrencyContext';
 import { PayslipModal } from '../components/PayslipModal';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'
 ];
 
-export const HrPayroll: React.FC = () => {
+interface HrPayrollProps {
+  isActive?: boolean;
+}
+
+export const HrPayroll: React.FC<HrPayrollProps> = ({ isActive }) => {
   const { formatMoney } = useCurrency();
 
   // Active top tab
@@ -172,6 +177,19 @@ export const HrPayroll: React.FC = () => {
       console.error('Failed to load payrolls', e);
     }
   };
+
+  useLiveRefresh(() => {
+    loadSummary();
+    loadEmployees();
+    loadLorries();
+    if (activeTab === 'attendance') {
+      loadAttendance(attendanceDate);
+    } else if (activeTab === 'advances') {
+      loadAdvances();
+    } else if (activeTab === 'payroll') {
+      loadPayrolls(payrollMonth, payrollYear);
+    }
+  }, { isActive });
 
   useEffect(() => {
     loadSummary();

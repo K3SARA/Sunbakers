@@ -12,6 +12,7 @@ import {
 import { Lorry, LorryLoading, ExpenseCategory } from '../types';
 import { LorryService, ExpenseService } from '../services/api';
 import { useCurrency } from '../context/CurrencyContext';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 
 interface ReturnRow {
   productId: string;
@@ -26,7 +27,11 @@ interface ReturnRow {
   returnedFreeQty: number;
 }
 
-export const LorrySettlement: React.FC = () => {
+interface LorrySettlementProps {
+  isActive?: boolean;
+}
+
+export const LorrySettlement: React.FC<LorrySettlementProps> = ({ isActive }) => {
   const { formatMoney } = useCurrency();
   const [lorries, setLorries] = useState<Lorry[]>([]);
   const [selectedLorryId, setSelectedLorryId] = useState<string>('');
@@ -47,6 +52,13 @@ export const LorrySettlement: React.FC = () => {
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useLiveRefresh(() => {
+    loadLorries();
+    if (selectedLorryId) {
+      fetchLoading(selectedLorryId);
+    }
+  }, { isActive });
 
   useEffect(() => {
     loadLorries();

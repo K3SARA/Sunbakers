@@ -26,6 +26,7 @@ import { ExpenseService, LorryService } from '../services/api';
 import { Expense, ExpenseCategory, ExpenseSummary, Lorry } from '../types';
 import { useCurrency } from '../context/CurrencyContext';
 import { DateRangeFilter, DatePreset } from '../components/DateRangeFilter';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 
 interface CategoryConfig {
   label: string;
@@ -91,7 +92,11 @@ const CATEGORY_MAP: Record<ExpenseCategory, CategoryConfig> = {
   }
 };
 
-export const Expenses: React.FC = () => {
+interface ExpensesProps {
+  isActive?: boolean;
+}
+
+export const Expenses: React.FC<ExpensesProps> = ({ isActive }) => {
   const { formatMoney } = useCurrency();
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [summary, setSummary] = useState<ExpenseSummary | null>(null);
@@ -123,6 +128,11 @@ export const Expenses: React.FC = () => {
   const [formPaidTo, setFormPaidTo] = useState<string>('');
   const [formReferenceNumber, setFormReferenceNumber] = useState<string>('');
   const [formNotes, setFormNotes] = useState<string>('');
+
+  useLiveRefresh(() => {
+    loadLorries();
+    loadData();
+  }, { isActive });
 
   useEffect(() => {
     loadLorries();

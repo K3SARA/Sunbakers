@@ -25,8 +25,13 @@ import {
 import { LorryService, RouteService, SettingsService, BackupService, AuthService } from '../services/api';
 import { Lorry, Route, SystemSettings, User } from '../types';
 import { useCurrency, CURRENCIES, CurrencyCode } from '../context/CurrencyContext';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 
-export const Settings: React.FC = () => {
+interface SettingsProps {
+  isActive?: boolean;
+}
+
+export const Settings: React.FC<SettingsProps> = ({ isActive }) => {
   const { currency, setCurrency } = useCurrency();
   const [lorries, setLorries] = useState<Lorry[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
@@ -333,6 +338,8 @@ export const Settings: React.FC = () => {
       setLoading(false);
     }
   };
+
+  useLiveRefresh(loadData, { isActive });
 
   useEffect(() => {
     loadData();

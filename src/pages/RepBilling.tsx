@@ -39,6 +39,7 @@ import { RepBillsSummaryModal } from '../components/RepBillsSummaryModal';
 import { CustomerPaymentModal } from '../components/CustomerPaymentModal';
 import { CustomerReceiptModal } from '../components/CustomerReceiptModal';
 import { RepDirectReturnModal } from '../components/RepDirectReturnModal';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 
 interface CartItem {
   productId: string;
@@ -71,6 +72,7 @@ interface RepBillingProps {
   initialLorryId?: string;
   user?: User;
   onLogout?: () => void;
+  isActive?: boolean;
 }
 
 export const RepBilling: React.FC<RepBillingProps> = ({
@@ -78,6 +80,7 @@ export const RepBilling: React.FC<RepBillingProps> = ({
   onExitToMenu: _onExitToMenu,
   initialLorryId,
   user,
+  isActive,
   onLogout
 }) => {
   const { formatMoney } = useCurrency();
@@ -477,6 +480,16 @@ export const RepBilling: React.FC<RepBillingProps> = ({
     // 4. Immediately open 80mm printable Return Collection Slip
     setCheckoutSuccessOrder(order);
   };
+
+  useLiveRefresh(() => {
+    loadData();
+    loadTargets();
+    loadFinishedBills();
+    if (selectedLorryId) {
+      loadRepExpenses(selectedLorryId);
+      loadRepCollections(selectedLorryId);
+    }
+  }, { isActive });
 
   useEffect(() => {
     loadData();

@@ -20,6 +20,7 @@ import {
 import { SupplierService, PurchaseOrderService, ProductService } from '../services/api';
 import { Supplier, PurchaseOrder, Product } from '../types';
 import { useCurrency } from '../context/CurrencyContext';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 
 interface InboundItemRow {
   productId: string;
@@ -28,7 +29,11 @@ interface InboundItemRow {
   costPrice: number;
 }
 
-export const Suppliers: React.FC = () => {
+interface SuppliersProps {
+  isActive?: boolean;
+}
+
+export const Suppliers: React.FC<SuppliersProps> = ({ isActive }) => {
   const { formatMoney } = useCurrency();
 
   // Active view: 'SUPPLIERS' or 'INBOUND_GRN'
@@ -93,6 +98,10 @@ export const Suppliers: React.FC = () => {
   const [grnItems, setGrnItems] = useState<InboundItemRow[]>([
     { productId: '', quantity: 50, costPrice: 0 }
   ]);
+
+  useLiveRefresh(() => {
+    loadData();
+  }, { isActive });
 
   useEffect(() => {
     loadData();

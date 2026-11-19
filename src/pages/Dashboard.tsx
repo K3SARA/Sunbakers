@@ -18,6 +18,7 @@ import { ReportService } from '../services/api';
 import { DashboardStats, Order } from '../types';
 import { useCurrency } from '../context/CurrencyContext';
 import { DateRangeFilter, DatePreset } from '../components/DateRangeFilter';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 
 interface DashboardProps {
   onNavigateToLoading: () => void;
@@ -26,6 +27,7 @@ interface DashboardProps {
   onNavigateToInventory: () => void;
   onNavigateToExpenses?: () => void;
   onViewInvoice: (order: Order) => void;
+  isActive?: boolean;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({
@@ -34,7 +36,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onNavigateToSettlement,
   onNavigateToInventory,
   onNavigateToExpenses,
-  onViewInvoice
+  onViewInvoice,
+  isActive = true
 }) => {
   const { formatMoney } = useCurrency();
   const [stats, setStats] = useState<DashboardStats | null>(null);
