@@ -1174,17 +1174,6 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                 </h3>
               </div>
             </div>
-
-            <button
-              type="button"
-              onClick={addItemRow}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-xl transition-colors shadow-2xs ${billMode === 'LORRY'
-                ? 'text-white bg-blue-600 hover:bg-blue-700'
-                : 'text-white bg-emerald-600 hover:bg-emerald-700'
-                }`}
-            >
-              <Plus className="w-4 h-4" /> Add Item Line
-            </button>
           </div>
 
           {availableItems.length === 0 ? (
@@ -1207,7 +1196,7 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                     <th className="py-2.5 px-2 w-24 text-center">Free Promo</th>
                     <th className="py-2.5 px-2 w-20 text-center">Disc %</th>
                     <th className="py-2.5 px-3 w-32 text-right whitespace-nowrap">Line Total</th>
-                    <th className="py-2.5 px-2 w-10 text-center"></th>
+                    <th className="py-2.5 px-2 w-16 text-center"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
@@ -1318,16 +1307,30 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice }) => {
                           )}
                         </td>
 
-                        {/* Delete Button */}
-                        <td className="py-2 px-2 w-10 text-center">
-                          <button
-                            type="button"
-                            onClick={() => removeItemRow(index)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-                            title="Remove Line Item"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                        {/* Row Actions: (+) Add Line & (Trash) Remove Line */}
+                        <td className="py-2 px-2 w-16 text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              type="button"
+                              onClick={addItemRow}
+                              className={`w-7 h-7 rounded-lg flex items-center justify-center transition shadow-2xs cursor-pointer ${
+                                billMode === 'LORRY'
+                                  ? 'bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200/60'
+                                  : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200/60'
+                              }`}
+                              title="Add Item Line"
+                            >
+                              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => removeItemRow(index)}
+                              className="w-7 h-7 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center transition cursor-pointer"
+                              title="Remove Line Item"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );

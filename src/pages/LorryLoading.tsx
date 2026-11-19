@@ -481,7 +481,7 @@ export const LorryLoading: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Loading Sheet Entry Form (2 Cols) */}
         <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-200/80 shadow-2xs p-6 space-y-5">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+          <div className="border-b border-slate-100 pb-4">
             <div>
               <h2 className="text-base font-bold text-slate-900">
                 Morning Stock Issue to {selectedLorry?.vehicleNumber}
@@ -490,13 +490,6 @@ export const LorryLoading: React.FC = () => {
                 Route: {selectedLorry?.route?.name} • Driver: {selectedLorry?.driverName}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={addRow}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" /> Add Product Line
-            </button>
           </div>
 
           {/* Quick Product Search & Rapid-Add Bar */}
@@ -805,10 +798,19 @@ export const LorryLoading: React.FC = () => {
                       )}
                       <button
                         type="button"
-                        onClick={() => removeRow(index)}
-                        className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-white transition-colors"
+                        onClick={addRow}
+                        className="w-8 h-8 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-600 flex items-center justify-center transition shadow-2xs border border-blue-200/60 cursor-pointer"
+                        title="Add Product Line"
                       >
-                        ✕
+                        <Plus className="w-4 h-4 stroke-[2.5]" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeRow(index)}
+                        className="w-8 h-8 rounded-xl hover:bg-rose-50 text-slate-400 hover:text-rose-500 flex items-center justify-center transition border border-transparent hover:border-rose-200/60 cursor-pointer"
+                        title="Remove Line"
+                      >
+                        <X className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
