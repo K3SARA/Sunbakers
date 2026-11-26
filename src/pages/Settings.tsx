@@ -36,7 +36,7 @@ export const Settings: React.FC<SettingsProps> = ({ isActive }) => {
   const [lorries, setLorries] = useState<Lorry[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
   const [settings, setSettings] = useState<SystemSettings>({
-    companyName: 'Samantha Distributors',
+    companyName: 'sunbakers Distributors',
     tagline: 'Fast Reliable Delivery',
     phone: '0717874286 / 0717914437',
     email: 'distribution@example.com',

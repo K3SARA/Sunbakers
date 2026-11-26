@@ -2,6 +2,7 @@ import axios from 'axios';
 import {
   Product,
   Customer,
+  CustomerBilledProduct,
   Order,
   DashboardStats,
   StockMovement,
@@ -128,7 +129,7 @@ export const LorryService = {
     customerId: string;
     items: { productId: string; quantity: number; freeQuantity?: number; unitPrice?: number }[];
     returnItems?: { productId: string; quantity: number; unitPrice?: number; returnType: 'DAMAGE' | 'RESALE'; reason?: string }[];
-    paymentMethod: 'CASH' | 'CREDIT' | 'CHEQUE';
+    paymentMethod: 'CASH' | 'PARTIAL' | 'CREDIT' | 'CHEQUE';
     cashReceived: number;
     discountAmount?: number;
     discountPercentage?: number;
@@ -165,6 +166,8 @@ export const CustomerService = {
     api.put<Customer>(`/customers/${id}`, data).then(r => r.data),
   getOrderHistory: (id: string) =>
     api.get<Order[]>(`/customers/${id}/orders`).then(r => r.data),
+  getBilledProducts: (id: string) =>
+    api.get<CustomerBilledProduct[]>(`/customers/${id}/billed-products`).then(r => r.data),
   getUnpaidBills: (id: string) =>
     api.get<Order[]>(`/customers/${id}/unpaid-bills`).then(r => r.data),
   recordPayment: (id: string, payload: {

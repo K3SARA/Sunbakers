@@ -15,7 +15,7 @@ import {
   Boxes
 } from 'lucide-react';
 import { LorryLoading, SystemSettings } from '../types';
-import samanthaLogo from '../assets/samantha-logo.png';
+import sunbakersLogo from '../assets/sunbakers-logo.png';
 import { useCurrency } from '../context/CurrencyContext';
 import { SettingsService } from '../services/api';
 import { printLorryLoadingToBluetooth } from '../utils/bluetoothPrinter';
@@ -217,12 +217,12 @@ export const LorryLoadingPrintModal: React.FC<LorryLoadingPrintModalProps> = ({
               {/* Header */}
               <div className="text-center pb-2">
                 <img
-                  src={samanthaLogo}
-                  alt="Samantha Distributor"
+                  src={sunbakersLogo}
+                  alt="sunbakers Distributor"
                   className="w-12 h-12 object-contain mx-auto mb-1 rounded-full border border-black/10"
                 />
                 <h2 className="text-base font-black tracking-wider uppercase text-black leading-tight">
-                  {companySettings?.companyName || 'Samantha Distributors'}
+                  {companySettings?.companyName || 'sunbakers Distributors'}
                 </h2>
                 <p className="text-[11.5px] text-black font-semibold leading-tight">
                   {companySettings?.address || 'Andiramada, Hiriwadunna'}
@@ -347,7 +347,7 @@ export const LorryLoadingPrintModal: React.FC<LorryLoadingPrintModalProps> = ({
               {/* Footer Notice */}
               <div className="text-center pt-2 text-[10px] font-semibold text-black border-t border-black border-dashed mt-2">
                 <div>*** VERIFIED FOR MORNING ROUTE ***</div>
-                <div>Samantha Distributors Management</div>
+                <div>sunbakers Distributors Management</div>
               </div>
             </div>
           ) : (
@@ -374,13 +374,13 @@ export const LorryLoadingPrintModal: React.FC<LorryLoadingPrintModalProps> = ({
 
                 <div className="flex items-center gap-3 sm:text-right">
                   <img
-                    src={samanthaLogo}
-                    alt="Samantha Distributor"
+                    src={sunbakersLogo}
+                    alt="sunbakers Distributor"
                     className="w-14 h-14 object-contain rounded-full border border-slate-200 shadow-2xs shrink-0"
                   />
                   <div>
                     <h2 className="font-extrabold text-sm text-slate-900 uppercase">
-                      {companySettings?.companyName || 'Samantha Distributors'}
+                      {companySettings?.companyName || 'sunbakers Distributors'}
                     </h2>
                     <p className="text-xs text-slate-500">
                       {companySettings?.address || 'Andiramada, Hiriwadunna'}

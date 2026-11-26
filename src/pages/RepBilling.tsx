@@ -31,7 +31,7 @@ import {
   Compass,
   AlertTriangle
 } from 'lucide-react';
-import { Customer, Product, Lorry, Order, User, RepTargetProgress, Expense, CustomerPayment } from '../types';
+import { Customer, Product, Lorry, Order, User, RepTargetProgress, Expense, CustomerPayment, CustomerBilledProduct } from '../types';
 import { CustomerService, LorryService, ProductService, OrderService, AuthService, ExpenseService } from '../services/api';
 import { useCurrency } from '../context/CurrencyContext';
 import { CustomerModal } from '../components/CustomerModal';
@@ -113,6 +113,8 @@ export const RepBilling: React.FC<RepBillingProps> = ({
   const [returnUnitPrice, setReturnUnitPrice] = useState<string>('');
   const [returnReason, setReturnReason] = useState<string>('Stale / Expired');
   const [isReturnsExpanded, setIsReturnsExpanded] = useState<boolean>(false);
+  const [customerBilledProducts, setCustomerBilledProducts] = useState<CustomerBilledProduct[]>([]);
+  const [loadingBilledProducts, setLoadingBilledProducts] = useState<boolean>(false);
 
   // Duplicate Item Confirmation State
   const [duplicateConfirmItem, setDuplicateConfirmItem] = useState<{
@@ -128,7 +130,8 @@ export const RepBilling: React.FC<RepBillingProps> = ({
   const [itemSearch, setItemSearch] = useState<string>('');
 
   // Step 5: Checkout
-  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CREDIT' | 'CHEQUE'>('CREDIT');
+  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'PARTIAL' | 'CREDIT' | 'CHEQUE'>('CREDIT');
+  const [partialCashReceived, setPartialCashReceived] = useState<string>('');
   const [chequeNumber, setChequeNumber] = useState<string>('');
   const [bankName, setBankName] = useState<string>('');
   const [chequeDate, setChequeDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
@@ -153,7 +156,7 @@ export const RepBilling: React.FC<RepBillingProps> = ({
   const [loadingFinishedBills, setLoadingFinishedBills] = useState<boolean>(false);
   const [showFinishedBillsModal, setShowFinishedBillsModal] = useState<boolean>(false);
   const [billsSearch, setBillsSearch] = useState<string>('');
-  const [billsFilter, setBillsFilter] = useState<'ALL' | 'CASH' | 'CREDIT' | 'CHEQUE'>('ALL');
+  const [billsFilter, setBillsFilter] = useState<'ALL' | 'CASH' | 'PARTIAL' | 'CREDIT' | 'CHEQUE'>('ALL');
   const [expandedBillId, setExpandedBillId] = useState<string | null>(null);
   const [showSummaryBillModal, setShowSummaryBillModal] = useState<boolean>(false);
 
@@ -581,11 +584,54 @@ export const RepBilling: React.FC<RepBillingProps> = ({
           setCollectPrevBill(false);
         });
 
+      setLoadingBilledProducts(true);
+      CustomerService.getBilledProducts(selectedCustomerId)
+        .then(prods => {
+          setCustomerBilledProducts(prods || []);
+        })
+        .catch(() => {
+          setCustomerBilledProducts([]);
+        })
+        .finally(() => {
+          setLoadingBilledProducts(false);
+        });
+
       if (cust && cust.creditLimit && cust.creditLimit > 0) {
         // Ready
       }
+    } else {
+      setCustomerBilledProducts([]);
+      setReturnItems([]);
     }
   }, [selectedCustomerId]);
+
+  // Eligible products for returns: previously billed products + any items in current cart
+  const eligibleReturnProducts = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; sku?: string; unit: string; unitPrice: number; lastBilledPrice?: number }>();
+    customerBilledProducts.forEach(p => {
+      map.set(p.id, {
+        id: p.id,
+        name: p.name,
+        sku: p.sku,
+        unit: p.unit || 'pcs',
+        unitPrice: p.unitPrice,
+        lastBilledPrice: p.lastBilledPrice
+      });
+    });
+    cart.forEach(ci => {
+      if (!map.has(ci.productId)) {
+        map.set(ci.productId, {
+          id: ci.productId,
+          name: ci.name,
+          sku: ci.sku,
+          unit: ci.unit || 'pcs',
+          unitPrice: ci.unitPrice,
+          lastBilledPrice: ci.unitPrice
+        });
+      }
+    });
+    return Array.from(map.values());
+  }, [customerBilledProducts, cart]);
 
   // Customers strictly assigned to this lorry's route
   const routeCustomers = useMemo(() => {
@@ -808,16 +854,15 @@ export const RepBilling: React.FC<RepBillingProps> = ({
     setDiscountInputValue(item.discountPercent > 0 ? item.discountPercent.toString() : '');
   };
 
-  // Return Items Management
+  // Return Items Management (Enforcing returns only for billed products)
   const handleOpenAddReturnModal = () => {
-    const defaultProduct = products[0];
-    if (defaultProduct) {
-      setReturnSelectedProductId(defaultProduct.id);
-      setReturnUnitPrice(defaultProduct.unitPrice.toString());
-    } else {
-      setReturnSelectedProductId('');
-      setReturnUnitPrice('');
+    if (eligibleReturnProducts.length === 0) {
+      alert(`⚠️ Returns Restricted:\nThis customer has no previously billed products on record (and no items in the active cart).\n\nUnder distribution policy, returns can only be collected for products previously billed to this customer.`);
+      return;
     }
+    const defaultProduct = eligibleReturnProducts[0];
+    setReturnSelectedProductId(defaultProduct.id);
+    setReturnUnitPrice((defaultProduct.lastBilledPrice ?? defaultProduct.unitPrice).toString());
     setReturnType('DAMAGE');
     setReturnQty(1);
     setReturnReason('Stale / Expired');
@@ -826,16 +871,16 @@ export const RepBilling: React.FC<RepBillingProps> = ({
 
   const handleSelectReturnProduct = (productId: string) => {
     setReturnSelectedProductId(productId);
-    const prod = products.find(p => p.id === productId);
+    const prod = eligibleReturnProducts.find(p => p.id === productId);
     if (prod) {
-      setReturnUnitPrice(prod.unitPrice.toString());
+      setReturnUnitPrice((prod.lastBilledPrice ?? prod.unitPrice).toString());
     }
   };
 
   const handleConfirmAddReturn = () => {
-    const prod = products.find(p => p.id === returnSelectedProductId);
+    const prod = eligibleReturnProducts.find(p => p.id === returnSelectedProductId);
     if (!prod) {
-      alert('Please select a product to return.');
+      alert('Please select an eligible billed product to return.');
       return;
     }
     const qty = parseInt(returnQty as any, 10) || 0;
@@ -844,7 +889,7 @@ export const RepBilling: React.FC<RepBillingProps> = ({
       return;
     }
     const price = parseFloat(returnUnitPrice);
-    const safePrice = isNaN(price) || price < 0 ? prod.unitPrice : price;
+    const safePrice = isNaN(price) || price < 0 ? (prod.lastBilledPrice ?? prod.unitPrice) : price;
 
     setReturnItems(prev => {
       const existingIndex = prev.findIndex(r => r.productId === prod.id && r.returnType === returnType);
@@ -864,7 +909,7 @@ export const RepBilling: React.FC<RepBillingProps> = ({
           id: `${prod.id}-${returnType}-${Date.now()}`,
           productId: prod.id,
           name: prod.name,
-          unit: prod.unit,
+          unit: prod.unit || 'pcs',
           quantity: qty,
           unitPrice: safePrice,
           returnType,
@@ -968,7 +1013,12 @@ export const RepBilling: React.FC<RepBillingProps> = ({
   // Finished Bills Filter & Summary
   const filteredFinishedBills = useMemo(() => {
     return dateFilteredBills.filter(bill => {
-      if (billsFilter !== 'ALL' && bill.paymentMethod !== billsFilter) {
+      const isPartialBill = bill.paymentMethod === 'PARTIAL' || bill.paymentStatus === 'PARTIAL';
+      if (billsFilter === 'PARTIAL' && !isPartialBill) {
+        return false;
+      } else if (billsFilter === 'CREDIT' && (bill.paymentMethod !== 'CREDIT' || isPartialBill)) {
+        return false;
+      } else if (billsFilter !== 'ALL' && billsFilter !== 'PARTIAL' && billsFilter !== 'CREDIT' && bill.paymentMethod !== billsFilter) {
         return false;
       }
       if (billsSearch.trim()) {
@@ -1027,6 +1077,18 @@ export const RepBilling: React.FC<RepBillingProps> = ({
       return;
     }
 
+    if (paymentMethod === 'PARTIAL') {
+      const partialPaid = parseFloat(partialCashReceived);
+      if (isNaN(partialPaid) || partialPaid <= 0) {
+        setErrorMessage('Please enter the partial cash amount received (> 0).');
+        return;
+      }
+      if (finalTotal > 0 && partialPaid >= finalTotal) {
+        setErrorMessage('Partial amount must be less than Final Amount. Use CASH for full payment.');
+        return;
+      }
+    }
+
     if (paymentMethod === 'CHEQUE') {
       if (!chequeNumber.trim()) {
         setErrorMessage('Please enter the Cheque Number.');
@@ -1063,7 +1125,7 @@ export const RepBilling: React.FC<RepBillingProps> = ({
               {
                 orderId: customerUnpaidBills[0].id,
                 amount: parseFloat(settlePrevAmount) || 0,
-                paymentMethod: paymentMethod === 'CREDIT' ? 'CASH' : paymentMethod
+                paymentMethod: paymentMethod === 'CREDIT' || paymentMethod === 'PARTIAL' ? 'CASH' : paymentMethod
               }
             ]
           : [];
@@ -1071,6 +1133,7 @@ export const RepBilling: React.FC<RepBillingProps> = ({
       const orderPayload: any = {
         customerId: selectedCustomerId,
         paymentMethod,
+        cashReceived: paymentMethod === 'PARTIAL' ? (parseFloat(partialCashReceived) || 0) : undefined,
         items: itemsPayload,
         returnItems: returnPayload,
         discountAmount: billDiscountAmount,
@@ -1115,6 +1178,7 @@ export const RepBilling: React.FC<RepBillingProps> = ({
     setChequeNumber('');
     setBankName('');
     setChequeDate(new Date().toISOString().split('T')[0]);
+    setPartialCashReceived('');
     setCheckoutSuccessOrder(null);
     setEditingDiscountProductId(null);
     setDiscountInputValue('');
@@ -2662,26 +2726,81 @@ export const RepBilling: React.FC<RepBillingProps> = ({
               </div>
             )}
 
-            {/* Payment Method Selector */}
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-400 uppercase">Payment Method</label>
-              <div className="grid grid-cols-3 gap-1.5">
-                {(['CASH', 'CREDIT', 'CHEQUE'] as const).map(m => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => setPaymentMethod(m)}
-                    className={`py-2 rounded-lg text-xs font-bold transition ${
-                      paymentMethod === m
-                        ? 'bg-blue-600 text-white shadow-xs'
-                        : 'bg-white border border-slate-200 text-slate-600'
-                    }`}
-                  >
-                    {m}
-                  </button>
-                ))}
+            {/* Payment Method Selector — Ultra Clean Segmented Control */}
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Payment Method</label>
+              <div className="grid grid-cols-4 gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/70">
+                {(['CASH', 'PARTIAL', 'CREDIT', 'CHEQUE'] as const).map(m => {
+                  const isActive = paymentMethod === m;
+                  const activeClass =
+                    m === 'CASH'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : m === 'PARTIAL'
+                      ? 'bg-amber-500 text-white shadow-xs'
+                      : m === 'CREDIT'
+                      ? 'bg-rose-600 text-white shadow-xs'
+                      : 'bg-blue-600 text-white shadow-xs';
+                  return (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => {
+                        setPaymentMethod(m);
+                        if (m !== 'PARTIAL') setPartialCashReceived('');
+                      }}
+                      className={`py-2 rounded-lg text-[11px] font-bold tracking-tight transition cursor-pointer ${
+                        isActive
+                          ? activeClass
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                      }`}
+                    >
+                      {m}
+                    </button>
+                  );
+                })}
               </div>
             </div>
+
+            {/* Partial Payment Card — Ultra Clean & Minimal */}
+            {paymentMethod === 'PARTIAL' && (
+              <div className="p-3 bg-white border border-slate-200/90 rounded-xl space-y-2.5 animate-fadeIn shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-slate-700">Cash Paid Now</span>
+                  <div className="flex items-center gap-1">
+                    {[25, 50, 75].map(pct => (
+                      <button
+                        key={pct}
+                        type="button"
+                        onClick={() => {
+                          const val = Math.round((finalTotal * pct) / 100);
+                          setPartialCashReceived(val > 0 ? val.toString() : '');
+                        }}
+                        className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-slate-100 hover:bg-amber-100 hover:text-amber-800 text-slate-600 transition cursor-pointer"
+                      >
+                        {pct}%
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={partialCashReceived}
+                  onChange={(e) => setPartialCashReceived(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-right font-mono text-base font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 transition"
+                />
+
+                <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 text-xs">
+                  <span className="text-slate-500 font-medium">Remaining Credit</span>
+                  <span className="font-mono font-bold text-amber-600">
+                    {formatMoney(Math.max(0, finalTotal - (parseFloat(partialCashReceived) || 0)))}
+                  </span>
+                </div>
+              </div>
+            )}
 
             {/* Cheque Details Card */}
             {paymentMethod === 'CHEQUE' && (
@@ -3153,20 +3272,20 @@ export const RepBilling: React.FC<RepBillingProps> = ({
 
             {/* Form Fields */}
             <div className="space-y-3.5">
-              {/* Product Selector */}
+              {/* Product Selector restricted to customer's billed products */}
               <div>
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                  Select Bakery Product <span className="text-red-500">*</span>
+                  Select Billed Product <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={returnSelectedProductId}
                   onChange={(e) => handleSelectReturnProduct(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                 >
-                  <option value="" disabled>-- Select Product --</option>
-                  {products.map(p => (
+                  <option value="" disabled>-- Select Billed Product --</option>
+                  {eligibleReturnProducts.map(p => (
                     <option key={p.id} value={p.id}>
-                      {p.name} ({p.sku}) — {formatMoney(p.unitPrice)} / {p.unit}
+                      {p.name} {p.sku ? `(${p.sku})` : ''} — Rate: {formatMoney(p.lastBilledPrice ?? p.unitPrice)} / {p.unit || 'pcs'}
                     </option>
                   ))}
                 </select>
@@ -3873,14 +3992,20 @@ export const RepBilling: React.FC<RepBillingProps> = ({
                 <span className="text-[11px] font-bold text-slate-500 pr-0.5 shrink-0">
                   Payment:
                 </span>
-                {(['ALL', 'CASH', 'CREDIT', 'CHEQUE'] as const).map(tab => {
+                {(['ALL', 'CASH', 'PARTIAL', 'CREDIT', 'CHEQUE'] as const).map(tab => {
                   const count = tab === 'ALL'
                     ? dateFilteredBills.length
+                    : tab === 'PARTIAL'
+                    ? dateFilteredBills.filter(b => b.paymentMethod === 'PARTIAL' || b.paymentStatus === 'PARTIAL').length
+                    : tab === 'CREDIT'
+                    ? dateFilteredBills.filter(b => b.paymentMethod === 'CREDIT' && b.paymentStatus !== 'PARTIAL').length
                     : dateFilteredBills.filter(b => b.paymentMethod === tab).length;
 
                   const activeStyles =
                     tab === 'CASH'
                       ? 'bg-emerald-600 text-white shadow-2xs'
+                      : tab === 'PARTIAL'
+                      ? 'bg-amber-500 text-white shadow-2xs'
                       : tab === 'CREDIT'
                       ? 'bg-rose-600 text-white shadow-2xs'
                       : tab === 'CHEQUE'
@@ -3940,7 +4065,7 @@ export const RepBilling: React.FC<RepBillingProps> = ({
                   // Pure Credit bills: Light Red
                   const isCash = bill.paymentMethod === 'CASH';
                   const isCheque = bill.paymentMethod === 'CHEQUE';
-                  const isPartialCredit = bill.paymentMethod === 'CREDIT' && bill.paymentStatus === 'PARTIAL';
+                  const isPartialCredit = bill.paymentMethod === 'PARTIAL' || bill.paymentStatus === 'PARTIAL';
 
                   const theme = isCash
                     ? {

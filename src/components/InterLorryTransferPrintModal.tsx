@@ -2,7 +2,7 @@ import React from 'react';
 import { Printer, X, Truck, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { LorryTransfer } from '../types';
 import { useCurrency } from '../context/CurrencyContext';
-import samanthaLogo from '../assets/samantha-logo.png';
+import sunbakersLogo from '../assets/sunbakers-logo.png';
 
 interface InterLorryTransferPrintModalProps {
   isOpen: boolean;
@@ -70,8 +70,8 @@ export const InterLorryTransferPrintModal: React.FC<InterLorryTransferPrintModal
           <div className="text-center border-b-2 border-dashed border-slate-300 pb-5 mb-5">
             <div className="flex justify-center mb-2.5">
               <img
-                src={samanthaLogo}
-                alt="Samantha Distributor"
+                src={sunbakersLogo}
+                alt="sunbakers Distributor"
                 className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-contain mx-auto border border-slate-200 print:border-none shadow-2xs"
               />
             </div>

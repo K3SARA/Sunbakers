@@ -21,7 +21,7 @@ $graphics.DrawImage($cropped, 0, 0, 512, 512)
 
 # Save as PNG
 $target.Save("build\icon.png", [System.Drawing.Imaging.ImageFormat]::Png)
-$target.Save("public\samantha-logo.png", [System.Drawing.Imaging.ImageFormat]::Png)
+$target.Save("public\sunbakers-logo.png", [System.Drawing.Imaging.ImageFormat]::Png)
 
 $graphics.Dispose()
 $target.Dispose()

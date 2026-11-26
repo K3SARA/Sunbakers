@@ -106,7 +106,7 @@ export function build80mmEscPosReceipt(order: Order, settings?: SystemSettings |
   addBytes(COMMANDS.ALIGN_CENTER);
   addBytes(COMMANDS.DOUBLE_SIZE);
   addBytes(COMMANDS.BOLD_ON);
-  addLine(settings?.companyName || 'Samantha Distributors');
+  addLine(settings?.companyName || 'sunbakers Distributors');
   addBytes(COMMANDS.NORMAL_SIZE);
   addBytes(COMMANDS.BOLD_OFF);
 
@@ -346,7 +346,7 @@ export function build80mmEscPosBillsSummary(
   addBytes(COMMANDS.ALIGN_CENTER);
   addBytes(COMMANDS.DOUBLE_SIZE);
   addBytes(COMMANDS.BOLD_ON);
-  addLine(settings?.companyName || 'Samantha Distributors');
+  addLine(settings?.companyName || 'sunbakers Distributors');
   addBytes(COMMANDS.NORMAL_SIZE);
   addBytes(COMMANDS.BOLD_OFF);
 
@@ -663,7 +663,7 @@ export function build80mmEscPosLorryLoading(
   addBytes(COMMANDS.ALIGN_CENTER);
   addBytes(COMMANDS.DOUBLE_SIZE);
   addBytes(COMMANDS.BOLD_ON);
-  addLine(settings?.companyName || 'Samantha Distributors');
+  addLine(settings?.companyName || 'sunbakers Distributors');
   addBytes(COMMANDS.NORMAL_SIZE);
   addBytes(COMMANDS.BOLD_OFF);
 
@@ -749,7 +749,7 @@ export function build80mmEscPosLorryLoading(
   // 7. Footer
   addBytes(COMMANDS.ALIGN_CENTER);
   addLine('*** VERIFIED FOR MORNING ROUTE ***');
-  addLine('Samantha Distributors Management');
+  addLine('sunbakers Distributors Management');
   addLine(dividerLine('.'));
 
   // 8. Feed & Cut

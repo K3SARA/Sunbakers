@@ -125,6 +125,13 @@ export interface Product {
   }[];
 }
 
+export interface CustomerBilledProduct extends Product {
+  lastBilledPrice: number;
+  lastBilledAt?: string;
+  lastOrderNumber?: string;
+  totalPurchasedQty?: number;
+}
+
 export interface Supplier {
   id: string;
   code: string;
@@ -276,7 +283,7 @@ export interface Order {
   route?: Route | null;
   status: 'PENDING' | 'DISPATCHED' | 'DELIVERED' | 'CANCELLED';
   paymentStatus: 'UNPAID' | 'PARTIAL' | 'PAID';
-  paymentMethod: 'CASH' | 'CREDIT' | 'CHEQUE';
+  paymentMethod: 'CASH' | 'PARTIAL' | 'CREDIT' | 'CHEQUE';
   chequeNumber?: string | null;
   bankName?: string | null;
   chequeDate?: string | null;

@@ -28,7 +28,7 @@ import { RepMobilePortal } from './pages/RepMobilePortal';
 import { InvoiceModal } from './components/InvoiceModal';
 import { CurrencyProvider, useCurrency, CURRENCIES } from './context/CurrencyContext';
 import { Order, User } from './types';
-import samanthaLogo from './assets/samantha-logo.png';
+import sunbakersLogo from './assets/sunbakers-logo.png';
 
 export const AppContent: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
@@ -102,12 +102,12 @@ export const AppContent: React.FC = () => {
             </button>
             <div className="flex items-center gap-2.5">
               <img
-                src={samanthaLogo}
-                alt="Samantha Distributor"
+                src={sunbakersLogo}
+                alt="sunbakers Distributor"
                 className="w-8 h-8 rounded-full object-contain border border-slate-200/80 shadow-2xs"
               />
               <span className="font-bold text-slate-900 text-base tracking-tight">
-                Samantha Distributor
+                sunbakers Distributor
               </span>
             </div>
           </div>

@@ -2,7 +2,7 @@
   "name": "offline-distributor-management",
   "version": "1.0.0",
   "description": "Offline-first Apple-inspired Desktop Distributor Management Application",
-  "author": "Samantha & Co.",
+  "author": "sunbakers & Co.",
   "main": "electron/dist/main.js",
   "scripts": {
     "dev:server": "tsx watch server/index.ts",

@@ -74,7 +74,7 @@ export const BulkStockImportModal: React.FC<BulkStockImportModalProps> = ({
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', 'samantha_stock_import_template.csv');
+    link.setAttribute('download', 'sunbakers_stock_import_template.csv');
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

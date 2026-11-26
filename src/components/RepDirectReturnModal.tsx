@@ -12,10 +12,11 @@ import {
   ArrowLeft,
   Store,
   Layers,
-  ChevronDown
+  ChevronDown,
+  Loader2
 } from 'lucide-react';
-import { Customer, Product, Order, Lorry } from '../types';
-import { LorryService } from '../services/api';
+import { Customer, Product, Order, Lorry, CustomerBilledProduct } from '../types';
+import { LorryService, CustomerService } from '../services/api';
 import { useCurrency } from '../context/CurrencyContext';
 
 export interface DirectReturnLine {
@@ -79,6 +80,10 @@ export const RepDirectReturnModal: React.FC<RepDirectReturnModalProps> = ({
   const [customReason, setCustomReason] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
 
+  // Customer Billed Products state (enforces returns only for previously billed products)
+  const [billedProducts, setBilledProducts] = useState<CustomerBilledProduct[]>([]);
+  const [loadingBilledProducts, setLoadingBilledProducts] = useState<boolean>(false);
+
   // UI / Submission state
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -89,7 +94,6 @@ export const RepDirectReturnModal: React.FC<RepDirectReturnModalProps> = ({
       setActiveCustomer(customer);
       setIsChangingCustomer(!customer);
       setReturnLines([]);
-      setSelectedProductId(products.length > 0 ? products[0].id : '');
       setQuantity(1);
       setReturnType('DAMAGE');
       setReason('Stale / Expired Bread');
@@ -99,17 +103,56 @@ export const RepDirectReturnModal: React.FC<RepDirectReturnModalProps> = ({
       setCustomerSearch('');
       setProductSearch('');
     }
-  }, [isOpen, customer, products]);
+  }, [isOpen, customer]);
 
-  // Set default unit price when selected product changes
+  // Load customer's billed products when activeCustomer changes
+  useEffect(() => {
+    if (!isOpen || !activeCustomer) {
+      setBilledProducts([]);
+      setSelectedProductId('');
+      setUnitPrice('');
+      return;
+    }
+    let isCurrent = true;
+    setLoadingBilledProducts(true);
+    CustomerService.getBilledProducts(activeCustomer.id)
+      .then(prods => {
+        if (!isCurrent) return;
+        const validProds = prods || [];
+        setBilledProducts(validProds);
+        if (validProds.length > 0) {
+          setSelectedProductId(validProds[0].id);
+          setUnitPrice((validProds[0].lastBilledPrice ?? validProds[0].unitPrice).toString());
+        } else {
+          setSelectedProductId('');
+          setUnitPrice('');
+        }
+      })
+      .catch(err => {
+        if (!isCurrent) return;
+        console.error('Failed to load customer billed products:', err);
+        setBilledProducts([]);
+        setSelectedProductId('');
+        setUnitPrice('');
+      })
+      .finally(() => {
+        if (isCurrent) setLoadingBilledProducts(false);
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [isOpen, activeCustomer?.id]);
+
+  // Set default unit price when selected product changes (using last billed price if available)
   useEffect(() => {
     if (selectedProductId) {
-      const p = products.find(prod => prod.id === selectedProductId);
+      const p = billedProducts.find(prod => prod.id === selectedProductId);
       if (p) {
-        setUnitPrice(p.unitPrice.toString());
+        setUnitPrice((p.lastBilledPrice ?? p.unitPrice).toString());
       }
     }
-  }, [selectedProductId, products]);
+  }, [selectedProductId, billedProducts]);
 
   // Filtered customers for selection
   const filteredCustomers = useMemo(() => {
@@ -123,20 +166,20 @@ export const RepDirectReturnModal: React.FC<RepDirectReturnModalProps> = ({
     );
   }, [availableCustomers, customerSearch]);
 
-  // Filtered products for dropdown
+  // Filtered products for dropdown (restricted to customer's billed products)
   const filteredProducts = useMemo(() => {
-    if (!productSearch.trim()) return products;
+    if (!productSearch.trim()) return billedProducts;
     const q = productSearch.toLowerCase();
-    return products.filter(p =>
+    return billedProducts.filter(p =>
       p.name.toLowerCase().includes(q) ||
       (p.sku && p.sku.toLowerCase().includes(q)) ||
       (p.category && p.category.toLowerCase().includes(q))
     );
-  }, [products, productSearch]);
+  }, [billedProducts, productSearch]);
 
   const selectedProduct = useMemo(() => {
-    return products.find(p => p.id === selectedProductId) || null;
-  }, [products, selectedProductId]);
+    return billedProducts.find(p => p.id === selectedProductId) || null;
+  }, [billedProducts, selectedProductId]);
 
   // Summary calculations
   const totalReturnCredit = useMemo(() => {
@@ -151,8 +194,16 @@ export const RepDirectReturnModal: React.FC<RepDirectReturnModalProps> = ({
 
   // Add Item to Return List
   const handleAddReturnLine = () => {
+    if (!activeCustomer) {
+      setError('Please select a customer first.');
+      return;
+    }
+    if (billedProducts.length === 0) {
+      setError(`Cannot collect returns: ${activeCustomer.name} has no billed products on record.`);
+      return;
+    }
     if (!selectedProduct) {
-      setError('Please select a product to return.');
+      setError('Please select an eligible billed product to return.');
       return;
     }
     const qty = Math.max(1, parseInt(quantity.toString(), 10) || 1);
@@ -188,6 +239,11 @@ export const RepDirectReturnModal: React.FC<RepDirectReturnModalProps> = ({
 
     if (!activeCustomer) {
       setError('Please select a customer before recording return.');
+      return;
+    }
+
+    if (billedProducts.length === 0) {
+      setError(`Cannot collect returns: ${activeCustomer.name} has no billed products on record.`);
       return;
     }
 
@@ -374,27 +430,48 @@ export const RepDirectReturnModal: React.FC<RepDirectReturnModalProps> = ({
           </div>
 
           {/* Section 2: Add Return Items Form */}
-          <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs space-y-3.5">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-              <PackageMinus className="w-3.5 h-3.5 text-amber-600" />
-              Add Return / Stale Item
-            </span>
-
-            {/* Product Selector with inline search */}
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-bold text-slate-700">Select Product</label>
-              <select
-                value={selectedProductId}
-                onChange={e => setSelectedProductId(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
-              >
-                {products.map(p => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} {p.sku ? `(${p.sku})` : ''} — {formatMoney(p.unitPrice)}
-                  </option>
-                ))}
-              </select>
+          {loadingBilledProducts ? (
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-2xs flex items-center justify-center gap-2.5 text-slate-500 text-xs font-semibold">
+              <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
+              <span>Verifying customer purchase history & billed items...</span>
             </div>
+          ) : activeCustomer && billedProducts.length === 0 ? (
+            <div className="bg-rose-50/90 border border-rose-200 rounded-2xl p-4 shadow-2xs space-y-2">
+              <div className="flex items-center gap-2 text-rose-800 font-bold text-xs">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>Returns Restricted: Customer Has No Billed Products</span>
+              </div>
+              <p className="text-xs text-rose-700 leading-relaxed">
+                <strong>{activeCustomer.name}</strong> has never been billed for any products. Under distribution policy, reps cannot collect returns from customers who have no purchase history.
+              </p>
+            </div>
+          ) : (
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs space-y-3.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <PackageMinus className="w-3.5 h-3.5 text-amber-600" />
+                  Add Return / Stale Item
+                </span>
+                <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                  {billedProducts.length} Billed Items Eligible
+                </span>
+              </div>
+
+              {/* Product Selector with inline search */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-700">Select Billed Product</label>
+                <select
+                  value={selectedProductId}
+                  onChange={e => setSelectedProductId(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                >
+                  {billedProducts.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} {p.sku ? `(${p.sku})` : ''} — Last Billed: {formatMoney(p.lastBilledPrice ?? p.unitPrice)}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
             {/* Return Type Toggle: Damage vs Resale */}
             <div className="space-y-1.5">
@@ -539,6 +616,7 @@ export const RepDirectReturnModal: React.FC<RepDirectReturnModalProps> = ({
               <span>Add to Return Slip</span>
             </button>
           </div>
+          )}
 
           {/* Section 3: Return Slip Items List */}
           {returnLines.length > 0 && (
@@ -643,9 +721,9 @@ export const RepDirectReturnModal: React.FC<RepDirectReturnModalProps> = ({
           <button
             type="button"
             onClick={handleSubmitReturn}
-            disabled={loading || returnLines.length === 0 || !activeCustomer}
+            disabled={loading || returnLines.length === 0 || !activeCustomer || billedProducts.length === 0}
             className={`px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition cursor-pointer ${
-              loading || returnLines.length === 0 || !activeCustomer
+              loading || returnLines.length === 0 || !activeCustomer || billedProducts.length === 0
                 ? 'bg-amber-300 text-white cursor-not-allowed'
                 : 'bg-amber-500 hover:bg-amber-600 active:scale-95 text-white'
             }`}

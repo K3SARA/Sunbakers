@@ -1,7 +1,7 @@
 {
-  "appId": "com.samanthadistributor.app",
-  "productName": "Samantha Distributor",
-  "copyright": "Copyright © 2026 Samantha & Co.",
+  "appId": "com.sunbakersdistributor.app",
+  "productName": "sunbakers Distributor",
+  "copyright": "Copyright © 2026 sunbakers & Co.",
   "electronDist": "node_modules/electron/dist",
   "directories": {
     "output": "release",

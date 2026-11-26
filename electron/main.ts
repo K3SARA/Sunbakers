@@ -100,8 +100,8 @@ async function waitForServer(port: number = 4812, maxWaitMs: number = 15000): Pr
 function getAppIcon(): string | undefined {
   const candidates = [
     path.join(__dirname, '../../build/icon.png'),
-    path.join(__dirname, '../../public/samantha-logo.png'),
-    path.join(__dirname, '../../dist/samantha-logo.png'),
+    path.join(__dirname, '../../public/sunbakers-logo.png'),
+    path.join(__dirname, '../../dist/sunbakers-logo.png'),
     path.join(process.resourcesPath, 'build/icon.png')
   ];
 
@@ -122,7 +122,7 @@ function createWindow() {
     minWidth: 1080,
     minHeight: 720,
     backgroundColor: '#F1F3F6',
-    title: 'Samantha Distributor Management',
+    title: 'sunbakers Distributor Management',
     icon: iconPath,
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     autoHideMenuBar: true,

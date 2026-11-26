@@ -3008,6 +3008,23 @@ app.post('/api/lorries/:id/bills', async (req: Request, res: Response) => {
           if (retQty <= 0) continue;
 
           const retProduct = await tx.product.findUniqueOrThrow({ where: { id: ret.productId } });
+
+          // Business Rule: Customer can only return products they were billed for
+          const isBilledInCurrentBill = orderItemsToCreate.some((item: any) => item.productId === retProduct.id);
+          if (!isBilledInCurrentBill) {
+            const hasPastPurchase = await tx.orderItem.findFirst({
+              where: {
+                productId: retProduct.id,
+                order: {
+                  customerId: customer.id,
+                  status: { not: 'CANCELLED' }
+                }
+              }
+            });
+            if (!hasPastPurchase) {
+              throw new Error(`Cannot collect return for "${retProduct.name}". This product has never been billed to customer ${customer.name}.`);
+            }
+          }
           const retUnitPrice = ret.unitPrice !== undefined && !isNaN(parseFloat(ret.unitPrice)) && parseFloat(ret.unitPrice) >= 0
             ? parseFloat(ret.unitPrice)
             : retProduct.unitPrice;
@@ -3077,9 +3094,10 @@ app.post('/api/lorries/:id/bills', async (req: Request, res: Response) => {
       const netTotal = Math.max(0, subtotal - discountAmount - returnAmount);
 
       const isCheque = paymentMethod === 'CHEQUE';
+      const rawPaid = parseFloat(cashReceived !== undefined && cashReceived !== '' ? cashReceived : (paymentMethod === 'CASH' ? netTotal : 0));
       const paidAmount = isCheque
         ? netTotal
-        : parseFloat(cashReceived !== undefined ? cashReceived : (paymentMethod === 'CASH' ? netTotal : 0));
+        : Math.min(netTotal, Math.max(0, isNaN(rawPaid) ? 0 : rawPaid));
       const paymentStatus = paidAmount >= netTotal ? 'PAID' : (paidAmount > 0 ? 'PARTIAL' : 'UNPAID');
       const balanceAmount = Math.max(0, netTotal - paidAmount);
 
@@ -3575,6 +3593,47 @@ app.get('/api/customers/:id/orders', async (req: Request, res: Response) => {
       orderBy: { createdAt: 'desc' }
     });
     res.json(orders);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get all products that this customer has ever been billed for
+app.get('/api/customers/:id/billed-products', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const orderItems = await prisma.orderItem.findMany({
+      where: {
+        order: {
+          customerId: id,
+          status: { not: 'CANCELLED' }
+        }
+      },
+      include: {
+        product: true,
+        order: true
+      },
+      orderBy: { order: { createdAt: 'desc' } }
+    });
+
+    const productMap = new Map<string, any>();
+    for (const item of orderItems) {
+      if (!item.product) continue;
+      if (!productMap.has(item.productId)) {
+        productMap.set(item.productId, {
+          ...item.product,
+          lastBilledPrice: item.unitPrice,
+          lastBilledAt: item.order.createdAt,
+          lastOrderNumber: item.order.paperBillNumber || item.order.orderNumber,
+          totalPurchasedQty: item.quantity
+        });
+      } else {
+        const existing = productMap.get(item.productId);
+        existing.totalPurchasedQty += item.quantity;
+      }
+    }
+
+    res.json(Array.from(productMap.values()));
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -4429,6 +4488,23 @@ app.post('/api/orders', async (req: Request, res: Response) => {
           if (retQty <= 0) continue;
 
           const retProduct = await tx.product.findUniqueOrThrow({ where: { id: ret.productId } });
+
+          // Business Rule: Customer can only return products they were billed for
+          const isBilledInCurrentBill = orderItemsToCreate.some((item: any) => item.productId === retProduct.id);
+          if (!isBilledInCurrentBill) {
+            const hasPastPurchase = await tx.orderItem.findFirst({
+              where: {
+                productId: retProduct.id,
+                order: {
+                  customerId: customer.id,
+                  status: { not: 'CANCELLED' }
+                }
+              }
+            });
+            if (!hasPastPurchase) {
+              throw new Error(`Cannot collect return for "${retProduct.name}". This product has never been billed to customer ${customer.name}.`);
+            }
+          }
           const retUnitPrice = ret.unitPrice !== undefined && !isNaN(parseFloat(ret.unitPrice)) && parseFloat(ret.unitPrice) >= 0
             ? parseFloat(ret.unitPrice)
             : retProduct.unitPrice;
@@ -4497,9 +4573,10 @@ app.post('/api/orders', async (req: Request, res: Response) => {
       const netTotal = Math.max(0, subtotal - discountAmount - returnAmount);
 
       const isCheque = paymentMethod === 'CHEQUE';
+      const rawPaid = parseFloat(cashReceived !== undefined && cashReceived !== '' ? cashReceived : (paymentMethod === 'CASH' ? netTotal : 0));
       const paidAmount = isCheque
         ? netTotal
-        : parseFloat(cashReceived !== undefined && cashReceived !== '' ? cashReceived : (paymentMethod === 'CASH' ? netTotal : 0));
+        : Math.min(netTotal, Math.max(0, isNaN(rawPaid) ? 0 : rawPaid));
       const calculatedPaymentStatus = paymentStatus || (paidAmount >= netTotal ? 'PAID' : (paidAmount > 0 ? 'PARTIAL' : 'UNPAID'));
       const balanceAmount = Math.max(0, netTotal - paidAmount);
 

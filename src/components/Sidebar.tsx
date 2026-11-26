@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { useCurrency, CURRENCIES, CurrencyCode } from '../context/CurrencyContext';
 import { User } from '../types';
-import samanthaLogo from '../assets/samantha-logo.png';
+import sunbakersLogo from '../assets/sunbakers-logo.png';
 
 interface SidebarProps {
   currentTab: string;
@@ -120,13 +120,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="p-5 pb-4 border-b border-slate-100 flex items-center justify-between">
           <div className="flex items-center gap-3.5">
             <img
-              src={samanthaLogo}
-              alt="Samantha Distributor"
+              src={sunbakersLogo}
+              alt="sunbakers Distributor"
               className="w-10 h-10 rounded-xl object-contain drop-shadow-xs shrink-0"
             />
             <div>
               <h1 className="font-bold text-slate-900 text-base tracking-tight leading-snug">
-                Samantha Distributor
+                sunbakers Distributor
               </h1>
               <span className="text-xs font-medium text-slate-400 block -mt-0.5">
                 Fleet &amp; Distribution

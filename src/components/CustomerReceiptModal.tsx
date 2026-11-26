@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { X, Printer, CheckCircle2 } from 'lucide-react';
 import { CustomerPayment, Customer, SystemSettings } from '../types';
-import samanthaLogo from '../assets/samantha-logo.png';
+import sunbakersLogo from '../assets/sunbakers-logo.png';
 import { useCurrency } from '../context/CurrencyContext';
 import { printReceiptElement } from '../utils/printHelper';
 import { SettingsService } from '../services/api';
@@ -71,13 +71,13 @@ export const CustomerReceiptModal: React.FC<CustomerReceiptModalProps> = ({
             <div className="text-center pb-2">
               <div className="flex justify-center mb-1.5">
                 <img
-                  src={samanthaLogo}
-                  alt="Samantha Distributor"
+                  src={sunbakersLogo}
+                  alt="sunbakers Distributor"
                   className="w-14 h-14 object-contain rounded-full border border-black/10 shadow-2xs"
                 />
               </div>
               <h2 className="text-base font-black text-black uppercase tracking-tight leading-tight">
-                {companySettings?.companyName || 'Samantha Distributors'}
+                {companySettings?.companyName || 'sunbakers Distributors'}
               </h2>
               <p className="text-[11px] text-black font-semibold leading-tight mt-0.5">
                 {companySettings?.address || 'Andiramada, Hiriwadunna'}

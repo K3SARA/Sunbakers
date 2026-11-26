@@ -9,7 +9,7 @@ import {
   Smartphone
 } from 'lucide-react';
 import { Order, SystemSettings } from '../types';
-import samanthaLogo from '../assets/samantha-logo.png';
+import sunbakersLogo from '../assets/sunbakers-logo.png';
 import { useCurrency } from '../context/CurrencyContext';
 import { SettingsService } from '../services/api';
 import {
@@ -199,17 +199,17 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
             <div className="receipt-80mm w-full max-w-[360px] mx-auto bg-white p-3.5 sm:p-4 shadow-sm border border-slate-300 rounded-xl text-black font-mono text-[13.5px] sm:text-[14px] leading-snug select-text print:max-w-none print:w-full print:border-none print:shadow-none print:rounded-none print:p-0 print:m-0 print:bg-white font-bold">
               {/* Receipt Logo & Header */}
               <div className="text-center space-y-1 pb-2">
-                {/* Samantha Distributors Logo */}
+                {/* sunbakers Distributors Logo */}
                 <div className="flex justify-center mb-1.5">
                   <img
-                    src={samanthaLogo}
-                    alt="Samantha Distributor"
+                    src={sunbakersLogo}
+                    alt="sunbakers Distributor"
                     className="w-16 h-16 sm:w-20 sm:h-20 object-contain mx-auto rounded-full border border-slate-300 shadow-2xs print:border-none"
                   />
                 </div>
 
                 <h2 className="text-base sm:text-lg font-black tracking-wider uppercase text-black leading-tight">
-                  {companySettings?.companyName || 'Samantha Distributors'}
+                  {companySettings?.companyName || 'sunbakers Distributors'}
                 </h2>
 
                 <p className="text-xs sm:text-[13px] text-black font-bold leading-tight">
@@ -463,13 +463,13 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                 <div className="text-left sm:text-right space-y-2">
                   <div className="flex items-center gap-3 sm:justify-end">
                     <img
-                      src={samanthaLogo}
-                      alt="Samantha Distributor"
+                      src={sunbakersLogo}
+                      alt="sunbakers Distributor"
                       className="w-14 h-14 object-contain rounded-full border border-slate-300 shadow-2xs shrink-0"
                     />
                     <div>
                       <h3 className="font-black text-sm text-black">
-                        {companySettings?.companyName || 'Samantha Distributors'}
+                        {companySettings?.companyName || 'sunbakers Distributors'}
                       </h3>
                       <p className="text-xs font-bold text-black">
                         {companySettings?.address || 'Andiramada, Hiriwadunna'}

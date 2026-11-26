@@ -10,7 +10,7 @@ import { AuthService } from '../services/api';
 import { User } from '../types';
 import loginBg from '../assets/login-bg.jpg';
 import jcoLogo from '../assets/jco-logo.png';
-import samanthaLogo from '../assets/samantha-logo.png';
+import sunbakersLogo from '../assets/sunbakers-logo.png';
 
 interface LoginProps {
   onLoginSuccess: (user: User) => void;
@@ -75,11 +75,11 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
       {/* Hyper-Minimal White Container (Ref: White Box Login) */}
       <div className="w-full max-w-[390px] sm:max-w-[420px] bg-white rounded-md shadow-2xl p-7 sm:p-10 relative z-10">
-        {/* Samantha Distributor Circular Emblem */}
+        {/* sunbakers Distributor Circular Emblem */}
         <div className="flex justify-center mb-3">
           <img
-            src={samanthaLogo}
-            alt="Samantha Distributor"
+            src={sunbakersLogo}
+            alt="sunbakers Distributor"
             className="w-24 h-24 sm:w-28 sm:h-28 rounded-full object-contain drop-shadow-md select-none transition-transform hover:scale-105 duration-300"
           />
         </div>
@@ -88,7 +88,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           Log in
         </h1>
         <p className="text-[11px] text-slate-400 text-center mb-6 font-medium tracking-wide">
-          Samantha Distributor
+          sunbakers Distributor
         </p>
 
         {/* Error Alert */}
@@ -237,7 +237,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
       {/* Subtle bottom info */}
       <div className="absolute bottom-4 text-center text-[11px] text-slate-500 font-mono z-10">
-        Samantha Distributor &bull; Powered by J&amp;co. Software Solutions
+        sunbakers Distributor &bull; Powered by J&amp;co. Software Solutions
       </div>
     </div>
   );

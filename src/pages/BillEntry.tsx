@@ -23,7 +23,7 @@ import {
   ShoppingBag,
   Sparkles
 } from 'lucide-react';
-import { Lorry, Customer, Order, Product } from '../types';
+import { Lorry, Customer, Order, Product, CustomerBilledProduct } from '../types';
 import { LorryService, CustomerService, OrderService, ProductService } from '../services/api';
 import { useCurrency } from '../context/CurrencyContext';
 import { CustomerModal } from '../components/CustomerModal';
@@ -199,7 +199,8 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice, isActive = 
   const [walkInPhone, setWalkInPhone] = useState<string>('');
   const [billItems, setBillItems] = useState<BillItemRow[]>([{ productId: '', quantity: 1, freeQuantity: 0 }]);
   const [returnItems, setReturnItems] = useState<BillReturnRow[]>([]);
-  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CREDIT' | 'CHEQUE'>('CASH');
+  const [customerBilledProducts, setCustomerBilledProducts] = useState<CustomerBilledProduct[]>([]);
+  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'PARTIAL' | 'CREDIT' | 'CHEQUE'>('CASH');
   const [cashReceived, setCashReceived] = useState<string>('');
   const [chequeNumber, setChequeNumber] = useState<string>('');
   const [bankName, setBankName] = useState<string>('');
@@ -392,6 +393,10 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice, isActive = 
         setBillDiscountValue('');
       }
 
+      CustomerService.getBilledProducts(selectedCustomerId)
+        .then((prods: CustomerBilledProduct[]) => setCustomerBilledProducts(prods || []))
+        .catch(() => setCustomerBilledProducts([]));
+
       setLoadingUnpaidBills(true);
       CustomerService.getUnpaidBills(selectedCustomerId)
         .then((bills: any[]) => {
@@ -417,11 +422,44 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice, isActive = 
         .finally(() => setLoadingUnpaidBills(false));
     } else {
       setCustomerUnpaidBills([]);
+      setCustomerBilledProducts([]);
+      setReturnItems([]);
       setSettlePreviousBill(false);
       setSettleAmount('');
       setBillDiscountValue('');
     }
   }, [selectedCustomerId]);
+
+  // Eligible products for returns: customer's previously billed items + any products in current bill
+  const eligibleReturnProducts = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; sku?: string; unit?: string; unitPrice: number; lastBilledPrice?: number }>();
+    customerBilledProducts.forEach(p => {
+      map.set(p.id, {
+        id: p.id,
+        name: p.name,
+        sku: p.sku,
+        unit: p.unit,
+        unitPrice: p.unitPrice,
+        lastBilledPrice: p.lastBilledPrice
+      });
+    });
+    billItems.forEach(bi => {
+      if (bi.productId && !map.has(bi.productId)) {
+        const p = warehouseProducts.find(wp => wp.id === bi.productId);
+        if (p) {
+          map.set(p.id, {
+            id: p.id,
+            name: p.name,
+            sku: p.sku,
+            unit: p.unit,
+            unitPrice: bi.unitPrice ?? p.unitPrice,
+            lastBilledPrice: bi.unitPrice ?? p.unitPrice
+          });
+        }
+      }
+    });
+    return Array.from(map.values());
+  }, [customerBilledProducts, billItems, warehouseProducts]);
 
   // Auto-filter customers belonging to this lorry's route first, then rest
   const routeCustomers = customers.filter(c => selectedLorry?.routeId && c.routeId === selectedLorry.routeId);
@@ -474,6 +512,10 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice, isActive = 
   };
 
   const addReturnRow = () => {
+    if (eligibleReturnProducts.length === 0) {
+      alert('⚠️ Returns Restricted:\nThis customer has no previously billed products on record (and none in the current bill).\n\nReturns can only be collected for products previously billed to this customer.');
+      return;
+    }
     setReturnItems([...returnItems, { productId: '', quantity: 1, returnType: 'DAMAGE', reason: '' }]);
   };
 
@@ -526,9 +568,9 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice, isActive = 
     const updated = [...returnItems];
     const currentRow = { ...updated[index], [field]: value };
     if (field === 'productId') {
-      const prod = warehouseProducts.find(p => p.id === value);
+      const prod = eligibleReturnProducts.find(p => p.id === value);
       if (prod) {
-        currentRow.unitPrice = prod.unitPrice;
+        currentRow.unitPrice = prod.lastBilledPrice ?? prod.unitPrice;
       }
     }
     updated[index] = currentRow;
@@ -574,7 +616,7 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice, isActive = 
     );
 
     if (existingIndex !== -1) {
-      const p = warehouseProducts.find(prod => prod.id === selectedProductId);
+      const p = eligibleReturnProducts.find(prod => prod.id === selectedProductId);
       if (p) {
         const confirmCombine = window.confirm(
           `⚠️ "${p.name}" is already in Return Line #${existingIndex + 1} with ${returnItems[existingIndex].quantity} units.\n\nClick OK to combine the return quantities, or Cancel to pick another item.`
@@ -591,7 +633,11 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice, isActive = 
       }
     }
 
+    const item = eligibleReturnProducts.find(p => p.id === selectedProductId);
     updateReturnRow(index, 'productId', selectedProductId);
+    if (item) {
+      updateReturnRow(index, 'unitPrice', item.lastBilledPrice ?? item.unitPrice);
+    }
   };
 
   const removeItemRow = (index: number) => {
@@ -651,12 +697,14 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice, isActive = 
   const totalFreeUnits = billItems.reduce((acc, item) => acc + (item.freeQuantity || 0), 0);
   const totalReturnUnits = returnItems.reduce((acc, ret) => acc + (ret.productId && ret.quantity > 0 ? ret.quantity : 0), 0);
 
-  // Auto set cash received if cash mode
+  // Auto set cash received based on payment method
   useEffect(() => {
     if (paymentMethod === 'CASH') {
       setCashReceived(netTotal.toFixed(2));
     } else if (paymentMethod === 'CREDIT') {
       setCashReceived('0');
+    } else if (paymentMethod === 'PARTIAL') {
+      setCashReceived(prev => (prev === '0' || prev === netTotal.toFixed(2) ? '' : prev));
     }
   }, [paymentMethod, netTotal]);
 
@@ -704,6 +752,14 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice, isActive = 
     try {
       setSubmitting(true);
       const parsedCash = parseFloat(cashReceived) || 0;
+
+      if (paymentMethod === 'PARTIAL') {
+        if (parsedCash <= 0 || (netTotal > 0 && parsedCash >= netTotal)) {
+          setErrorMessage('For Partial Payment, Cash Received must be greater than 0 and less than the Net Total.');
+          setSubmitting(false);
+          return;
+        }
+      }
 
       if (paymentMethod === 'CHEQUE') {
         if (!chequeNumber.trim()) {
@@ -1412,7 +1468,7 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice, isActive = 
                       </select>
                     </div>
 
-                    {/* Product Selector */}
+                    {/* Product Selector restricted to customer billed products */}
                     <div className="flex-1 w-full">
                       <select
                         value={ret.productId}
@@ -1420,10 +1476,10 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice, isActive = 
                         required
                         className="w-full bg-white border border-amber-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
                       >
-                        <option value="">-- Select Returned Product --</option>
-                        {warehouseProducts.map((p) => (
+                        <option value="">-- Select Billed Product --</option>
+                        {eligibleReturnProducts.map((p) => (
                           <option key={p.id} value={p.id}>
-                            {p.name} ({p.sku}) - Price: {formatMoney(p.unitPrice)}
+                            {p.name} {p.sku ? `(${p.sku})` : ''} - Last Billed: {formatMoney(p.lastBilledPrice ?? p.unitPrice)}
                           </option>
                         ))}
                       </select>
@@ -1520,6 +1576,7 @@ export const BillEntry: React.FC<BillEntryProps> = ({ onViewInvoice, isActive = 
                 className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs sm:text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
               >
                 <option value="CASH">💵 Cash Payment</option>
+                <option value="PARTIAL">🌗 Partial Payment</option>
                 <option value="CREDIT">📑 Credit (Pay Later)</option>
                 <option value="CHEQUE">🏦 Bank Cheque</option>
               </select>

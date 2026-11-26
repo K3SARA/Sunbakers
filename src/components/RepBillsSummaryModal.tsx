@@ -9,7 +9,7 @@ import {
   Filter
 } from 'lucide-react';
 import { Order, Lorry, User, SystemSettings, Expense } from '../types';
-import samanthaLogo from '../assets/samantha-logo.png';
+import sunbakersLogo from '../assets/sunbakers-logo.png';
 import { useCurrency } from '../context/CurrencyContext';
 import { SettingsService } from '../services/api';
 import {
@@ -337,14 +337,14 @@ export const RepBillsSummaryModal: React.FC<RepBillsSummaryModalProps> = ({
             <div className="text-center space-y-1 pb-2">
               <div className="flex justify-center mb-1">
                 <img
-                  src={samanthaLogo}
-                  alt="Samantha Distributor"
+                  src={sunbakersLogo}
+                  alt="sunbakers Distributor"
                   className="w-16 h-16 object-contain mx-auto rounded-full border border-slate-200/60 shadow-2xs print:border-none"
                 />
               </div>
 
               <h2 className="text-base sm:text-lg font-black tracking-wider uppercase text-black leading-tight">
-                {companySettings?.companyName || 'Samantha Distributors'}
+                {companySettings?.companyName || 'sunbakers Distributors'}
               </h2>
               <p className="text-[11.5px] sm:text-[12px] text-black font-semibold leading-tight">
                 {companySettings?.address || 'Andiramada, Hiriwadunna'}
