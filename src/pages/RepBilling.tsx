@@ -29,10 +29,22 @@ import {
   Tag,
   Wallet,
   Compass,
-  AlertTriangle
+  AlertTriangle,
+  WifiOff,
+  CloudUpload
 } from 'lucide-react';
 import { Customer, Product, Lorry, Order, User, RepTargetProgress, Expense, CustomerPayment, CustomerBilledProduct } from '../types';
 import { CustomerService, LorryService, ProductService, OrderService, AuthService, ExpenseService } from '../services/api';
+import {
+  OfflineCache,
+  OfflineQueue,
+  isNetworkError,
+  generateUniqueOrderNumber,
+  generateUniqueReceiptNumber,
+  buildOptimisticOrder,
+  buildOptimisticExpense
+} from '../services/offlineSync';
+import { startRepBackgroundTracking } from '../services/backgroundLocation';
 import { useCurrency } from '../context/CurrencyContext';
 import { CustomerModal } from '../components/CustomerModal';
 import { RepBillsSummaryModal } from '../components/RepBillsSummaryModal';
@@ -146,6 +158,11 @@ export const RepBilling: React.FC<RepBillingProps> = ({
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [checkoutSuccessOrder, setCheckoutSuccessOrder] = useState<Order | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Offline-First & Auto-Sync State
+  const [isOnline, setIsOnline] = useState<boolean>(() => typeof navigator !== 'undefined' ? navigator.onLine : true);
+  const [pendingSyncCount, setPendingSyncCount] = useState<number>(() => OfflineQueue.count());
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
   // Add Customer Modal State
   const [showAddCustomerModal, setShowAddCustomerModal] = useState<boolean>(false);
@@ -279,9 +296,14 @@ export const RepBilling: React.FC<RepBillingProps> = ({
         activeRange.from || undefined,
         activeRange.to || undefined
       );
+      OfflineCache.save('finished_bills', orders);
       setFinishedBills(orders);
     } catch (err) {
-      console.error('Failed to load finished bills', err);
+      if (isNetworkError(err)) {
+        setFinishedBills(OfflineCache.load<Order[]>('finished_bills', []));
+      } else {
+        console.error('Failed to load finished bills', err);
+      }
     } finally {
       setLoadingFinishedBills(false);
     }
@@ -349,9 +371,14 @@ export const RepBilling: React.FC<RepBillingProps> = ({
         from: startOfDay,
         to: endOfDay
       });
+      OfflineCache.save('rep_expenses', list);
       setRepExpenses(list);
     } catch (err) {
-      console.error('Failed to load rep route expenses', err);
+      if (isNetworkError(err)) {
+        setRepExpenses(OfflineCache.load<Expense[]>('rep_expenses', []));
+      } else {
+        console.error('Failed to load rep route expenses', err);
+      }
     } finally {
       setLoadingExpenses(false);
     }
@@ -373,18 +400,20 @@ export const RepBilling: React.FC<RepBillingProps> = ({
       return;
     }
 
+    const expPayload = {
+      category: expenseCategory,
+      title: expenseTitle.trim(),
+      amount: parsedAmt,
+      lorryId: selectedLorryId || undefined,
+      paymentMethod: 'CASH',
+      paidTo: expensePaidTo.trim() || undefined,
+      referenceNumber: expenseRef.trim() || undefined,
+      notes: expenseNotes.trim() ? `${expenseNotes.trim()} (Route Rep)` : `Route expense recorded via mobile rep billing`
+    };
+
     try {
       setExpenseSubmitting(true);
-      const newExp = await ExpenseService.create({
-        category: expenseCategory,
-        title: expenseTitle.trim(),
-        amount: parsedAmt,
-        lorryId: selectedLorryId || undefined,
-        paymentMethod: 'CASH',
-        paidTo: expensePaidTo.trim() || undefined,
-        referenceNumber: expenseRef.trim() || undefined,
-        notes: expenseNotes.trim() ? `${expenseNotes.trim()} (Route Rep)` : `Route expense recorded via mobile rep billing`
-      });
+      const newExp = await ExpenseService.create(expPayload);
 
       setExpenseSuccessMsg(`✓ Expense ${newExp.expenseNumber} (Rs. ${parsedAmt.toLocaleString()}) recorded & wired to Admin!`);
       setExpenseAmount('');
@@ -394,7 +423,36 @@ export const RepBilling: React.FC<RepBillingProps> = ({
       await loadRepExpenses(selectedLorryId);
       setTimeout(() => setExpenseSuccessMsg(null), 3500);
     } catch (err: any) {
-      alert(err.response?.data?.error || err.message || 'Failed to record expense.');
+      if (isNetworkError(err)) {
+        const offNum = generateUniqueReceiptNumber('EXP', selectedLorry?.vehicleNumber);
+        OfflineQueue.enqueue({
+          type: 'EXPENSE_CREATE',
+          lorryId: selectedLorryId || undefined,
+          payload: expPayload,
+          label: `Expense ${offNum}`
+        });
+        const optExp = buildOptimisticExpense({
+          expenseNumber: offNum,
+          category: expenseCategory,
+          description: expenseTitle.trim(),
+          amount: parsedAmt,
+          lorryId: selectedLorryId || undefined,
+          recordedBy: user?.fullName
+        });
+        setRepExpenses(prev => {
+          const next = [optExp, ...prev];
+          OfflineCache.save('rep_expenses', next);
+          return next;
+        });
+        setExpenseSuccessMsg(`✓ Expense saved offline (${offNum}) — will auto-sync when online`);
+        setExpenseAmount('');
+        setExpensePaidTo('');
+        setExpenseRef('');
+        setExpenseNotes('');
+        setTimeout(() => setExpenseSuccessMsg(null), 3500);
+      } else {
+        alert(err.response?.data?.error || err.message || 'Failed to record expense.');
+      }
     } finally {
       setExpenseSubmitting(false);
     }
@@ -421,9 +479,14 @@ export const RepBilling: React.FC<RepBillingProps> = ({
         lorryId: targetLorry || undefined,
         from: today.toISOString()
       });
+      OfflineCache.save('rep_collections', payments);
       setRepCollections(payments);
     } catch (err) {
-      console.error('Failed to load rep collections', err);
+      if (isNetworkError(err)) {
+        setRepCollections(OfflineCache.load<CustomerPayment[]>('rep_collections', []));
+      } else {
+        console.error('Failed to load rep collections', err);
+      }
     } finally {
       setLoadingCollections(false);
     }
@@ -494,12 +557,73 @@ export const RepBilling: React.FC<RepBillingProps> = ({
     }
   }, { isActive });
 
+  const syncOfflineQueue = async () => {
+    if (isSyncing || (typeof navigator !== 'undefined' && !navigator.onLine)) return;
+    if (OfflineQueue.count() === 0) return;
+
+    try {
+      setIsSyncing(true);
+      const res = await OfflineQueue.syncAll({
+        sendLorryBill: (lId, payload) => LorryService.enterDriverBill(lId, payload),
+        sendOrder: (payload) => OrderService.create(payload),
+        sendPayment: (cId, payload) => CustomerService.recordPayment(cId, payload),
+        sendExpense: (payload) => ExpenseService.create(payload)
+      });
+      setPendingSyncCount(res.remainingCount);
+      if (res.syncedCount > 0) {
+        await Promise.all([
+          loadData(),
+          loadTargets(selectedLorryId || undefined),
+          loadFinishedBills(selectedLorryId || undefined),
+          loadRepExpenses(selectedLorryId || undefined),
+          loadRepCollections(selectedLorryId || undefined)
+        ]);
+      }
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   useEffect(() => {
     loadData();
     loadTargets();
     loadFinishedBills();
     loadRepExpenses();
     loadRepCollections();
+
+    // Start background GPS tracking (works even when screen is off or app is closed)
+    if (user?.id) {
+      startRepBackgroundTracking({
+        userId: user.id,
+        lorryId: initialLorryId || user.lorryId
+      });
+    }
+
+    const handleOnline = () => {
+      setIsOnline(true);
+      syncOfflineQueue();
+    };
+    const handleOffline = () => setIsOnline(false);
+    const handleQueueChange = (e: any) => {
+      setPendingSyncCount(e?.detail?.count ?? OfflineQueue.count());
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('app:offline-queue-changed', handleQueueChange);
+
+    const syncInterval = setInterval(() => {
+      if (navigator.onLine && OfflineQueue.count() > 0) {
+        syncOfflineQueue();
+      }
+    }, 20000);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('app:offline-queue-changed', handleQueueChange);
+      clearInterval(syncInterval);
+    };
   }, []);
 
   useEffect(() => {
@@ -518,8 +642,13 @@ export const RepBilling: React.FC<RepBillingProps> = ({
         LorryService.getAll()
       ]);
 
+      const activeProds = prodList.filter(p => !p.isRawMaterial);
+      OfflineCache.save('customers', custList);
+      OfflineCache.save('products', activeProds);
+      OfflineCache.save('lorries', lorryList);
+
       setCustomers(custList);
-      setProducts(prodList.filter(p => !p.isRawMaterial));
+      setProducts(activeProds);
       setLorries(lorryList);
 
       if (initialLorryId && lorryList.some(l => l.id === initialLorryId)) {
@@ -532,7 +661,21 @@ export const RepBilling: React.FC<RepBillingProps> = ({
         loadTargets();
       }
     } catch (err) {
-      console.error('Failed to load rep billing data', err);
+      if (isNetworkError(err)) {
+        const cachedCusts = OfflineCache.load<Customer[]>('customers', []);
+        const cachedProds = OfflineCache.load<Product[]>('products', []);
+        const cachedLorries = OfflineCache.load<Lorry[]>('lorries', []);
+        setCustomers(cachedCusts);
+        setProducts(cachedProds);
+        setLorries(cachedLorries);
+        if (initialLorryId && cachedLorries.some(l => l.id === initialLorryId)) {
+          setSelectedLorryId(initialLorryId);
+        } else if (cachedLorries.length > 0 && !selectedLorryId) {
+          setSelectedLorryId(cachedLorries[0].id);
+        }
+      } else {
+        console.error('Failed to load rep billing data', err);
+      }
     } finally {
       setLoading(false);
     }
@@ -564,6 +707,7 @@ export const RepBilling: React.FC<RepBillingProps> = ({
 
       CustomerService.getUnpaidBills(selectedCustomerId)
         .then(bills => {
+          OfflineCache.save(`unpaid_bills_${selectedCustomerId}`, bills);
           setCustomerUnpaidBills(bills);
           if (bills.length > 0 && bills[0]) {
             setBillingMethod('BILL_TO_BILL');
@@ -577,20 +721,37 @@ export const RepBilling: React.FC<RepBillingProps> = ({
             setCollectPrevBill(false);
           }
         })
-        .catch(() => {
-          setCustomerUnpaidBills([]);
-          setBillingMethod('NORMAL');
-          setSettlePrevAmount('');
-          setCollectPrevBill(false);
+        .catch((err) => {
+          const cachedBills = isNetworkError(err)
+            ? OfflineCache.load<Order[]>(`unpaid_bills_${selectedCustomerId}`, [])
+            : [];
+          setCustomerUnpaidBills(cachedBills);
+          if (cachedBills.length > 0 && cachedBills[0]) {
+            setBillingMethod('BILL_TO_BILL');
+            const first = cachedBills[0];
+            const due = (first.balanceAmount ?? 0) > 0 ? (first.balanceAmount ?? 0) : Math.max(0, first.netTotal - (first.paidAmount || 0));
+            setSettlePrevAmount(due.toString());
+            setCollectPrevBill(true);
+          } else {
+            setBillingMethod('NORMAL');
+            setSettlePrevAmount('');
+            setCollectPrevBill(false);
+          }
         });
 
       setLoadingBilledProducts(true);
       CustomerService.getBilledProducts(selectedCustomerId)
         .then(prods => {
-          setCustomerBilledProducts(prods || []);
+          const valid = prods || [];
+          OfflineCache.save(`billed_products_${selectedCustomerId}`, valid);
+          setCustomerBilledProducts(valid);
         })
-        .catch(() => {
-          setCustomerBilledProducts([]);
+        .catch((err) => {
+          if (isNetworkError(err)) {
+            setCustomerBilledProducts(OfflineCache.load<CustomerBilledProduct[]>(`billed_products_${selectedCustomerId}`, []));
+          } else {
+            setCustomerBilledProducts([]);
+          }
         })
         .finally(() => {
           setLoadingBilledProducts(false);
@@ -1130,7 +1291,9 @@ export const RepBilling: React.FC<RepBillingProps> = ({
             ]
           : [];
 
+      const clientOrderNumber = generateUniqueOrderNumber(selectedLorry?.vehicleNumber || user?.username);
       const orderPayload: any = {
+        orderNumber: clientOrderNumber,
         customerId: selectedCustomerId,
         paymentMethod,
         cashReceived: paymentMethod === 'PARTIAL' ? (parseFloat(partialCashReceived) || 0) : undefined,
@@ -1149,17 +1312,85 @@ export const RepBilling: React.FC<RepBillingProps> = ({
       }
 
       let createdOrder: Order;
-      if (selectedLorryId) {
-        createdOrder = await LorryService.enterDriverBill(selectedLorryId, orderPayload);
-      } else {
-        createdOrder = await OrderService.create(orderPayload);
-      }
+      try {
+        if (selectedLorryId) {
+          createdOrder = await LorryService.enterDriverBill(selectedLorryId, orderPayload);
+        } else {
+          createdOrder = await OrderService.create(orderPayload);
+        }
 
-      setCheckoutSuccessOrder(createdOrder);
-      await Promise.all([
-        loadTargets(selectedLorryId || undefined),
-        loadFinishedBills(selectedLorryId || undefined)
-      ]);
+        setCheckoutSuccessOrder(createdOrder);
+        await Promise.all([
+          loadTargets(selectedLorryId || undefined),
+          loadFinishedBills(selectedLorryId || undefined)
+        ]);
+      } catch (innerErr: any) {
+        if (isNetworkError(innerErr) && selectedCustomer) {
+          // Offline-first fallback: queue with exact unique orderNumber so printed & synced IDs match
+          OfflineQueue.enqueue({
+            type: selectedLorryId ? 'LORRY_BILL' : 'ORDER_CREATE',
+            lorryId: selectedLorryId || undefined,
+            customerId: selectedCustomerId,
+            payload: orderPayload,
+            label: `${clientOrderNumber} (${selectedCustomer.name})`
+          });
+
+          const optimisticOrder = buildOptimisticOrder({
+            orderNumber: clientOrderNumber,
+            customer: selectedCustomer,
+            lorry: selectedLorry,
+            products,
+            payload: orderPayload
+          });
+
+          // Optimistically deduct local lorry stock
+          if (selectedLorryId) {
+            setLorries(prev => {
+              const next = prev.map(l => {
+                if (l.id !== selectedLorryId || !l.lorryStocks) return l;
+                return {
+                  ...l,
+                  lorryStocks: l.lorryStocks.map(ls => {
+                    const sold = itemsPayload.find(it => it.productId === ls.productId);
+                    if (!sold) return ls;
+                    return {
+                      ...ls,
+                      quantity: Math.max(0, ls.quantity - (sold.quantity || 0)),
+                      freeQuantity: Math.max(0, (ls.freeQuantity || 0) - (sold.freeQuantity || 0))
+                    };
+                  })
+                };
+              });
+              OfflineCache.save('lorries', next);
+              return next;
+            });
+          }
+
+          // Optimistically update local customer outstanding balance
+          if (optimisticOrder.balanceAmount && optimisticOrder.balanceAmount > 0) {
+            setCustomers(prev => {
+              const next = prev.map(c =>
+                c.id === selectedCustomerId
+                  ? { ...c, outstandingBalance: (c.outstandingBalance || 0) + (optimisticOrder.balanceAmount || 0) }
+                  : c
+              );
+              OfflineCache.save('customers', next);
+              return next;
+            });
+          }
+
+          // Prepend to finished bills & cache so rep can view/reprint offline
+          setFinishedBills(prev => {
+            const next = [optimisticOrder, ...prev];
+            OfflineCache.save('finished_bills', next);
+            return next;
+          });
+
+          setCheckoutSuccessOrder(optimisticOrder);
+        } else {
+          throw innerErr;
+        }
+      }
     } catch (err: any) {
       setErrorMessage(err.response?.data?.error || err.message || 'Failed to complete bill.');
     } finally {
@@ -1227,6 +1458,33 @@ export const RepBilling: React.FC<RepBillingProps> = ({
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Offline / Pending Sync Pill */}
+          {(!isOnline || pendingSyncCount > 0) && (
+            <button
+              type="button"
+              onClick={syncOfflineQueue}
+              disabled={!isOnline || isSyncing}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition cursor-pointer ${
+                !isOnline
+                  ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                  : 'bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100'
+              }`}
+              title={!isOnline ? 'Working Offline — bills will auto-sync when online' : 'Tap to sync queued offline bills'}
+            >
+              {!isOnline ? (
+                <>
+                  <WifiOff className="w-3.5 h-3.5 shrink-0" />
+                  <span>Offline{pendingSyncCount > 0 ? ` (${pendingSyncCount})` : ''}</span>
+                </>
+              ) : (
+                <>
+                  <CloudUpload className={`w-3.5 h-3.5 shrink-0 ${isSyncing ? 'animate-bounce' : ''}`} />
+                  <span>{isSyncing ? 'Syncing...' : `Sync (${pendingSyncCount})`}</span>
+                </>
+              )}
+            </button>
+          )}
+
           {/* Quick Cart Button */}
           <button
             type="button"

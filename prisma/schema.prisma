@@ -444,8 +444,29 @@ model User {
   monthlyTarget    Float    @default(0.0) // Monthly revenue target amount
   dailyTarget      Float    @default(0.0) // Daily revenue target amount
   targetNewClients Int      @default(0)   // Monthly new shops onboarding target
+  lastLatitude     Float?
+  lastLongitude    Float?
+  lastAccuracy     Float?
+  lastSpeed        Float?
+  lastLocationAt   DateTime?
+  locations        RepLocation[]
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+}
+
+model RepLocation {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lorryId   String?
+  latitude  Float
+  longitude Float
+  accuracy  Float?
+  speed     Float?
+  recordedAt DateTime @default(now())
+
+  @@index([userId, recordedAt])
+  @@index([recordedAt])
 }
 
 // --------------------------------------------------------
@@ -596,3 +617,5 @@ model LorryTransferItem {
   quantity     Int           @default(0) // Regular paid units transferred
   freeQuantity Int           @default(0) // Free promo units transferred
 }
+
+

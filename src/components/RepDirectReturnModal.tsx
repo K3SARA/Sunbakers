@@ -17,6 +17,13 @@ import {
 } from 'lucide-react';
 import { Customer, Product, Order, Lorry, CustomerBilledProduct } from '../types';
 import { LorryService, CustomerService } from '../services/api';
+import {
+  OfflineCache,
+  OfflineQueue,
+  isNetworkError,
+  generateUniqueOrderNumber,
+  buildOptimisticOrder
+} from '../services/offlineSync';
 import { useCurrency } from '../context/CurrencyContext';
 
 export interface DirectReturnLine {
@@ -119,6 +126,7 @@ export const RepDirectReturnModal: React.FC<RepDirectReturnModalProps> = ({
       .then(prods => {
         if (!isCurrent) return;
         const validProds = prods || [];
+        OfflineCache.save(`billed_products_${activeCustomer.id}`, validProds);
         setBilledProducts(validProds);
         if (validProds.length > 0) {
           setSelectedProductId(validProds[0].id);
@@ -130,6 +138,18 @@ export const RepDirectReturnModal: React.FC<RepDirectReturnModalProps> = ({
       })
       .catch(err => {
         if (!isCurrent) return;
+        if (isNetworkError(err)) {
+          const cached = OfflineCache.load<CustomerBilledProduct[]>(`billed_products_${activeCustomer.id}`, []);
+          setBilledProducts(cached);
+          if (cached.length > 0) {
+            setSelectedProductId(cached[0].id);
+            setUnitPrice((cached[0].lastBilledPrice ?? cached[0].unitPrice).toString());
+          } else {
+            setSelectedProductId('');
+            setUnitPrice('');
+          }
+          return;
+        }
         console.error('Failed to load customer billed products:', err);
         setBilledProducts([]);
         setSelectedProductId('');
@@ -269,7 +289,9 @@ export const RepDirectReturnModal: React.FC<RepDirectReturnModalProps> = ({
         reason: line.reason
       }));
 
+      const orderNumber = generateUniqueOrderNumber(lorry?.vehicleNumber || 'RET');
       const payload = {
+        orderNumber,
         customerId: activeCustomer.id,
         items: [], // Direct return collection has 0 sales items
         returnItems: returnItemsPayload,
@@ -280,10 +302,32 @@ export const RepDirectReturnModal: React.FC<RepDirectReturnModalProps> = ({
           : `Direct Return Collect (${returnLines.length} items, ${totalReturnUnits} units)`
       };
 
-      const createdOrder = await LorryService.enterDriverBill(lorryId, payload);
-
-      onReturnRecorded(createdOrder, totalReturnCredit, activeCustomer.id);
-      onClose();
+      try {
+        const createdOrder = await LorryService.enterDriverBill(lorryId, payload);
+        onReturnRecorded(createdOrder, totalReturnCredit, activeCustomer.id);
+        onClose();
+      } catch (err: any) {
+        if (isNetworkError(err)) {
+          OfflineQueue.enqueue({
+            type: 'LORRY_BILL',
+            lorryId,
+            customerId: activeCustomer.id,
+            payload,
+            label: `Return ${orderNumber} (${activeCustomer.name})`
+          });
+          const optimisticOrder = buildOptimisticOrder({
+            orderNumber,
+            customer: activeCustomer,
+            lorry,
+            products,
+            payload
+          });
+          onReturnRecorded(optimisticOrder, totalReturnCredit, activeCustomer.id);
+          onClose();
+        } else {
+          throw err;
+        }
+      }
     } catch (err: any) {
       setError(err.response?.data?.error || err.message || 'Failed to record direct return.');
     } finally {

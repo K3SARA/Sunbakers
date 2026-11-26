@@ -23,11 +23,13 @@ import { Settings } from './pages/Settings';
 import { Cheques } from './pages/Cheques';
 import { Manufacturing } from './pages/Manufacturing';
 import { HrPayroll } from './pages/HrPayroll';
+import { LiveMap } from './pages/LiveMap';
 import { Login } from './pages/Login';
 import { RepMobilePortal } from './pages/RepMobilePortal';
 import { InvoiceModal } from './components/InvoiceModal';
 import { CurrencyProvider, useCurrency, CURRENCIES } from './context/CurrencyContext';
 import { Order, User } from './types';
+import { stopRepBackgroundTracking } from './services/backgroundLocation';
 import sunbakersLogo from './assets/sunbakers-logo.png';
 
 export const AppContent: React.FC = () => {
@@ -46,6 +48,7 @@ export const AppContent: React.FC = () => {
   const { currency } = useCurrency();
 
   const handleLogout = () => {
+    stopRepBackgroundTracking();
     localStorage.removeItem('distributor_auth_user');
     setCurrentUser(null);
   };
@@ -209,6 +212,10 @@ export const AppContent: React.FC = () => {
 
           <div className={currentTab === 'settings' ? '' : 'hidden'}>
             <Settings isActive={currentTab === 'settings'} />
+          </div>
+
+          <div className={currentTab === 'live-map' ? '' : 'hidden'}>
+            <LiveMap isActive={currentTab === 'live-map'} />
           </div>
         </div>
 

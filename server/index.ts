@@ -2879,11 +2879,12 @@ app.get('/api/lorries/:id/current-loading', async (req: Request, res: Response) 
 app.post('/api/lorries/:id/bills', async (req: Request, res: Response) => {
   const { id: lorryId } = req.params;
   const {
+    orderNumber: clientOrderNumber,
     paperBillNumber,
     customerId,
     items,
     returnItems,
-    paymentMethod, // CASH, CREDIT, CHEQUE
+    paymentMethod, // CASH, PARTIAL, CREDIT, CHEQUE
     cashReceived,
     notes,
     chequeNumber,
@@ -2896,7 +2897,42 @@ app.post('/api/lorries/:id/bills', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Customer and at least one bill item or return item are required.' });
   }
 
+  // Idempotency: if offline-synced bill with clientOrderNumber already exists, return it without re-deducting stock
+  const trimmedClientOrderNumber = typeof clientOrderNumber === 'string' ? clientOrderNumber.trim() : '';
+  if (trimmedClientOrderNumber) {
+    const existingOrder = await prisma.order.findUnique({
+      where: { orderNumber: trimmedClientOrderNumber },
+      include: {
+        customer: true,
+        lorry: true,
+        route: true,
+        items: { include: { product: true } },
+        returns: { include: { product: true } }
+      }
+    });
+    if (existingOrder) {
+      return res.status(200).json(existingOrder);
+    }
+  }
+
   try {
+    // Idempotency check for offline-synced bills with client-generated unique orderNumber
+    const trimmedClientOrderNumber = typeof clientOrderNumber === 'string' && clientOrderNumber.trim() ? clientOrderNumber.trim() : null;
+    if (trimmedClientOrderNumber) {
+      const existingOrder = await prisma.order.findUnique({
+        where: { orderNumber: trimmedClientOrderNumber },
+        include: {
+          customer: true,
+          lorry: true,
+          route: true,
+          items: { include: { product: true } },
+          returns: { include: { product: true } }
+        }
+      });
+      if (existingOrder) {
+        return res.status(200).json(existingOrder);
+      }
+    }
     const orderResult = await prisma.$transaction(async (tx) => {
       const lorry = await tx.lorry.findUniqueOrThrow({
         where: { id: lorryId },
@@ -3103,14 +3139,17 @@ app.post('/api/lorries/:id/bills', async (req: Request, res: Response) => {
 
       // Order number
       const todayStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-      const countToday = await tx.order.count({
-        where: {
-          createdAt: {
-            gte: new Date(new Date().setHours(0, 0, 0, 0))
+      let orderNumber = trimmedClientOrderNumber;
+      if (!orderNumber) {
+        const countToday = await tx.order.count({
+          where: {
+            createdAt: {
+              gte: new Date(new Date().setHours(0, 0, 0, 0))
+            }
           }
-        }
-      });
-      const orderNumber = `ORD-${todayStr}-${(countToday + 1).toString().padStart(4, '0')}`;
+        });
+        orderNumber = `ORD-${todayStr}-${(countToday + 1).toString().padStart(4, '0')}`;
+      }
 
       // 3. Create Order
       const newOrder = await tx.order.create({
@@ -4343,6 +4382,7 @@ app.get('/api/orders/:id', async (req: Request, res: Response) => {
 // Create counter POS order (Direct warehouse sale for Walk-in or direct customers)
 app.post('/api/orders', async (req: Request, res: Response) => {
   const {
+    orderNumber: clientOrderNumber,
     customerId,
     walkInName,
     walkInPhone,
@@ -4370,6 +4410,22 @@ app.post('/api/orders', async (req: Request, res: Response) => {
   }
 
   try {
+    const trimmedClientOrderNumber = typeof clientOrderNumber === 'string' && clientOrderNumber.trim() ? clientOrderNumber.trim() : null;
+    if (trimmedClientOrderNumber) {
+      const existingOrder = await prisma.order.findUnique({
+        where: { orderNumber: trimmedClientOrderNumber },
+        include: {
+          customer: true,
+          lorry: true,
+          route: true,
+          items: { include: { product: true } },
+          returns: { include: { product: true } }
+        }
+      });
+      if (existingOrder) {
+        return res.status(200).json(existingOrder);
+      }
+    }
     const newOrder = await prisma.$transaction(async (tx) => {
       let customer;
       if (!customerId || customerId === 'walk-in' || customerId === 'WALK-IN') {
@@ -4581,14 +4637,17 @@ app.post('/api/orders', async (req: Request, res: Response) => {
       const balanceAmount = Math.max(0, netTotal - paidAmount);
 
       const todayStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-      const countToday = await tx.order.count({
-        where: {
-          createdAt: {
-            gte: new Date(new Date().setHours(0, 0, 0, 0))
+      let orderNumber = trimmedClientOrderNumber;
+      if (!orderNumber) {
+        const countToday = await tx.order.count({
+          where: {
+            createdAt: {
+              gte: new Date(new Date().setHours(0, 0, 0, 0))
+            }
           }
-        }
-      });
-      const orderNumber = `ORD-${todayStr}-${(countToday + 1).toString().padStart(4, '0')}`;
+        });
+        orderNumber = `ORD-${todayStr}-${(countToday + 1).toString().padStart(4, '0')}`;
+      }
 
       const createdOrder = await tx.order.create({
         data: {
@@ -8005,6 +8064,105 @@ app.put('/api/settings', (req: Request, res: Response) => {
     res.json(updated);
   } catch (error: any) {
     res.status(400).json({ error: error.message });
+  }
+});
+
+// ========================================================
+// LIVE REP GPS LOCATION TRACKING
+// ========================================================
+app.post('/api/rep-locations', async (req: Request, res: Response) => {
+  try {
+    const {
+      userId,
+      lorryId,
+      latitude,
+      longitude,
+      accuracy,
+      speed,
+      recordedAt
+    } = req.body;
+
+    if (!userId || latitude === undefined || longitude === undefined) {
+      return res.status(400).json({ error: 'userId, latitude, and longitude are required.' });
+    }
+
+    const lat = parseFloat(latitude);
+    const lng = parseFloat(longitude);
+    if (isNaN(lat) || isNaN(lng)) {
+      return res.status(400).json({ error: 'Invalid coordinates.' });
+    }
+
+    const parsedSpeed = speed !== undefined && speed !== null ? parseFloat(speed) : null;
+    const parsedAccuracy = accuracy !== undefined && accuracy !== null ? parseFloat(accuracy) : null;
+    const timestamp = recordedAt ? new Date(recordedAt) : new Date();
+
+    const [updatedUser, locRecord] = await prisma.$transaction([
+      prisma.user.update({
+        where: { id: userId },
+        data: {
+          lastLatitude: lat,
+          lastLongitude: lng,
+          lastSpeed: parsedSpeed,
+          lastLocationAt: timestamp
+        }
+      }),
+      prisma.repLocation.create({
+        data: {
+          userId,
+          lorryId: lorryId || null,
+          latitude: lat,
+          longitude: lng,
+          accuracy: parsedAccuracy,
+          speed: parsedSpeed,
+          recordedAt: timestamp
+        }
+      })
+    ]);
+
+    res.json({
+      userId: updatedUser.id,
+      repName: updatedUser.fullName,
+      latitude: updatedUser.lastLatitude,
+      longitude: updatedUser.lastLongitude,
+      speed: updatedUser.lastSpeed,
+      lastLocationAt: updatedUser.lastLocationAt,
+      locationId: locRecord.id
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/rep-locations', async (_req: Request, res: Response) => {
+  try {
+    const reps = await prisma.user.findMany({
+      where: {
+        role: 'REP'
+      },
+      select: {
+        id: true,
+        username: true,
+        fullName: true,
+        phone: true,
+        lorryId: true,
+        lorry: {
+          select: {
+            id: true,
+            vehicleNumber: true,
+            driverName: true,
+            route: { select: { id: true, name: true } }
+          }
+        },
+        lastLatitude: true,
+        lastLongitude: true,
+        lastSpeed: true,
+        lastLocationAt: true
+      },
+      orderBy: { lastLocationAt: 'desc' }
+    });
+    res.json(reps);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
   }
 });
 

@@ -19,7 +19,8 @@ import {
   Briefcase,
   Gift,
   LogOut,
-  X
+  X,
+  MapPin
 } from 'lucide-react';
 import { useCurrency, CURRENCIES, CurrencyCode } from '../context/CurrencyContext';
 import { User } from '../types';
@@ -70,7 +71,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: 'manufacturing', label: 'Manufacturing & BOM', icon: Factory, badge: 'Production', badgeTone: 'inward' },
         { id: 'lorry-loading', label: 'Morning Lorry Load', icon: Truck, badge: 'Step 2', badgeTone: 'step' },
         { id: 'bill-entry', label: 'Office Bill Entry', icon: Receipt, badge: 'Step 3', badgeTone: 'step' },
-        { id: 'lorry-settlement', label: 'Day Settlement', icon: RotateCcw, badge: 'Step 4', badgeTone: 'step' }
+        { id: 'lorry-settlement', label: 'Day Settlement', icon: RotateCcw, badge: 'Step 4', badgeTone: 'step' },
+        { id: 'live-map', label: 'Live Fleet Map', icon: MapPin, badge: 'GPS', badgeTone: 'inward' }
       ]
     },
     {

@@ -125,6 +125,7 @@ export const LorryService = {
   getCurrentLoading: (id: string) =>
     api.get<LorryLoading | null>(`/lorries/${id}/current-loading`).then(r => r.data),
   enterDriverBill: (id: string, payload: {
+    orderNumber?: string;
     paperBillNumber?: string;
     customerId: string;
     items: { productId: string; quantity: number; freeQuantity?: number; unitPrice?: number }[];
@@ -205,6 +206,7 @@ export const OrderService = {
   getById: (id: string) =>
     api.get<Order>(`/orders/${id}`).then(r => r.data),
   create: (payload: {
+    orderNumber?: string;
     customerId?: string;
     walkInName?: string;
     walkInPhone?: string;
@@ -225,6 +227,38 @@ export const OrderService = {
   }) => api.post<Order>('/orders', payload).then(r => r.data),
   updateStatus: (id: string, status: string) =>
     api.patch<Order>(`/orders/${id}/status`, { status }).then(r => r.data)
+};
+
+export interface RepLiveLocation {
+  id: string;
+  username: string;
+  fullName: string;
+  phone?: string | null;
+  lorryId?: string | null;
+  lorry?: {
+    id: string;
+    vehicleNumber: string;
+    driverName: string;
+    route?: { id: string; name: string } | null;
+  } | null;
+  lastLatitude?: number | null;
+  lastLongitude?: number | null;
+  lastSpeed?: number | null;
+  lastLocationAt?: string | null;
+}
+
+export const LocationService = {
+  reportLocation: (payload: {
+    userId: string;
+    lorryId?: string;
+    latitude: number;
+    longitude: number;
+    accuracy?: number;
+    speed?: number | null;
+    recordedAt?: string;
+  }) => api.post('/rep-locations', payload).then(r => r.data),
+  getRepLocations: () =>
+    api.get<RepLiveLocation[]>('/rep-locations').then(r => r.data)
 };
 
 export interface ChequeStats {
